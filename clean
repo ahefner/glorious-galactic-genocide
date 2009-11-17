@@ -1,0 +1,5 @@
+#!/bin/sh
+
+rm -f src/*.o src/*.a src/*.fas* *.fasl
+rm -f g1
+rm -f *~ src/*~
