@@ -63,8 +63,6 @@ image_t sans_label (uint32_t color, unsigned text_height, char *string)
 
     ensure_freetype();
 
-    printf("label text height = %i\n", text_height);
-    
     assert(text_height > 0);
     if (text_height > tmpheight) {
         if (rtmp) free(rtmp);
@@ -186,7 +184,7 @@ image_t sans_label (uint32_t color, unsigned text_height, char *string)
         img->y_origin = baseline - min_y;
         img->pixels = data;
 
-        printf("New label \"%s\" is %i x %i\n", string, img->w, img->h);
+//        printf("New label \"%s\" is %i x %i\n", string, img->w, img->h);
 /*
         img->x_origin = -((img->w*align_x[ALIGN_MAX]) >> align_x[ALIGN_MAX_SHIFT]);
         img->y_origin = -((img->h*align_y[ALIGN_MAX]) >> align_y[ALIGN_MAX_SHIFT])

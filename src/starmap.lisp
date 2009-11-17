@@ -18,6 +18,7 @@
 (defclass star (ent)
   ((name :accessor name-of :initarg :name)
    (style :initform (random 4))
+   (label-img :initform nil)
    (spectral-class :reader spectral-class :initarg :spectral-class)))
 
 ;;;; Map generator
@@ -165,7 +166,7 @@
   (time
    (let ((uni (make-instance 'universe)))
      (with-slots (stars min-bound max-bound) uni
-       (generate-random-starmap uni 80 7)
+       (generate-random-starmap uni 80 4)
        (setf min-bound (reduce #'vmin stars :key #'loc)
              max-bound (reduce #'vmax stars :key #'loc))
        (format t "~&Universe bounds: ~A - ~A~%" min-bound max-bound))
@@ -237,7 +238,6 @@
            (+ (/ (- ortho.y h/2) z) h/2)
            ortho.z))))
 
-
 (defun perspective-transform (v)
   (with-vector (ortho v)
     (let ((z (+ 1.0 (* ortho.z 0.0014)))
@@ -247,28 +247,36 @@
            (+ h/2 (/ ortho.y z))
            ortho.z))))
 
+(defun star->image (star)
+  (with-slots (style spectral-class) star
+    (case spectral-class
+      (O (img :star-o-00))
+      (B (img :star-b-00))
+      (A (img :star-white-0))
+      (F (img :star-f-00))
+      (G (case style 
+           (0 (img :star-g-00))
+           (1 (img :star-g-01))
+           (2 (img :star-g-02))
+           (3 (img :star-g-03))))
+      (K (img :star-k-00))
+      (M (case style 
+           (0 (img :star-m-00))
+           (1 (img :star-m-01))
+           (2 (img :star-m-02))
+           (3 (img :star-m-03))))
+      (t (img :star-unknown)))))
+
 (defun draw-star (star v)
  (with-vector (v)
-  (let ((x (round v.x))
-        (y (round v.y)))
-    (with-slots (style spectral-class) star
-      (case spectral-class
-        (O (draw-img (img :star-o-00) x y))
-        (B (draw-img (img :star-b-00) x y))
-        (A (draw-img (img :star-white-0) x y))
-        (F (draw-img (img :star-f-00) x y))
-        (G (draw-img (case style 
-                       (0 (img :star-g-00))
-                       (1 (img :star-g-01))
-                       (2 (img :star-g-02))
-                       (3 (img :star-g-03)))
-                     x y))
-        (K (draw-img (img :star-k-00) x y))
-        (M (draw-img (case style 
-                       (0 (img :star-m-00))
-                       (1 (img :star-m-01))
-                       (2 (img :star-m-02))
-                       (3 (img :star-m-03)))
-                     x y))
-        (draw-img (img :star-unknown) x y))))))
+  (let* ((x (round v.x))
+         (y (round v.y))
+         (img (star->image star))
+         (label-height 12)
+         (ly (+ y label-height (ash (img-height img) -1))))
+    (with-slots (label-img) star
+      (unless label-img
+        (setf label-img (render-label (name-of star) label-height :align-x :center)))
+      (draw-img img x y)
+      (draw-img label-img x ly)))))
 

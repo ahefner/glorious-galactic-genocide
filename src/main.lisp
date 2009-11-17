@@ -13,8 +13,6 @@
         *stars02* (load-texture-file (apath "stars02.png"))
         *stars03* (load-texture-file (apath "stars03.png"))))
 
-(defvar *blowme* nil)
-
 (let ((total-frames 0)
       (times (make-array 300)))
  (defun repaint (uic)
@@ -30,12 +28,6 @@
   (paint-begin)
   (gadget-paint *gadget-root* uic)
   (check-gl-error)
-
-  (unless *blowme*
-    (setf *blowme* (render-label "Blow me!" 20 :align-x :center)))
-
-  (draw-img *blowme* (cx :int "window_width/2") (cx :int "window_height/2"))
-  
 
   (paint-finish)))
 
