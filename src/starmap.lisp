@@ -151,7 +151,6 @@
           when (>= remaining min-size)
           do (generate-constellation uni (+ min-size (random (1+ (min (- (length *constellation-prefixes*) min-size)
                                                                       (- remaining min-size)))))))
-
     ;; Generate stray stars:
     (loop as star = (random-star)
           until (= num-stars (length stars))
@@ -181,7 +180,8 @@
   ((universe :reader universe-of :initarg :universe)
    (zoom-target :accessor zoom-target-of :initform 0.0)
    (zoom :accessor zoom-of :initform 0.0)
-   scroll-coord))
+   (scroll-coord  :initform (v2 0 0))
+   (scroll-target :initform (v2 0 0))))
 
 (defclass debug-starmap (starmap) ())
 
@@ -197,55 +197,62 @@
   (print (list :release keysym)))
 
 (defmethod gadget-paint ((gadget starmap) uic)
-  (with-slots (universe scroll-coord zoom zoom-target) gadget
-    (setf scroll-coord (v2 (uic-mx uic) (uic-my uic)))
+  (with-slots (universe scroll-coord scroll-target zoom zoom-target) gadget
+    ;;(setf scroll-coord (v2 (uic-mx uic) (uic-my uic)))
     (let* ((stars (stars universe))
            (zoom-step 180)
            (min-zoom (* zoom-step (round -2600 zoom-step)))
            (max-zoom (* zoom-step (round 560 zoom-step)))
            (interp (expt 0.1 (uic-delta-t uic)))
            (camera (vec (v2.x scroll-coord) (v2.y scroll-coord) zoom)))
-      (render-starfield (v2.x scroll-coord) (v2.y scroll-coord))
-      
-      (unless (zerop (logand (ash 1 4) (uic-buttons-pressed uic)))
-        (decf zoom-target zoom-step))
+      (multiple-value-bind (pointer-x pointer-y)
+          (inverse-perspective-transform camera (uic-mx uic) (uic-my uic) (ash *starfield-depth* -1))
 
-      (unless (zerop (logand (ash 1 3) (uic-buttons-pressed uic)))
-        (incf zoom-target zoom-step))
+        (when (clicked? uic +left+)
+          (print (list :at pointer-x pointer-y))
+          (setf scroll-target (v2 (round pointer-x) (round pointer-y))))
 
-      (setf zoom-target (clamp zoom-target min-zoom max-zoom)
-            zoom (+ (* zoom interp) (* zoom-target (- 1.0 interp))))
+        (unless (zerop (logand (ash 1 4) (uic-buttons-pressed uic)))
+          (decf zoom-target zoom-step))
+        
+        (unless (zerop (logand (ash 1 3) (uic-buttons-pressed uic)))
+          (incf zoom-target zoom-step))
+        
+        (setf zoom-target (clamp zoom-target min-zoom max-zoom)
+              zoom (lerp interp zoom-target zoom)
+              scroll-coord (v2 (round (lerp interp (v2.x scroll-target) (v2.x scroll-coord)))
+                               (round (lerp interp (v2.y scroll-target) (v2.y scroll-coord)))))
 
-      (loop for star across stars
-            with pointer-radius-sq = (square 19)
-            as v = (perspective-transform (v- (loc star) camera))
-            as pointer-distance-sq = (+ (square (- (v.x v) (uic-mx uic)))
-                                        (square (- (v.y v) (uic-my uic))))
-            do
-            (when (<= pointer-distance-sq pointer-radius-sq)
-              (draw-img (img :halo-0) (round (v.x v)) (round (v.y v))))
-            (draw-star star v)) )))
+        (render-starfield (v2.x scroll-coord) (v2.y scroll-coord))
+        
+        (loop for star across stars
+              with pointer-radius-sq = (square 19)
+              as v = (perspective-transform (v- (loc star) camera))
+              as pointer-distance-sq = (+ (square (- (v.x v) (uic-mx uic)))
+                                          (square (- (v.y v) (uic-my uic))))
+              do
+              (when (<= pointer-distance-sq pointer-radius-sq)
+                (draw-img (img :halo-0) (round (v.x v)) (round (v.y v))))
+              (draw-star star v))))))        
 
-#+NIL
+(defconstant +perspective-foo+ 0.0014)  ; ~ 1/714
+
 (defun perspective-transform (v)
   (with-vector (ortho v)
-    (let ((w/2 (cx :float "window_width/2.0"))
-          (h/2 (cx :float "window_height/2.0"))
-          (z (+ 1.0 (* ortho.z 0.0014))))
-      ;; This stupidity because our camera vector is not at the center of the screen. Dumb.
-      ;; FIXME: We're not honoring the UIC rectangle!
-      (vec (+ (/ (- ortho.x w/2) z) w/2)
-           (+ (/ (- ortho.y h/2) z) h/2)
-           ortho.z))))
-
-(defun perspective-transform (v)
-  (with-vector (ortho v)
-    (let ((z (+ 1.0 (* ortho.z 0.0014)))
+    (let ((z (+ 1.0 (* ortho.z +perspective-foo+)))
           (w/2 (cx :float "window_width/2.0"))
           (h/2 (cx :float "window_height/2.0")))
       (vec (+ w/2 (/ ortho.x z))
            (+ h/2 (/ ortho.y z))
            ortho.z))))
+
+(defun inverse-perspective-transform (camera sx sy z)
+  (let ((w/2 (cx :float "window_width/2.0"))
+        (h/2 (cx :float "window_height/2.0"))
+        (p (+ 1.0 (* (- z (v.z camera)) +perspective-foo+))))
+    (values (+ (* (- sx w/2) p) (v.x camera))
+            (+ (* (- sy h/2) p) (v.y camera)))))
+        
 
 (defun star->image (star)
   (with-slots (style spectral-class) star

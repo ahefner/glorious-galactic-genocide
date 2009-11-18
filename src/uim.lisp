@@ -93,6 +93,7 @@
                  (gadget-key-released gadget uic (cx :int "(int)cur_event.key.keysym.sym")))
                 
                 ((eql type (cx :int "SDL_MOUSEBUTTONDOWN"))
+                 (print (cx :int "cur_event.button.button"))
                  (logiorf (uic-buttons-pressed uic) (ash 1 (1- (cx :int "cur_event.button.button")))))
                 
                 ((eql type (cx :int "SDL_MOUSEBUTTONUP"))
@@ -108,4 +109,14 @@
         (setf last-uic uic)))
 
 
-  
+;;;; Helper functions
+
+(defun clicked? (uic button-mask)
+  (= button-mask (logand (uic-buttons-pressed uic) button-mask)))
+
+(defun released? (uic button-mask)
+  (= button-mask (logand (uic-buttons-released uic) button-mask)))
+
+(defun held? (uic button-mask)
+  (= button-mask (logand (uic-buttons uic) button-mask)))
+

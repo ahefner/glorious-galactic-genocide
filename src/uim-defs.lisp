@@ -27,3 +27,11 @@
                                        (string-downcase (string name))
                                        name))))
 
+(defconstant +left+ 1)
+(defconstant +middle+ 2)
+(defconstant +right+ 4)
+(defconstant +scroll-up+ 8)
+(defconstant +scroll-down+ 16)
+(defconstant +scroll-left+ 32)
+(defconstant +scroll-right+ 64)
+
