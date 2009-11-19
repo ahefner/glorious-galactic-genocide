@@ -11,5 +11,6 @@ extern SDL_Event cur_event;
 
 int sys_init (char *title);
 void sys_shutdown (void);
+unsigned usectime (void);
 
 #endif

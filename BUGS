@@ -1,0 +1,16 @@
+Serious issues:
+
+
+Minor issues:
+* Starmap scrolling feels gritty
+* Fix quantization of scroll coordinates when zoomed beyond 100%
+* Slow convergence when scrolling/zooming (clamp, or add small linear component)
+
+Resolved serious issues:
+* Starmap floating point underflow (probably fixed - ECL floating point trap issue)
+
+Resolved minor issues:
+
+
+
+

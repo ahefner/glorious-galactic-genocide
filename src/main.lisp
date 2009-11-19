@@ -40,6 +40,10 @@
 (defun main ()
   (setf system::*lisp-initialized* t
         system::*break-enable* t)
+  
+  ;; Disable goddamned floating point traps.
+  (ext:trap-fpe 'floating-point-underflow nil)
+
   (handler-bind
     ((serious-condition 
       (lambda (c)

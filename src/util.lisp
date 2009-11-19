@@ -40,4 +40,4 @@ error if SEQUENCE is not a proper sequence."
   (max min (min max x)))
 
 (defun lerp (param from to)
-  (+ (* from (- 1.0 param)) (* to param)))
+  (+ (* from (- 1.0f0 param)) (* to param)))

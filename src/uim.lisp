@@ -36,6 +36,8 @@
           (uic-modifiers-released uic) (logand then (logxor now then)))))
 
 (defun gettime ()
+  (call :unsigned-int "usectime")
+  #+NIL
   (/ (get-internal-real-time)
      (float internal-time-units-per-second)))
 
@@ -57,8 +59,16 @@
               (uic-buttons-released uic) 0
               (uic-buttons uic) (c :int "(int)SDL_GetMouseState(NULL, NULL)")
               (uic-time uic) (gettime)
-              (uic-delta-t uic) (max 0 (- (uic-time uic) (uic-time last-uic))))
-        
+              ;; The clamp below implies that if your machine can't
+              ;; maintain 10 fps, the game will start to slow down.  I
+              ;; I want to keep the maximum delta-t in a reasonable
+              ;; range, so the rest of the code doesn't have to
+              ;; accomodate freak occurences like a multisecond pause.
+              (uic-delta-t uic) (clamp (/ (logand (- (uic-time uic) (uic-time last-uic))
+                                                  #xFFFFFFFF)
+                                          1000000.0f0)
+                                       0.0f0 0.1f0))
+
         (loop as pending = (c :int "SDL_PollEvent(&cur_event)")
               as type = (cx :int "cur_event.type")
               until (zerop pending)
@@ -93,7 +103,6 @@
                  (gadget-key-released gadget uic (cx :int "(int)cur_event.key.keysym.sym")))
                 
                 ((eql type (cx :int "SDL_MOUSEBUTTONDOWN"))
-                 (print (cx :int "cur_event.button.button"))
                  (logiorf (uic-buttons-pressed uic) (ash 1 (1- (cx :int "cur_event.button.button")))))
                 
                 ((eql type (cx :int "SDL_MOUSEBUTTONUP"))

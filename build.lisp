@@ -1,5 +1,7 @@
 (require 'asdf)
 
+(declaim (optimize (debug 3) (speed 2) (safety 2)))
+
 ;;;; Load system definition
 
 (load "sysdef.lisp")
@@ -135,7 +137,10 @@ for comparison. Accepts and produces only lists."
                 (ext:quit 1)))
              (t                         ; Lisp file
               (mapc #'ensure-compiler-source compile-time-deps)
-              (unless (compile-file filename :verbose nil :system-p t :print nil)
+              (unless (compile-file filename :verbose nil :system-p t :print nil
+                                    :c-file (merge-pathnames
+                                             (make-pathname :type "c")
+                                             (merge-pathnames #p"tmp/" (pathname filename))))
                 (format *trace-output* "~&Error compiling ~A~%" filename)
                 (fail))))))
 
@@ -145,7 +150,7 @@ for comparison. Accepts and produces only lists."
 (print (lisp-linked-sources))
 
 (defun source-names->object-names (sources)
-  (mapcar (lambda (x) (compile-file-pathname x :type :object)) sources))
+  (mapcar #'object-pathname sources))
 
 (c:build-program "g1"
                   :lisp-files (source-names->object-names (lisp-linked-sources))

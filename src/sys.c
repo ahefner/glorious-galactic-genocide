@@ -66,3 +66,18 @@ void sys_shutdown (void)
     SDL_Quit();
 }
 
+
+static long long tv_to_micros (struct timeval *tv)
+{
+    return (((long long)tv->tv_sec) * 1000000ll) + ((long long)tv->tv_usec);
+}
+
+unsigned usectime (void)
+{
+    struct timeval tv;
+    if (gettimeofday(&tv, 0)) {
+        perror("gettimeofday");
+        exit(1);
+    }
+    return (unsigned)(tv_to_micros(&tv) & 0xFFFFFFFF);
+}
