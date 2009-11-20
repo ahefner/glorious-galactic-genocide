@@ -278,7 +278,8 @@
     ("Wesen")
     ("Gemma")
     ("Hamal")
-    ("Megrez")    
+    ("Megrez")
+    ("Lain")
 ))
 
 (defun constellation-name-list ()

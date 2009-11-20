@@ -37,7 +37,7 @@
    ;; All the stuff below should be considered as cached values:
 
    ;; Number of population units current technology permits to inhabit per square of each terrain type:
-   (habitability-vector :accessor habitability-vector 
+   (habitability-vector :accessor habitability-vector
                         :initform (vector 10 0 0 0)
                         :initarg :habitability-vector)
 
@@ -49,6 +49,7 @@
 (defclass planet (named owned)
   ((star :reader star-of :initarg :star)
    (planet-type :reader planet-type-of :initarg :planet-type)
+   (planet-attribute :reader planet-attribute-of :initarg :planet-attribute)
 
    ;; Terrain units are counted in a 4 element vector: Land, Sea, Ice, Magma.
    (terrains :reader terrains-of :initform nil :initarg :terrains)
@@ -142,7 +143,7 @@
   (vector (+ 18 (random 36))
           0
           0
-          (+  0 (max 0 (+ -7 (random 20))))))
+          (+  0 (max 0 (+ -4 (random 22))))))
 
 (defmethod choose-planet-terrains ((planet-type (eql 'toxic)))
   (declare (ignorable planet-type))
@@ -508,10 +509,11 @@
         (render-starfield (v2.x scroll-coord) (v2.y scroll-coord))
 
         (loop for star across stars
-              with pointer-radius-sq = (square 19)
+              with pointer-radius-sq = (square 23)
               as v = (perspective-transform (v- (loc star) camera))
               as pointer-distance-sq = (+ (square (- (v.x v) (uic-mx uic)))
                                           (square (- (v.y v) (uic-my uic))))
+              as x = (round (v.x v)) as y = (round (v.y v))
               do
               (when (<= pointer-distance-sq pointer-radius-sq)
                 (when (clicked? uic +right+)
@@ -523,8 +525,9 @@
                                  (name-of planet) (planet-type-of planet)
                                  (reduce #'+ terrain)
                                  (coerce terrain 'list))))))                          
-                (draw-img (img :halo-0) (round (v.x v)) (round (v.y v))))
-              (draw-star star v))))))        
+                (draw-img (img :halo-0) x y))
+              (draw-star star x y t)
+ )))))
 
 (defconstant +perspective-foo+ 0.0014f0)  ; ~ 1/714
 
@@ -567,16 +570,32 @@
            (3 (img :star-m-03))))
       (t (img :star-unknown)))))
 
-(defun draw-star (star v)
- (with-vector (v)
-  (let* ((x (round v.x))
-         (y (round v.y))
+(defun planet->image (planet)
+  (case (planet-type-of planet)
+    ((terran jungle oceanic) (img :spl-oceanic-0)) ; TODO: Terran images
+    (arid  (img :spl-desert-0))         ; TODO: arid
+    (desert  (img :spl-desert-0))
+    (tundra (img :spl-tundra-0))
+    (minimal (img :spl-minimal-0))
+    (barren  (img :spl-barren-0))
+    (dead    (img :spl-dead-0))
+    ;; Still need: volcanic, inferno, toxic, radiated.
+    (otherwise (img :spl-dead-0))))
+
+(defun draw-planet (planet x y)
+  (draw-img (planet->image planet) x y))
+
+(defun draw-star (star x y draw-planet-p)
+  (let* ((planet-offset 14)
+         (planet (planet-of star))
          (img (star->image star))
-         (label-height 12)
+         (label-height 12)         
          (ly (+ y label-height (ash (img-height img) -1))))
     (with-slots (label-img) star
       (unless label-img
         (setf label-img (render-label (name-of star) label-height :align-x :center)))
       (draw-img img x y)
-      (draw-img label-img x ly)))))
+      (when (and draw-planet-p planet)
+        (draw-planet planet (+ x planet-offset) (+ y planet-offset)))
+      (draw-img label-img x ly))))
 
