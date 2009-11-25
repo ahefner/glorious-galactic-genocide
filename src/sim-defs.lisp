@@ -76,6 +76,7 @@
    (planet-type :reader planet-type-of :initarg :planet-type)
    (planet-attribute :reader planet-attribute-of :initarg :planet-attribute :initform :abundant)
    (terrains :reader terrains-of :initform nil :initarg :terrains)
+   (habitability :accessor habitability-of :initform 1.0 :initarg :habitability)
    (production-modifier :accessor production-modifier-of :initform 1.0 :initarg :production-modifier)
    (growth-modifier     :accessor growth-modifier-of     :initform 1.0 :initarg :growth-modifier)
 
@@ -83,11 +84,24 @@
    (pollution  :accessor pollution-of  :initform 0 :initarg :pollution)
    (colony :accessor colony-of :initform nil :initarg :colony)))
 
+(defstruct (spend (:type vector))
+  (cleanup 0)                               ; Waste cleanup
+  (housing 0)                               ; Population growth bonus
+  (terraform 0)                             ; Terraforming
+  (factories 0)                             ; Factory construction
+  (bases 0)                                 ; Missile base construction
+  (shield 0)                                ; Planetary shield construction
+  (ships 0)                                 ; Ship construction 
+  (research 0))                             ; Research spending
+
 (defclass colony (owned)   
   ((planet :reader planet-of :initarg :planet)
 
-   ;; Production available for spending this turn.
+   ;; Production available for spending this turn:
    (production :accessor production-of :initform 0)
+
+   ;; Accumulated spending by category:
+   (spending :accessor spending-vector-of :initform (make-spend))
 
    ;; Terrain units are counted in a 4 element vector: Land, Sea, Ice, Magma.   
    (population :accessor population-of :initform 0 :initarg :population)

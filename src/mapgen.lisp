@@ -4,6 +4,21 @@
 
 (defvar *planet-types* '(terran oceanic jungle arid desert tundra minimal barren volcanic dead inferno toxic radiated))
 
+(defparameter *planet-type-habitabilities*
+  '((terran   . 1.0)
+    (oceanic  . 1.0)
+    (jungle   . 0.8)
+    (arid     . 0.5)
+    (desert   . 0.3)
+    (tundra   . 0.2)
+    (minimal  . 0.1)
+    (barren   . 0.1)
+    (volcanic . 0.1)
+    (dead     . 0.1)
+    (inferno  . 0.1)
+    (toxic    . 0.1)
+    (radiated . 0.1)))
+
 (defgeneric choose-planet-terrains (planet-type))
 
 (defmethod choose-planet-terrains ((planet-type (eql 'terran)))
@@ -371,6 +386,7 @@
                       (make-instance 'planet
                                      :name (format nil "~A ~A" (name-of star) (random-elt '("I" "II" "II" "III" "III" "IV" "V")))
                                      :planet-type planet-type
+                                     :habitability (cdr (assoc planet-type *planet-type-habitabilities*))
                                      :terrains terrains)))))))))
 
 ;;; TODO: Check that this star is in a reasonable position (other stars in range..)
@@ -383,16 +399,18 @@
          (race (race-of player))
          (star (find-suitable-homeworld stars)))
     (explore-star star player)
-    (setf (name-of star) homeworld-name
-          (slot-value star 'planet)
+    (setf (name-of star) homeworld-name)
+    (setf (slot-value star 'planet)
           (make-instance 'planet
                          :name homeworld-name
                          :planet-type (homeworld-type-of race)
-                         :terrains (homeworld-terrain-of race)
-                         :colony (make-instance 'colony
-                                                :owner player
-                                                :population (homeworld-population-of race)
-                                                :factories (homeworld-population-of race))))))
+                         :terrains (homeworld-terrain-of race)))
+    (setf (colony-of (slot-value star 'planet))
+          (make-instance 'colony
+                         :owner player
+                         :planet (slot-value star 'planet)
+                         :population (homeworld-population-of race)
+                         :factories (homeworld-population-of race)))))
 
 (defun assign-computer-colors (universe)
   (loop for player in (all-players universe)
@@ -400,7 +418,7 @@
         unless (color-of player) do 
         (setf (color-of player) (pop (slot-value universe 'colors-list)))
         (unless next-color
-          (error "Ran out of player colors during map generation! WTF?"))))
+          (error "Ran out of player colors during map generation. How?"))))
 
 (defun make-test-player (&optional (name "Goldfinch"))
   (let ((player (make-instance 'player :race *race-human* :name name)))
