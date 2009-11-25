@@ -75,11 +75,12 @@
                   (cond
                     ((not (planet-of star)) (format t "~&Star ~A has no inhabitable planet.~%" (name-of star)))
                     (t (let* ((planet (planet-of star))
+                              (colony (colony-of planet))
                               (terrain (terrains-of planet)))
                          (apply 'format t "~&Planet ~A (~A)~%  Pop ~D  Ind ~D  Waste ~D~%  Total size: ~D (~D land, ~D sea, ~D ice, ~D magma)~%"
                                  (name-of planet) (planet-type-of planet)                                 
-                                 (population-of planet)
-                                 (factories-of planet)
+                                 (population-of colony)
+                                 (factories-of colony)
                                  (pollution-of planet)
                                  (reduce #'+ terrain)
                                  (coerce terrain 'list))))))

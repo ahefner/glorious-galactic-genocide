@@ -23,7 +23,7 @@
 (defclass ent ()
   ((loc :accessor loc :initarg :loc)))
 
-(defclass star (named owned ent)
+(defclass star (named ent)
   ((style :initform (random 4))
    (owner :accessor owner-of)
    (planet :reader planet-of :initform nil)
@@ -71,21 +71,27 @@
    ;; incrementally, so it's sort of a cache for convenience.
    (colonies :reader colonies :initform (make-array 0 :adjustable t :fill-pointer 0))))
 
-(defclass planet (named owned)
+(defclass planet (named)
   ((star :reader star-of :initarg :star)
    (planet-type :reader planet-type-of :initarg :planet-type)
    (planet-attribute :reader planet-attribute-of :initarg :planet-attribute :initform :abundant)
+   (terrains :reader terrains-of :initform nil :initarg :terrains)
    (production-modifier :accessor production-modifier-of :initform 1.0 :initarg :production-modifier)
    (growth-modifier     :accessor growth-modifier-of     :initform 1.0 :initarg :growth-modifier)
-   
+
+   ;; Pollution is a planetary property, so that it persists after a colony is destroyed
+   (pollution  :accessor pollution-of  :initform 0 :initarg :pollution)
+   (colony :accessor colony-of :initform nil :initarg :colony)))
+
+(defclass colony (owned)   
+  ((planet :reader planet-of :initarg :planet)
+
    ;; Production available for spending this turn.
    (production :accessor production-of :initform 0)
 
-   ;; Terrain units are counted in a 4 element vector: Land, Sea, Ice, Magma.
-   (terrains :reader terrains-of :initform nil :initarg :terrains)
+   ;; Terrain units are counted in a 4 element vector: Land, Sea, Ice, Magma.   
    (population :accessor population-of :initform 0 :initarg :population)
-   (factories  :accessor factories-of  :initform 0 :initarg :factories)
-   (pollution  :accessor pollution-of  :initform 0 :initarg :pollution)
+   (factories  :accessor factories-of  :initform 0 :initarg :factories)   
    (new-pollution :accessor new-pollution-of :initform 0)))
 
 (declaim (inline land# ocean# ice# magma#))

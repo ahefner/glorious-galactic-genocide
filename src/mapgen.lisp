@@ -387,11 +387,12 @@
           (slot-value star 'planet)
           (make-instance 'planet
                          :name homeworld-name
-                         :owner player
                          :planet-type (homeworld-type-of race)
-                         :population (homeworld-population-of race)
-                         :factories (homeworld-population-of race)
-                         :terrains (homeworld-terrain-of race)))))
+                         :terrains (homeworld-terrain-of race)
+                         :colony (make-instance 'colony
+                                                :owner player
+                                                :population (homeworld-population-of race)
+                                                :factories (homeworld-population-of race))))))
 
 (defun assign-computer-colors (universe)
   (loop for player in (all-players universe)

@@ -7,6 +7,7 @@
 
 (defun c-inline-get-types (list)
   (loop for name in list by #'cddr collect name))
+
 #+ecl
 (defmacro c (expr-or-return-type &rest args)
   "Syntactic sugar for ffi:c-inline one-liners."
@@ -88,3 +89,20 @@
            body-clauses)))))
 
 
+;;;; Further departures from taste and decorum
+
+(defmacro defcat (name form)
+  `(defmacro ,name (&body body)
+    (labels ((transform (expression)
+               `(progn (psetf $$$ $$
+                              $$ $
+                              $ ,expression)
+                 $)))
+      (let ((form ',form))
+       `(let (($$$ nil)
+              ($$ nil)
+              ($ nil))
+         (,form ,@(mapcar #'transform body)))))))
+
+(defcat progn.. progn)
+(defcat and.. and)
