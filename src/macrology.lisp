@@ -7,7 +7,7 @@
 
 (defun c-inline-get-types (list)
   (loop for name in list by #'cddr collect name))
-
+#+ecl
 (defmacro c (expr-or-return-type &rest args)
   "Syntactic sugar for ffi:c-inline one-liners."
   (typecase expr-or-return-type
@@ -22,7 +22,7 @@
                       ,expr-or-return-type
                       ,(first args)
                       :one-liner t))))
-
+#+ecl
 (defmacro cx (expr-or-return-type &rest args)
   "Syntactic sugar for ffi:c-inline one-liners (no side-effects version)"
   (typecase expr-or-return-type
@@ -37,7 +37,7 @@
                       ,expr-or-return-type
                       ,(first args)
                       :one-liner t :side-effects nil))))
-
+#+ecl
 (defmacro call (expr-or-return-type &rest args)
   "Even more syntactic sugar for ffi:c-inline one-liners."
   (typecase expr-or-return-type

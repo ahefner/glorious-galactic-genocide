@@ -15,3 +15,6 @@
 
 (defvar *gadget-root*)
 
+
+(defvar *player* nil)
+

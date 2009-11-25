@@ -24,7 +24,10 @@
         "src/uim-defs.lisp"
         '("src/uim.lisp"     "src/uim-defs.lisp")
         "src/star-names.lisp"
-        '("src/starmap.lisp" "src/uim-defs.lisp" "src/math.lisp")
+        '("src/sim-defs.lisp" "src/math.lisp")
+        '("src/sim.lisp" "src/sim-defs.lisp")
+        '("src/mapgen.lisp" "src/sim-defs.lisp" "src/math.lisp")
+        '("src/starmap.lisp" "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
         "src/main.lisp"))
 
 (defun shared-libraries ()

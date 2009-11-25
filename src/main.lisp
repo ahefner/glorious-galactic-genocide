@@ -68,8 +68,9 @@
 
   (format t "~&Testing event loop.~%")
 
-  (setf *gadget-root* (make-instance 'debug-starmap :universe (make-test-universe)))
-  (uim-sdl-run)
+  (multiple-value-bind (universe *player*) (make-test-universe)
+    (setf *gadget-root* (make-instance 'debug-starmap :universe universe))
+    (uim-sdl-run))
 
   (format t "~&Shutting down.~%")
   (c "sys_shutdown()")
