@@ -146,7 +146,6 @@
 (defun vscale (vector scale) ; inline me?
   (declare (type v3 vector)
            (type single-float scale))
-  "Scale components a vector by some amount"
   (with-vector (v vector)
     (vec (* scale v.x) (* scale v.y) (* scale v.z))))
 
@@ -156,12 +155,10 @@
 
 (defun vscaleto (vector new-length)
   (declare (type v3 vector))
-  "Scale a vector, not necessarily of unit length, to the specified length"
   (vscale vector (* new-length (x^-1/2 (dot vector vector)))))
 
 (defun stp (a b c)
   (declare (type v3 a b c))
-  "Scalar triple product of vectors A, B, and C"
   (dot a (cross b c)))
 
 (defun cross (u v)
@@ -174,7 +171,6 @@
 (defun a+b*c (p pq l)
   (declare (type v3 p pq)
            (type single-float l))
-  "Return p + l * pq"
   (with-vectors (p pq)
     (vec (+ p.x (* l pq.x))
          (+ p.y (* l pq.y))

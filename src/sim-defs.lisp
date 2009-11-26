@@ -97,8 +97,11 @@
 (defclass colony (owned)   
   ((planet :reader planet-of :initarg :planet)
 
-   ;; Production available for spending this turn:
+   ;; Total production available for spending this turn:
    (production :accessor production-of :initform 0)
+   
+   ;; Remaining production after whatever portions are allocated automatically
+   (unallocated-production :accessor unallocated-production-of :initform 0)
 
    ;; Accumulated spending by category:
    (spending :accessor spending-vector-of :initform (make-spend))
@@ -114,4 +117,10 @@
 (defun ocean# (planet) (aref (terrains-of planet) 1))
 (defun ice#   (planet) (aref (terrains-of planet) 2))
 (defun magma# (planet) (aref (terrains-of planet) 3))
+
+;;;; Ships and fleets
+
+(defclass fleet (owned ent)
+  ((stacks :accessor stacks-of :initform nil :initarg :stacks)
+   (speed :accessor speed-of :initform 1 :initarg :speed)))
 

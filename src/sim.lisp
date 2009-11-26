@@ -86,9 +86,11 @@
 ;;;; Planetary economy
 
 ;;; Industrial output is constrained by requiring sufficient population to operate the factories.
+(defun max-factories (colony)
+  (* (automation-level-of (owner-of colony)) (population-of colony)))
+
 (defun active-factories (colony)
-  (min (* (automation-level-of (owner-of colony)) (population-of colony))
-       (factories-of colony)))
+  (min (max-factories colony) (factories-of colony)))
 
 (defun compute-production (colony)
   (values
@@ -96,24 +98,27 @@
    (* (production-modifier-of (race-of (owner-of colony)))
       (production-modifier-of (planet-of colony))
       (+ (population-of colony) (active-factories colony)))
-   ;; Pollution - each active factory produces a base of one quarter
+   ;; Pollution - each active factory produces a base of one third
    ;; unit of pollution per turn, modified by player technology,
    ;; rounded down.
    (floor (* (pollution-modifier-of (owner-of colony))
              (active-factories colony))
-          4)))
+          3)))
 
 (defun simulate-production (colony)
   (multiple-value-bind (new-prod new-pol) (compute-production colony)
     (incf (production-of colony) new-prod)
-    (incf (new-pollution-of colony) new-pol)))
+    (incf (new-pollution-of colony) new-pol))
+  (setf (unallocated-production-of colony) (production-of colony)))
 
 (defun dump-waste (colony)
   ;; Ocean and magma terrain have limited ability to absorb pollution as it is created.
-  (setf (new-pollution-of colony)
-        (max 0 (- (new-pollution-of colony)
-                  (* 3.00 (magma# (planet-of colony)))
-                  (* 0.25 (ocean# (planet-of colony)))))))
+  ;;(printl :before-dump (new-pollution-of colony))
+  (setf (new-pollution-of colony)        
+        (max 0 (floor 
+                (- (new-pollution-of colony)
+                   (* 3.00 (magma# (planet-of colony)))
+                   (* 0.15 (ocean# (planet-of colony))))))))
 
 (defun compute-max-population (colony)
   ;; Max population less pollution penalty (-1 pop unit per unit pollution)
@@ -166,7 +171,6 @@
     ;(printl :total-cost (reduce #'+ (map 'vector '* vacant (map 'vector (lambda (x) (or x 0)) unit-costs))))
     
     (loop with total-growth = 0
-          with starting-production = production
           for (tidx cost terrain-type) in scosts
           as vacant-here = (aref vacant tidx)
           when cost do
@@ -176,16 +180,16 @@
                 (decf vacant-here)
                 #+NIL (printl :grew terrain-type cost production))
           finally 
-          (return (values total-growth (- starting-production production))))
+          (return (values total-growth production)))
     ))
 
 (defparameter *overpop-decay-rate* 0.10)
 
 (defun simulate-population-growth (colony)
-  (multiple-value-bind (growth spent)
+  (multiple-value-bind (growth remaining)
       (calculate-pop-growth colony (spend-housing (spending-vector-of colony)))
     (incf (population-of colony) growth)
-    (decf (spend-housing (spending-vector-of colony)) spent))
+    (setf (spend-housing (spending-vector-of colony)) remaining))
   (let ((maxpop (compute-max-population colony)))
     (when (= maxpop (population-of colony)) 
       (setf (spend-housing (spending-vector-of colony)) 0))
@@ -199,29 +203,91 @@
 ;; automatically, to simulate natural population growth.
 (defparameter *inherent-population-growth* 1.0)
 
-(defun simulate-colony (colony)
+(defparameter *factory-base-cost* 30)
 
+(defun compute-factory-construction (colony spending)
+  ;; Assumption: Base automation level will always be at least 2.
+  ;; TODO: Support automation levels >2
+  (let* ((level2-needed (max 0 (- (* 2 (population-of colony)) (factories-of colony))))
+         (level2-cost *factory-base-cost*)
+         (level2-buildable (truncate spending level2-cost))
+         (level2-built (min level2-needed level2-buildable))
+         (actual-cost (* level2-built level2-cost)))
+    (assert (<= (* level2-built level2-cost) spending))
+    (values level2-built (- spending actual-cost))))
+
+(defun simulate-factory-construction (colony)
+  (multiple-value-bind (built remaining)
+      (compute-factory-construction colony (spend-factories (spending-vector-of colony)))
+    (setf (spend-factories (spending-vector-of colony)) remaining)
+    (incf (factories-of colony) built)))
+
+(defparameter *waste-cleanup-cost* 2)
+
+(defun allocate-funds (colony amount &optional (reason "??"))
+  (let ((real-amount (min (ceiling amount) (unallocated-production-of colony))))
+    ;;(format t "~&Allocated ~A BC for ~A~%" real-amount reason)
+    (decf (unallocated-production-of colony) real-amount)
+    real-amount))
+
+(defun auto-allot-cleanup (colony)
+  ;;(printl :need-to-cleanup (+ (pollution-of (planet-of colony)) (new-pollution-of colony)))
+  (incf (spend-cleanup (spending-vector-of colony))
+        (allocate-funds colony (* *waste-cleanup-cost* (+ (pollution-of (planet-of colony)) (new-pollution-of colony))) "ecology")))
+
+(defun auto-allot-development (colony)
+  ;; Really we want to take some percentage of the unallocated funds, chosen by the player.
+  (let ((funds (unallocated-production-of colony))
+        (needed-factories (max 0 (- (max-factories colony) (factories-of colony))))
+        (needed-population (max 0 (- (compute-max-population colony) (population-of colony)))))
+    (unless (zerop needed-factories)
+      (let ((spent (allocate-funds colony (* needed-factories *factory-base-cost*) "factories")))
+        (incf (spend-factories (spending-vector-of colony)) spent)
+        (decf funds spent)))
+    (unless (zerop needed-population)
+      (multiple-value-bind (growth remaining) (calculate-pop-growth colony funds)
+        (incf (spend-housing (spending-vector-of colony))
+              (allocate-funds colony (if (= growth needed-population)
+                                         (- funds remaining) 
+                                         funds)
+                              "housing"))))))
+
+(defun simulate-colony (colony)  
+  ;;(format t "~&Wasted ~D of ~D production units.~%" (unallocated-production-of colony) (production-of colony))
+
+  ;; Tenure pollution
   (incf (pollution-of (planet-of colony)) (new-pollution-of colony))
   (setf (new-pollution-of colony) 0)
+  
+  ;; Cleanup pollution
+  (setf (pollution-of (planet-of colony))
+        (max 0 (- (pollution-of (planet-of colony)) (truncate (spend-cleanup (spending-vector-of colony)) *waste-cleanup-cost*))))
+  (setf (spend-cleanup (spending-vector-of colony)) 0)
 
-  (simulate-production colony)          ; Generate production points and new pollution.
+  ;; Construction proceeds based on spending determined by the player during the previous turn
+  (simulate-factory-construction colony)
+  (simulate-population-growth colony)   ; Grow population according to housing production
+
+  ;; Now, prepare for the coming turn.
+  (setf (production-of colony) 0)
+  (simulate-production colony)          ; Generate production points and new pollution.  
   (dump-waste colony)                   ; The planet may absorb some new (but not accumulated) pollution.
-
   (incf (spend-housing (spending-vector-of colony)) ; Inherent population growth
         (* *inherent-population-growth* (population-of colony)))
 
-  ;; *** Player should run here to set spending, so rotate these steps..
+  ;; Shit that shouldn't be here.
 
-  (simulate-population-growth colony)
+  (auto-allot-cleanup colony)
+  (auto-allot-development colony)
 )
 
 ;;; Debug shit
 
 (defun print-col-status (colony)
-  (format t "Colony ~A: ~D pop, ~D factories, ~D pollution. Max pop=~D~%"
-          (name-of colony) (population-of colony) (factories-of colony) (pollution-of (planet-of colony)) (compute-max-population colony)))
+  (format t "Colony ~A: ~D pop, ~D factories, ~D pollution. Max pop=~D  Spending=~D~%"
+          (name-of colony) (population-of colony) (factories-of colony) (pollution-of (planet-of colony)) (compute-max-population colony) (spending-vector-of colony)))
 
 (defun foostep (colony)
-  (simulate-colony colony)
+  (simulate-colony colony)  
   (print-col-status colony))
 
