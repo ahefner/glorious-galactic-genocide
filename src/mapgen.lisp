@@ -255,10 +255,12 @@
 (defun inset-random (range border)
   (+ border (random (- range border border))))
 
-(defun random-star (&key x y z)
+(defun random-star (&key x y z &aux universe)
+  (declare (special universe))
   (let ((border 80)
         (size 2000))
     (make-instance 'star
+                   :universe universe
                    :loc (vec (or x (inset-random size border))
                              (or y (inset-random size border))
                              (or z (random *starfield-depth*)))
@@ -320,7 +322,9 @@
   (let* ((name (choose-new-constellation-name universe))
          (prefixes *constellation-prefixes*)
          (root (create-star-safely (stars universe)))
-         (constellation (list root)))
+         (constellation (list root))
+         (universe universe))
+    (declare (special universe))
     (format t "~&Creating constellation ~A~%" name)
     (setf (name-of root) (format nil "Alpha ~A" name))
     (pop prefixes)
@@ -385,6 +389,7 @@
                       (print
                       (make-instance 'planet
                                      :name (format nil "~A ~A" (name-of star) (random-elt '("I" "II" "II" "III" "III" "IV" "V")))
+                                     :star star
                                      :planet-type planet-type
                                      :habitability (cdr (assoc planet-type *planet-type-habitabilities*))
                                      :terrains terrains)))))))))
@@ -403,6 +408,7 @@
     (setf (slot-value star 'planet)
           (make-instance 'planet
                          :name homeworld-name
+                         :star star
                          :planet-type (homeworld-type-of race)
                          :terrains (homeworld-terrain-of race)))
     (setf (colony-of (slot-value star 'planet))
@@ -424,6 +430,16 @@
   (let ((player (make-instance 'player :race *race-human* :name name)))
     (update-player-stats player)))
 
+(defun add-initial-ships-and-designs (universe player)
+  (let ((designs (ship-designs-of player))
+        (homeworld (aref (colonies player) 0))
+        (scout (make-instance 'design :name "Scout"))
+        (colony-ship (make-instance 'design :name "Colony Ship")))
+    (setf (aref designs 0) scout
+          (aref designs 1) colony-ship)
+    (loop repeat 2 do (build-ship homeworld scout))
+    (build-ship homeworld colony-ship)))
+
 (defun make-test-universe ()
   (time
    (let ((uni (make-instance 'universe))
@@ -437,7 +453,9 @@
        (assign-computer-colors uni)
        (generate-planets uni)
        (update-player-planets uni)
+       (loop for player in (all-players uni)
+             do (add-initial-ships-and-designs uni player))
        (setf min-bound (reduce #'vmin stars :key #'loc)
-             max-bound (reduce #'vmax stars :key #'loc))
+             max-bound (reduce #'vmax stars :key #'loc))      
        (format t "~&Universe bounds: ~A - ~A~%" min-bound max-bound))
      (values uni player))))

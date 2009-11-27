@@ -73,6 +73,9 @@
 
 (define-modify-macro logiorf (&rest args) logior)
 
+(define-modify-macro deletef (item &rest remove-keywords)
+  (lambda (sequence item &rest args) (apply #'delete item sequence args)))
+
 (defmacro random-choice (&body body-clauses)
   (let ((total-weights (reduce #'+ body-clauses :initial-value 0 :key #'first))
         (index 0)

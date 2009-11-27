@@ -8,23 +8,28 @@
 (defclass owned ()
   ((owner :accessor owner-of :initarg :owner :initform nil)))
 
+(defclass in-universe ()
+  ((universe :accessor universe-of :initarg :universe)))
+
 (defclass universe ()
   ((stars :accessor stars :initarg :stars)
    (min-bound :accessor min-bound-of)
    (max-bound :accessor max-bound-of)
+   (fleets :accessor fleets-in-transit :initform nil)
    (namelist :initform (shuffle (constellation-name-list)))
-   (colors-list :initform (shuffle (list (vector 255 90 90)
-                                         (vector 255 134 0)
-                                         (vector 255 255 90)
+   (colors-list :initform (shuffle (list (vector 255  90  90)
+                                         (vector 255 134   0)
+                                         (vector 255 255  90)
                                          (vector 120 255 120)
-                                         (vector 40 160 255)
+                                         (vector  40 160 255)
                                          (vector 190 116 255))))))
 
 (defclass ent ()
   ((loc :accessor loc :initarg :loc)))
 
-(defclass star (named ent)
+(defclass star (named ent in-universe)
   ((style :initform (random 4))
+   (fleets :accessor fleets-orbiting :initform nil)
    (owner :accessor owner-of)
    (planet :reader planet-of :initform nil)
    (spectral-class :reader spectral-class :initarg :spectral-class)
@@ -56,6 +61,7 @@
    (race :reader race-of :initarg :race)
    (technologies :reader technologies-of :initform (make-hash-table :test 'eq))
    (color :accessor color-of :initarg :color :initform nil)
+   (ship-designs-of :reader ship-designs-of :initform (make-array 9))
 
    ;;; All the slots below are cached values:
 
@@ -120,7 +126,14 @@
 
 ;;;; Ships and fleets
 
-(defclass fleet (owned ent)
-  ((stacks :accessor stacks-of :initform nil :initarg :stacks)
+(defclass fleet (owned ent in-universe)
+  ((star :accessor star-of :initform nil :initarg :star)
+   (stacks :accessor stacks-of :initform nil :initarg :stacks)
    (speed :accessor speed-of :initform 1 :initarg :speed)))
+
+(defstruct stack design count fleet)
+
+(defclass design (named)
+  ((speed :accessor speed-of :initform 1 :initarg :speed)))
+
 

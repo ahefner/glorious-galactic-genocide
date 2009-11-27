@@ -4,26 +4,29 @@
 
 (defmethod print-object ((planet planet) stream)
   (print-unreadable-object (planet stream :identity nil :type t)
-    (apply 'format stream "~A: ~A ~D/~D/~D/~D" 
-           (name-of planet)
-           (planet-type-of planet)
-           (coerce (terrains-of planet) 'list))))
+    (ignore-errors 
+      (apply 'format stream "~A: ~A ~D/~D/~D/~D" 
+             (name-of planet)
+             (planet-type-of planet)
+             (coerce (terrains-of planet) 'list)))))
 
 (defmethod print-object ((colony colony) stream)
   (print-unreadable-object (colony stream :identity nil :type t)
-    (format stream "~A: pop ~D/~A ind ~D"
-           (name-of colony)
-           (population-of colony)
-           (ignore-errors (compute-max-population colony))
-           (factories-of colony))))
+    (ignore-errors 
+      (format stream "~A: pop ~D/~A ind ~D"
+              (name-of colony)
+              (population-of colony)
+              (ignore-errors (compute-max-population colony))
+              (factories-of colony)))))
 
 (defmethod print-object ((star star) stream)
   (print-unreadable-object (star stream :identity nil :type t)
-    (format stream "~W w/ ~A planet" 
-            (name-of star)
-            (or (and (planet-of star) (planet-type-of (planet-of star))) "no"))
-    (and.. (owner-of star)
-           (format stream " owned by ~W" (name-of $)))))
+    (ignore-errors 
+      (format stream "~W w/ ~A planet" 
+              (name-of star)
+              (or (and (planet-of star) (planet-type-of (planet-of star))) "no"))
+      (and.. (owner-of star)
+             (format stream " owned by ~W" (name-of $))))))
 
 (defmethod print-object ((race race) stream)
   (print-unreadable-object (race stream :identity nil :type t)
@@ -33,7 +36,7 @@
   (print-unreadable-object (player stream :identity nil :type t)
     (format stream "~A, a ~A" (name-of player) (name-of (race-of player)))))
 
-;;;; Duct tape
+;;;; Duct tape methods
 
 (defmethod owner-of ((star star))
   (and.. (planet-of star) (owner-of $)))
@@ -42,6 +45,12 @@
   (and.. (colony-of planet) (owner-of $)))
 
 (defmethod name-of ((this colony)) (name-of (planet-of this)))
+
+(defmethod star-of ((this star)) this)
+(defmethod star-of ((this colony)) (star-of (planet-of this)))
+
+(defmethod fleets-orbiting ((this planet)) (fleets-orbiting (star-of this)))
+(defmethod fleets-orbiting ((this colony)) (fleets-orbiting (star-of this)))
 
 ;;;; Hello again.
 
@@ -53,7 +62,7 @@
   (loop for star across (stars universe)
         as planet = (planet-of star)
         as owner = (owner-of star)
-        when owner do (vector-push-extend star (colonies owner)))
+        when owner do (vector-push-extend (colony-of (planet-of star)) (colonies owner)))
   (loop for player in (all-players universe) 
         do (sort (colonies player) #'string<= :key #'name-of)))
 
@@ -290,4 +299,37 @@
 (defun foostep (colony)
   (simulate-colony colony)  
   (print-col-status colony))
+
+
+
+
+;;;; Fleets, stacks, ships, etc.
+
+(defun ensure-fleet (player starable)
+  (let ((star (star-of starable)))
+    (or (find player (fleets-orbiting star) :key #'owner-of)
+        (let ((fleet (make-instance 'fleet :owner player :universe (universe-of star))))
+          (push fleet (fleets-orbiting star))
+          fleet))))
+
+(defun ensure-stack (design fleet)
+  (or (find design (stacks-of fleet) :key #'stack-design)
+      (let ((stack (make-stack :design design :count 0 :fleet fleet)))
+        (push stack (stacks-of fleet))
+        stack)))
+
+(defun update-fleet (fleet)
+  (setf (stacks-of fleet) (delete-if #'zerop (stacks-of fleet) :key #'stack-count))
+  (cond
+    ((and (null (stacks-of fleet)) (star-of fleet))           ; Orbiting fleet is empty, remove from star.
+     (deletef (fleets-orbiting (star-of fleet)) fleet))
+    ((null (stacks-of fleet))           ; Fleet in transit empty (should only occur if ship type scrapped)
+     (break "FIXME, fleet evaporated in transit")
+     #+NIL (deletef fleet foo))
+    (t ; Fleet still exists, update properties
+     (setf (speed-of fleet) (reduce #'min (stacks-of fleet)
+                                    :key (lambda (stack) (speed-of (stack-design stack))))))))
+
+(defun build-ship (colony design)
+  (incf (stack-count (ensure-stack design (ensure-fleet (owner-of colony) colony)))))  
 

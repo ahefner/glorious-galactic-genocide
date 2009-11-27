@@ -149,13 +149,19 @@
          (owner (and planet (owner-of planet)))
          (ocolor (and owner (color-of owner)))
          (explored (explored? *player* star))
+         (fleets (fleets-orbiting star))
+         (in-sensor-range t)            ; XXX
          (img (star->image star))
-         (label-height 12)         
+         (label-height 12)
          (ly (+ y label-height (ash (img-height img) -1))))
     (with-slots (label-img) star
       (unless label-img
         (setf label-img (render-label (name-of star) label-height :align-x :center)))
       (draw-img img x y)
+      
+      (when (and in-sensor-range fleets)
+        (draw-img (img :swoosh) x y))
+
       (when (and planet explored)
         (draw-planet planet (+ x planet-offset) (+ y planet-offset)))
       (cond
