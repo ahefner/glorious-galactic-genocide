@@ -1,5 +1,6 @@
 (require 'asdf)
 
+;;(declaim (optimize (debug 0) (speed 3) (safety 2)))
 (declaim (optimize (debug 3) (speed 2) (safety 2)))
 
 ;;;; Load system definition
@@ -89,9 +90,9 @@ for comparison. Accepts and produces only lists."
     ((c-file? pathname) (c-object-deps pathname))
     (t (list (namestring pathname)))))
 
-(defun changed-dependencies (pathname)
+(defun changed-dependencies (pathname extra-deps)
   (remove-if (lambda (dep) (newer? (object-pathname pathname) (pathname dep)))
-             (file-dependencies pathname)))
+             (append (file-dependencies pathname) extra-deps)))
 
 ;;;; Build process
 
@@ -121,7 +122,8 @@ for comparison. Accepts and produces only lists."
                         (first source-spec)
                         source-spec)
       as compile-time-deps = (and (listp source-spec) (rest source-spec))
-      as deps = (changed-dependencies (pathname filename))
+      as deps = (changed-dependencies (pathname filename) compile-time-deps)
+      do (print (list :file filename :compile-time-deps compile-time-deps :deps deps))
       when deps
       do (progn
            (format t "~&---- Compiling ~A ----~%" filename)
