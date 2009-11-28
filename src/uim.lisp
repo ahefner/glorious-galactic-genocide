@@ -132,16 +132,3 @@
 (defun push-new-presentation (object type children)
   (push (make-presentation :object object :type (or type object) :children children)
         *presentation-stack*))
-
-
-
-(defun region-inline-test (r)
-  (funcall (circle 33 22 r) 4 5))
-
-(defun region-inline-test-2 (r)
-  (funcall (let ((r^2 (square r))
-                 (cx 33)
-                 (cy 22))
-             (lambda (x y)
-               (<= (+ (square (- x cx)) (square (- y cy))) r^2))) 4 5))
-

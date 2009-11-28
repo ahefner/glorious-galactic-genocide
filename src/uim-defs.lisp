@@ -39,7 +39,7 @@
 
 (defstruct presentation object type children)
 
-(defmacro presenting ((uic object &key type) &body body-clauses)
+(defmacro presenting ((uic object &key (type nil typep)) &body body-clauses)
   (let ((hit-sym (gensym "HIT"))
         display-clause hit-clause)
     (dolist (clause body-clauses)
@@ -52,17 +52,25 @@
          (when hit-clause (error "Duplicate :hit clause"))
          (setf hit-clause (rest clause)))
         (t (error "Unknown clause type ~A" (first clause)))))
-    `(let (,hit-sym
-           (presentation-children
-            (let ((*presentation-stack* nil))
-              ,@display-clause
-              (let ((region ,@hit-clause)
-                    (uic ,uic))
-                ,(when hit-clause 
-                       `(setf ,hit-sym (funcall region (uic-mx uic) (uic-my uic)))))
-              *presentation-stack*)))
-       (when ,hit-sym
-         (push-new-presentation ,object ,type presentation-children)))))
+    `(let (,hit-sym)
+       (let ((object ,object)
+             (type ,type)
+             (presentation-children
+              (let ((*presentation-stack* nil))
+                ,@display-clause
+                ,(when hit-clause
+                  `(let ((region (progn ,@hit-clause))
+                         (uic ,uic))
+                     (setf ,hit-sym (funcall region (uic-mx uic) (uic-my uic)))))
+                *presentation-stack*)))
+         ;;(format t "~&presenting ~A / ~A  --  hit: ~A~%" ,object ,type ,hit-sym)
+         (when ,hit-sym         
+           (ecase (funcall *presentation-query* object type)
+             (:discard  #| Discard this subtree |#)
+             (:accept   #| Accept this presentation, push on to presentation stack |#            
+              (push-new-presentation object type presentation-children))
+             (:recurse  #| Don't push this presentation, but push accepted children |#
+              (setf *presentation-stack* (nconc presentation-children *presentation-stack*)))))))))
 
 ;;;; Regions
 

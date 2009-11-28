@@ -15,6 +15,9 @@
 
 (defvar *gadget-root*)
 (defvar *presentation-stack*)
+(defparameter *presentation-query* (constantly :discard))
+
+
 
 
 (defvar *player* nil)

@@ -27,6 +27,16 @@
   (print (list :release keysym)))
 
 (defmethod gadget-paint ((gadget starmap) uic)
+  (let ((*presentation-query* 
+         (lambda (object type)
+           (if (eql object type) 
+               (format t "~&I see a ~A~%" object)
+               (format t "~&I see a ~A, ~A~%" type object))
+           :recurse)))
+    (present-starmap gadget uic))
+  (terpri))
+
+(defun present-starmap (gadget uic)
   (with-slots (universe scroll-coord scroll-target zoom zoom-target) gadget
     ;;(setf scroll-coord (v2 (uic-mx uic) (uic-my uic)))
     (let* ((stars (stars universe))
@@ -36,13 +46,16 @@
            (u-min (min-bound-of universe))
            (u-max (max-bound-of universe))
            (u-cam-border 400)
-           ;; TODO: Filter the delta-t values for these purposes, as
-           ;; the jitter seems to compound and make the scrolling feel
-           ;; very gritty. (Really? I'm not so sure now)
+           ;; I'm concerned that this actually amplifies the effect of framerate jitter..
            (interp (expt 0.1 (uic-delta-t uic)))
            (camera (vec (v2.x scroll-coord) (v2.y scroll-coord) zoom)))
       (multiple-value-bind (pointer-x pointer-y)
           (inverse-perspective-transform camera (uic-mx uic) (uic-my uic) (ash *starfield-depth* -1))
+
+        (presenting (uic (v2 pointer-x pointer-y) :type :empty-space)
+          (:display )
+          (:hit (constantly t)))
+
 
         (when (clicked? uic +left+)
           (print (list :at pointer-x pointer-y))
@@ -71,7 +84,6 @@
               as x = (round (v.x v)) as y = (round (v.y v))
               do
               ;; This is absolutely NOT how things should be done.
-
               (when (<= pointer-distance-sq pointer-radius-sq)
                 (when (clicked? uic +right+)
                   (cond
@@ -193,10 +205,13 @@
               as ox = (+ x (v2.x rel)) as oy = (+ y (v2.y rel))
               as color = (pstyle-fill-color (style-of (owner-of fleet)))
               as num-ships = (reduce #'+ (stacks-of fleet) :key #'stack-count) 
-              do 
-              (draw-img (img :circle-16) ox oy)
-              (draw-img-deluxe (img :inner-16) ox oy (aref color 0) (aref color 1) (aref color 2))
-              (draw-img (fleet-count-image num-ships) ox oy))) ; BZZZT XXX
+              do
+              (presenting (uic fleet :type :orbiting-fleet)
+                (:hit (circle ox oy 8))
+                (:display
+                 (draw-img (img :circle-16) ox oy)
+                 (draw-img-deluxe (img :inner-16) ox oy (aref color 0) (aref color 1) (aref color 2))
+                 (draw-img (fleet-count-image num-ships) ox oy)))))
 
       (when (and planet explored)
         (draw-planet planet (+ x planet-offset) (+ y planet-offset)))
