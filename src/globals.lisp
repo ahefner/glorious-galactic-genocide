@@ -14,6 +14,7 @@
 (defvar *packset* nil)
 
 (defvar *gadget-root*)
+(defvar *presentation-stack*)
 
 
 (defvar *player* nil)

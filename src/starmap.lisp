@@ -38,7 +38,7 @@
            (u-cam-border 400)
            ;; TODO: Filter the delta-t values for these purposes, as
            ;; the jitter seems to compound and make the scrolling feel
-           ;; very gritty.
+           ;; very gritty. (Really? I'm not so sure now)
            (interp (expt 0.1 (uic-delta-t uic)))
            (camera (vec (v2.x scroll-coord) (v2.y scroll-coord) zoom)))
       (multiple-value-bind (pointer-x pointer-y)
@@ -71,6 +71,7 @@
               as x = (round (v.x v)) as y = (round (v.y v))
               do
               ;; This is absolutely NOT how things should be done.
+
               (when (<= pointer-distance-sq pointer-radius-sq)
                 (when (clicked? uic +right+)
                   (cond
@@ -86,7 +87,7 @@
                                  (reduce #'+ terrain)
                                  (coerce terrain 'list))))))
                 (draw-img (img :halo-0) x y))
-              (draw-star star x y)
+              (present-star uic star x y)
  )))))
 
 (defconstant +perspective-foo+ 0.0014f0)  ; ~ 1/714
@@ -161,7 +162,7 @@
       (t (aref fleet-count-images 9)))))
                     
 
-(defun draw-star (star x y)
+(defun present-star (uic star x y)
   (let* ((planet-offset 14)
          (planet (planet-of star))
          (owner (and planet (owner-of planet)))
@@ -174,11 +175,14 @@
          (label-height 12)
          (orbital-vectors (relative-orbital-vectors))
          (ly (+ y label-height (ash (img-height img) -1))))
+
     (with-slots (label-img) star
       (unless label-img
         (setf label-img (render-label (name-of star) label-height :align-x :center)))
-      (draw-img img x y)
-      
+      (presenting (uic star)
+        (:hit (circle x y 23))
+        (:display (draw-img img x y)))
+
       (when (and in-sensor-range fleets)
         ;; This is dumb, only draw the swoosh if there's a fleet in orbital 0.
         ;; (Should there ALWAYS be a fleet in orbital zero, provided there are any?)
@@ -187,8 +191,7 @@
         (loop for fleet in fleets as rel = (aref orbital-vectors (orbital-of fleet))
               ;for orbital from 0 below 6 as rel = (aref orbital-vectors orbital) 
               as ox = (+ x (v2.x rel)) as oy = (+ y (v2.y rel))
-              as fleet-owner = (owner-of fleet)               ; FUCKIN WRONG DAMMIT
-              as color = (pstyle-fill-color (style-of fleet-owner))
+              as color = (pstyle-fill-color (style-of (owner-of fleet)))
               as num-ships = (reduce #'+ (stacks-of fleet) :key #'stack-count) 
               do 
               (draw-img (img :circle-16) ox oy)

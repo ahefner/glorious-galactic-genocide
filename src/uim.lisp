@@ -36,10 +36,7 @@
           (uic-modifiers-released uic) (logand then (logxor now then)))))
 
 (defun gettime ()
-  (call :unsigned-int "usectime")
-  #+NIL
-  (/ (get-internal-real-time)
-     (float internal-time-units-per-second)))
+  (call :unsigned-int "usectime"))
 
 (defun uim-sdl-run ()
   (loop named runloop 
@@ -50,6 +47,7 @@
                                   :buttons 0   :buttons-pressed 0   :buttons-released 0
                                   :modifiers 0 :modifiers-pressed 0 :modifiers-released 0
                                   :time (gettime) :delta-t 0.0)
+        as *presentation-stack* = nil
         as uic = (copy-uic last-uic)
         as gadget = *gadget-root*
         do #| Gather events and build new UIC |#
@@ -128,4 +126,22 @@
 
 (defun held? (uic button-mask)
   (= button-mask (logand (uic-buttons uic) button-mask)))
+
+;;;; Presentations
+
+(defun push-new-presentation (object type children)
+  (push (make-presentation :object object :type (or type object) :children children)
+        *presentation-stack*))
+
+
+
+(defun region-inline-test (r)
+  (funcall (circle 33 22 r) 4 5))
+
+(defun region-inline-test-2 (r)
+  (funcall (let ((r^2 (square r))
+                 (cx 33)
+                 (cy 22))
+             (lambda (x y)
+               (<= (+ (square (- x cx)) (square (- y cy))) r^2))) 4 5))
 

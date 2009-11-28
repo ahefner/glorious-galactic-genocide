@@ -35,3 +35,49 @@
 (defconstant +scroll-left+ 32)
 (defconstant +scroll-right+ 64)
 
+;;;; Presentations
+
+(defstruct presentation object type children)
+
+(defmacro presenting ((uic object &key type) &body body-clauses)
+  (let ((hit-sym (gensym "HIT"))
+        display-clause hit-clause)
+    (dolist (clause body-clauses)
+      (unless (listp clause) (error "Malformed clause ~A in PRESENTING" clause))
+      (case (first clause)
+        (:display
+         (when display-clause (error "Duplicate :display clause"))
+         (setf display-clause (rest clause)))
+        (:hit
+         (when hit-clause (error "Duplicate :hit clause"))
+         (setf hit-clause (rest clause)))
+        (t (error "Unknown clause type ~A" (first clause)))))
+    `(let (,hit-sym
+           (presentation-children
+            (let ((*presentation-stack* nil))
+              ,@display-clause
+              (let ((region ,@hit-clause)
+                    (uic ,uic))
+                ,(when hit-clause 
+                       `(setf ,hit-sym (funcall region (uic-mx uic) (uic-my uic)))))
+              *presentation-stack*)))
+       (when ,hit-sym
+         (push-new-presentation ,object ,type presentation-children)))))
+
+;;;; Regions
+
+;;; If circle is inlined, any half-decent CL ought to optimize the
+;;; closure creation away. ECL doesn't, because it's a goddamned sorry
+;;; piece of shit excuse for a Lisp compiler.
+
+(declaim (inline circle))
+
+(defun circle (cx cy radius)
+  (let ((r^2 (square radius)))
+    (lambda (x y)
+      (<= (+ (square (- x cx)) (square (- y cy))) r^2))))
+
+#+NIL
+(presenting (uic star)
+  (:display (draw-star star x y))
+  (:hit (pointer-radius-test uic x y radius)))
