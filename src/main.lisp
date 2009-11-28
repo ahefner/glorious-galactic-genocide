@@ -58,7 +58,7 @@
   (setf si:*gc-verbose* t)
 
   (setf *package* (find-package :g1))
-  (unless (zerop (c :int "sys_init(\"game 1\")")) 
+  (unless (zerop (c :int "sys_init(\"Glorious Galactic Genocide!\")")) 
     (print "oh, poo.")
     (ext:quit))
   

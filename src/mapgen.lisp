@@ -420,9 +420,9 @@
 
 (defun assign-computer-colors (universe)
   (loop for player in (all-players universe)
-        as next-color = (first (slot-value universe 'colors-list))        
-        unless (color-of player) do 
-        (setf (color-of player) (pop (slot-value universe 'colors-list)))
+        as next-color = (first (slot-value universe 'styles-list))        
+        unless (style-of player) do 
+        (setf (style-of player) (pop (slot-value universe 'styles-list)))
         (unless next-color
           (error "Ran out of player colors during map generation. How?"))))
 

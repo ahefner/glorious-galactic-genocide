@@ -92,6 +92,16 @@
 (defun all-planets (universe)
   (remove nil (map 'list #'planet-of (stars universe))))
 
+;;;;
+
+(defun get-player-styles ()
+  (list (make-pstyle :label-color (vector 255  90  90) :fill-color (vector 180 0 0))
+        (make-pstyle :label-color (vector 255 134   0) :fill-color (vector 167 106 0))
+        (make-pstyle :label-color (vector 255 255  90) :fill-color (vector 131 127 55))
+        (make-pstyle :label-color (vector 120 255 120) :fill-color (vector 64 128 64))
+        (make-pstyle :label-color (vector  40 160 255) :fill-color (vector 0 64 128))
+        (make-pstyle :label-color (vector 190 116 255) :fill-color (vector 64 64 128))))
+
 ;;;; Planetary economy
 
 ;;; Industrial output is constrained by requiring sufficient population to operate the factories.
@@ -305,10 +315,27 @@
 
 ;;;; Fleets, stacks, ships, etc.
 
+(defun find-free-orbitals (star)
+  (sort (copy-list (set-difference '(0 1 2 3 4 5) (mapcar #'orbital-of (fleets-orbiting star)))) #'<))
+
+(defun find-free-orbital (star) (first (find-free-orbitals star)))
+
+(defun orbital-vector (orbital)
+  (let ((angle (+ (atan -11 35) (* orbital -0.5674163524304525d0)))
+        (length 36.7f0))
+    (vec (single (* length (cos angle))) (single (* length (sin angle))) 0.0f0)))
+
+(defun orbital-loc (star orbital)
+  (v+ (loc star) (orbital-vector orbital)))
+
 (defun ensure-fleet (player starable)
   (let ((star (star-of starable)))
     (or (find player (fleets-orbiting star) :key #'owner-of)
-        (let ((fleet (make-instance 'fleet :owner player :universe (universe-of star))))
+        (let ((fleet (make-instance 'fleet
+                                    :owner player
+                                    :universe (universe-of star)
+                                    :orbital (find-free-orbital star))))
+          (setf (loc fleet) (orbital-loc star (orbital-of fleet)))
           (push fleet (fleets-orbiting star))
           fleet))))
 

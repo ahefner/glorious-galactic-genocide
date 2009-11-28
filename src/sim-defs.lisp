@@ -17,12 +17,7 @@
    (max-bound :accessor max-bound-of)
    (fleets :accessor fleets-in-transit :initform nil)
    (namelist :initform (shuffle (constellation-name-list)))
-   (colors-list :initform (shuffle (list (vector 255  90  90)
-                                         (vector 255 134   0)
-                                         (vector 255 255  90)
-                                         (vector 120 255 120)
-                                         (vector  40 160 255)
-                                         (vector 190 116 255))))))
+   (styles-list :initform (shuffle (get-player-styles)))))
 
 (defclass ent ()
   ((loc :accessor loc :initarg :loc)))
@@ -60,7 +55,7 @@
   ((explored-stars :reader explored-stars-of :initform (make-hash-table :test 'eq))
    (race :reader race-of :initarg :race)
    (technologies :reader technologies-of :initform (make-hash-table :test 'eq))
-   (color :accessor color-of :initarg :color :initform nil)
+   (style :accessor style-of :initarg :style :initform nil)
    (ship-designs-of :reader ship-designs-of :initform (make-array 9))
 
    ;;; All the slots below are cached values:
@@ -76,6 +71,8 @@
    ;; <mumble> in one sweep across the universe rather than modified
    ;; incrementally, so it's sort of a cache for convenience.
    (colonies :reader colonies :initform (make-array 0 :adjustable t :fill-pointer 0))))
+
+(defstruct pstyle label-color fill-color)
 
 (defclass planet (named)
   ((star :reader star-of :initarg :star)
@@ -128,6 +125,7 @@
 
 (defclass fleet (owned ent in-universe)
   ((star :accessor star-of :initform nil :initarg :star)
+   (orbital :accessor orbital-of :initarg :orbital)
    (stacks :accessor stacks-of :initform nil :initarg :stacks)
    (speed :accessor speed-of :initform 1 :initarg :speed)))
 

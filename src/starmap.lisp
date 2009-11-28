@@ -70,6 +70,7 @@
                                           (square (- (v.y v) (uic-my uic))))
               as x = (round (v.x v)) as y = (round (v.y v))
               do
+              ;; This is absolutely NOT how things should be done.
               (when (<= pointer-distance-sq pointer-radius-sq)
                 (when (clicked? uic +right+)
                   (cond
@@ -143,16 +144,35 @@
 (defun draw-planet (planet x y)
   (draw-img (planet->image planet) x y))
 
+(let (orbital-vectors)
+  (defun relative-orbital-vectors ()
+    (or orbital-vectors
+        (setf orbital-vectors 
+              (coerce (loop for i from 0 below 6 as v = (orbital-vector i) collect (v2 (round (v.x v)) (round (v.y v)))) 'vector)))))
+
+(let (fleet-count-images)
+  (defun fleet-count-image (n)
+    (unless fleet-count-images
+      (setf fleet-count-images
+            (vector (img :fl1) (img :fl2) (img :fl3) (img :fl4) (img :fl5)
+                    (img :fl6) (img :fl7) (img :fl8) (img :fl9) (img :flmany))))
+    (cond
+      ((<= 1 n 9) (aref fleet-count-images (1- n)))
+      (t (aref fleet-count-images 9)))))
+                    
+
 (defun draw-star (star x y)
   (let* ((planet-offset 14)
          (planet (planet-of star))
          (owner (and planet (owner-of planet)))
-         (ocolor (and owner (color-of owner)))
+         (st (and owner (style-of owner)))
+         (ocolor (and st (pstyle-label-color st)))
          (explored (explored? *player* star))
          (fleets (fleets-orbiting star))
          (in-sensor-range t)            ; XXX
          (img (star->image star))
          (label-height 12)
+         (orbital-vectors (relative-orbital-vectors))
          (ly (+ y label-height (ash (img-height img) -1))))
     (with-slots (label-img) star
       (unless label-img
@@ -160,7 +180,20 @@
       (draw-img img x y)
       
       (when (and in-sensor-range fleets)
-        (draw-img (img :swoosh) x y))
+        ;; This is dumb, only draw the swoosh if there's a fleet in orbital 0.
+        ;; (Should there ALWAYS be a fleet in orbital zero, provided there are any?)
+        ;; Alternately, draw a rotated swoosh for every fleet.
+        (draw-img (img :swoosh) x y)
+        (loop for fleet in fleets as rel = (aref orbital-vectors (orbital-of fleet))
+              ;for orbital from 0 below 6 as rel = (aref orbital-vectors orbital) 
+              as ox = (+ x (v2.x rel)) as oy = (+ y (v2.y rel))
+              as fleet-owner = (owner-of fleet)               ; FUCKIN WRONG DAMMIT
+              as color = (pstyle-fill-color (style-of fleet-owner))
+              as num-ships = (reduce #'+ (stacks-of fleet) :key #'stack-count) 
+              do 
+              (draw-img (img :circle-16) ox oy)
+              (draw-img-deluxe (img :inner-16) ox oy (aref color 0) (aref color 1) (aref color 2))
+              (draw-img (fleet-count-image num-ships) ox oy))) ; BZZZT XXX
 
       (when (and planet explored)
         (draw-planet planet (+ x planet-offset) (+ y planet-offset)))
