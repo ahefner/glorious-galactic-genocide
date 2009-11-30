@@ -36,7 +36,7 @@
       }")
     (check-gl-error)
     (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST)")
-    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR)")
+    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST)")
     (check-gl-error)
     id))
 
@@ -65,6 +65,9 @@
   (c "glBegin(GL_QUADS)")
   (do-draw-tile x0 y0 x1 y1 tx ty)
   (c "glEnd()"))
+
+(defun set-tile-color (r g b a)
+  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a))
 
 (defun render-starfield (x y)
   (c "glEnable(GL_TEXTURE_2D)")
@@ -130,6 +133,12 @@
           (setf (gethash name img-hash) img
                 (gethash name img-lookaside) img)))))
 
+(defun imgblock (name)
+  (let ((img (img name)))
+    (prog1 img
+      (setf (img-x-offset img) 0
+            (img-y-offset img) 0))))
+
 (defun img-detach (img)
   (setf (img-resident-p img) nil
         (img-x img) nil
@@ -150,7 +159,7 @@
   ;;(c "glTexParameter(GL_TEXTURE_2D, TEXTURE_BORDER_COLOR, whatever))
 
   (c "glBegin(GL_QUADS)")
-  (call "glColor3ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b)
+  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte 255)
 
   (ffi:c-inline (x y (img-x img) (img-y img) (img-width img) (img-height img) (img-x-offset img) (img-y-offset img))
                 (:int :int :int :int :int :int :int :int)
@@ -168,6 +177,25 @@
                    glVertex2i(x, y+h);
                  }")
   (c "glEnd()"))
+
+(defun fill-rect (x0 y0 x1 y1 r g b a)
+  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a)
+  (c "glDisable(GL_TEXTURE_2D)")
+  (c "glBegin(GL_QUADS)")
+  (ffi:c-inline (x0 y0 x1 y1) (:int :int :int :int) (values)
+                " { glVertex2i(#0,#1); glVertex2i(#2,#1); glVertex2i(#2,#3); glVertex2i(#0,#3); }")
+  (c "glEnd()")
+  (c "glEnable(GL_TEXTURE_2D)")
+  (values))
+
+(defun draw-bar (left-img right-img fill-tile x y width)
+  (let ((left-x (img-width left-img))
+        (right-x (- width (img-width right-img)))
+        (fill-y (img-height left-img)))
+  (draw-img right-img (+ x right-x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
+  (draw-img left-img (+ x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
+  (bind-texobj fill-tile)
+  (draw-tile (+ x left-x) y (+ x right-x) (+ y fill-y) 0 0)))
 
 ;;;; Text renderer
 
@@ -214,8 +242,9 @@
                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, #1, #2, 0, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
                    free(tmp);
                  } ")
+  (check-gl-error)
   (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST)")
-  (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR)")
+  (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST)")
   (packset-reset ps))
 
 (defun packset-reset (ps)
@@ -312,8 +341,8 @@
      (packset-reset ps)
      (error "I'm one lazy fucker, right? Still need to allocate ~A" object))))
 
-
-
-
-
+(defun debug-show-packset ()
+  (fill-rect 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)
+  (set-tile-color 255 255 255 255)
+  (draw-tile 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
 

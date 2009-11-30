@@ -2,15 +2,22 @@
 
 (ffi:clines "#include \"sys.h\"")
 
-(defun child-uic (uic dx dy &optional width height)
+(defun child-uic (uic dx dy &key width height (active t))
   (let ((new (copy-uic uic)))
+    (setf (uic-active new) active)
     (incf (uic-abx new) dx)
     (incf (uic-aby new) dy)
     (decf (uic-mx  new) dx)
     (decf (uic-my  new) dy)
-    (when width  (setf (uic-width  uic) width))
-    (when height (setf (uic-height uic) height))
-    uic))
+    (when width  (setf (uic-width  new) width))
+    (when height (setf (uic-height new) height))
+    new))
+
+(defun reparent-gadget (gadget new-parent)
+  (setf (next-gadget (parent-gadget gadget)) new-parent
+        (parent-gadget new-parent) (parent-gadget gadget)
+        (next-gadget new-parent) gadget
+        (parent-gadget gadget) new-parent))
 
 (defgeneric gadget-key-pressed (gadget uic keysym char)
   (:method (gadget uic keysym char)
@@ -43,9 +50,10 @@
         with please-set-video-mode = nil
         with last-uic = (make-uic :abx 0 :aby 0 
                                   :width (cx :int "window_width") :height (cx :int "window_height")
-                                  :amx 0 :amy 0 :mx 0 :my 0
+                                  :amx 0 :amy 0 :mx 0 :my 0                                  
                                   :buttons 0   :buttons-pressed 0   :buttons-released 0
                                   :modifiers 0 :modifiers-pressed 0 :modifiers-released 0
+                                  :active t
                                   :time (gettime) :delta-t 0.0)
         as *presentation-stack* = nil
         as uic = (copy-uic last-uic)
@@ -56,7 +64,8 @@
               (uic-buttons-pressed uic) 0
               (uic-buttons-released uic) 0
               (uic-buttons uic) (c :int "(int)SDL_GetMouseState(NULL, NULL)")
-              (uic-time uic) (gettime)
+              (uic-active uic) t
+              (uic-time uic) (gettime)              
               ;; The clamp below implies that if your machine can't
               ;; maintain 10 fps, the game will start to slow down.  I
               ;; I want to keep the maximum delta-t in a reasonable

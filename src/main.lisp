@@ -11,7 +11,9 @@
   (setf *stars00* (load-texture-file (apath "stars00.png"))
         *stars01* (load-texture-file (apath "stars01.png"))
         *stars02* (load-texture-file (apath "stars02.png"))
-        *stars03* (load-texture-file (apath "stars03.png"))))
+        *stars03* (load-texture-file (apath "stars03.png"))
+        *gamebar-fill* (load-texture-file (apath "gamebar-fill.png"))
+        *panel-fill* (load-texture-file (apath "panel-fill.png"))))
 
 (let ((total-frames 0)
       (times (make-array 300)))
@@ -69,7 +71,8 @@
   (format t "~&Testing event loop.~%")
 
   (multiple-value-bind (universe *player*) (make-test-universe)
-    (setf *gadget-root* (make-instance 'debug-starmap :universe universe))
+    (setf *gameui* (create-gameui universe)
+          *gadget-root* *gameui*)
     (uim-sdl-run))
 
   (format t "~&Shutting down.~%")

@@ -11,9 +11,13 @@
 (defvar *stars02* nil)
 (defvar *stars03* nil)
 
+(defvar *gamebar-fill* nil)
+(defvar *panel-fill* nil)
+
 (defvar *packset* nil)
 
 (defvar *gadget-root*)
+(defvar *gameui*)
 (defvar *presentation-stack*)
 (defparameter *presentation-query* (constantly :discard))
 

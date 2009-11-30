@@ -6,12 +6,17 @@
 
 ;;;; Starmap UI
 
+#+NIL
+(defclass panel-host-mixin ()
+  ((panel :initform nil)
+   (panel-y :initform nil)))
+
 (defclass starmap (gadget)
   ((universe :reader universe-of :initarg :universe)
    (zoom-target :accessor zoom-target-of :initform 0.0)
    (zoom :accessor zoom-of :initform 0.0)
-   (scroll-coord  :initform (v2 0 0))
-   (scroll-target :initform (v2 0 0))))
+   (scroll-coord  :initform (v2 0 0) :initarg :scroll-coord)
+   (scroll-target :accessor scroll-target-of :initform (v2 0 0) :initarg :scroll-target)))
 
 (defclass debug-starmap (starmap) ())
 
@@ -27,14 +32,27 @@
   (print (list :release keysym)))
 
 (defmethod gadget-paint ((gadget starmap) uic)
-  (let ((*presentation-query* 
-         (lambda (object type)
-           (if (eql object type) 
-               (format t "~&I see a ~A~%" object)
-               (format t "~&I see a ~A, ~A~%" type object))
-           :recurse)))
-    (present-starmap gadget uic))
-  (terpri))
+  (query-presentations 
+      (lambda (object type) :accept)
+    (present-starmap gadget uic)
+    (when (uic-active uic)
+      (let* ((coordinate (find :empty-space *presentation-stack* :key #'presentation-type))
+             (objects (mapcar #'presentation-object (remove coordinate *presentation-stack*))))
+        (when (clicked? uic +left+)
+          (cond
+            ((and objects (not (second objects)))
+             (starmap-select gadget (first objects)))
+            (objects (printl :fixme "multiple objects under cursor"))
+            (coordinate
+             (scroll-to gadget (presentation-object coordinate)))))))))
+
+(defun scroll-to (starmap v2)
+  (with-slots (universe scroll-target) starmap
+    (let ((u-cam-border 400)
+          (u-min (min-bound-of universe))
+          (u-max (max-bound-of universe)))
+      (setf scroll-target (v2 (round (clamp (v2.x v2) (- (v.x u-min) u-cam-border) (+ u-cam-border (v.x u-max))))
+                              (round (clamp (v2.y v2) (- (v.y u-min) u-cam-border) (+ u-cam-border (v.y u-max)))))))))
 
 (defun present-starmap (gadget uic)
   (with-slots (universe scroll-coord scroll-target zoom zoom-target) gadget
@@ -42,10 +60,7 @@
     (let* ((stars (stars universe))
            (zoom-step 180)
            (min-zoom (* zoom-step (round -2600 zoom-step)))
-           (max-zoom (* zoom-step (round 560 zoom-step)))
-           (u-min (min-bound-of universe))
-           (u-max (max-bound-of universe))
-           (u-cam-border 400)
+           (max-zoom (* zoom-step (round 560 zoom-step)))           
            ;; I'm concerned that this actually amplifies the effect of framerate jitter..
            (interp (expt 0.1 (uic-delta-t uic)))
            (camera (vec (v2.x scroll-coord) (v2.y scroll-coord) zoom)))
@@ -55,13 +70,6 @@
         (presenting (uic (v2 pointer-x pointer-y) :type :empty-space)
           (:display )
           (:hit (constantly t)))
-
-
-        (when (clicked? uic +left+)
-          (print (list :at pointer-x pointer-y))
-          (setf scroll-target (v2 (round (clamp pointer-x (- (v.x u-min) u-cam-border) (+ u-cam-border (v.x u-max))))
-                                  (round (clamp pointer-y (- (v.y u-min) u-cam-border) (+ u-cam-border (v.y u-max)))))))
-
 
         (unless (zerop (logand (ash 1 4) (uic-buttons-pressed uic)))
           (decf zoom-target zoom-step))
@@ -84,6 +92,7 @@
               as x = (round (v.x v)) as y = (round (v.y v))
               do
               ;; This is absolutely NOT how things should be done.
+              #+NIL
               (when (<= pointer-distance-sq pointer-radius-sq)
                 (when (clicked? uic +right+)
                   (cond
@@ -220,4 +229,36 @@
          (draw-img-deluxe label-img x ly (aref ocolor 0) (aref ocolor 1) (aref ocolor 2)))
         (explored  (draw-img label-img x ly))))))
 
+(defun activate-panel (new-panel)
+  (with-slots (panel) *gameui*
+    (setf panel new-panel)))
+
+(defun starmap-select (starmap object)
+  (typecase object
+    (star 
+     (activate-panel (make-instance 'star-panel :star object :starmap starmap)))))
+
+
+
+;;;; -- Star/planet panel --
+
+(defgeneric run-panel (panel uic bottom))
+
+(defclass star-panel ()
+  ((star :accessor star-of :initarg :star)
+   (starmap :initarg :starmap)))
+
+(defmethod run-panel ((panel star-panel) uic bottom)
+  (declare (ignore bottom))
+  (setf bottom 200)
+  (let* ((left (img :panel-left))
+         (right (img :panel-right))
+         (edge-top (- bottom (img-height left)))
+         (coordinate nil))
+
+    (with-slots (starmap star) panel
+      (present-starmap starmap (child-uic uic 0 0 :active nil))
+      
+      (draw-bar left right *panel-fill* 0 edge-top (uic-width uic))      
+      (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244))))
 

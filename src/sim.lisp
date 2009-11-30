@@ -52,6 +52,9 @@
 (defmethod fleets-orbiting ((this planet)) (fleets-orbiting (star-of this)))
 (defmethod fleets-orbiting ((this colony)) (fleets-orbiting (star-of this)))
 
+(defmethod loc ((this colony)) (loc (star-of (planet-of this))))
+(defmethod loc ((this planet)) (loc (star-of this)))
+
 ;;;; Hello again.
 
 (defparameter *race-human*

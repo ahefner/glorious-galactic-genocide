@@ -17,10 +17,12 @@
   modifiers
   modifiers-pressed
   modifiers-released
+  active
   time delta-t)
 
 (defclass gadget ()
-  ((next :accessor next-gadget :initarg :next-gadget :initform nil)))
+  ((next-gadget :accessor next-gadget :initarg :next-gadget :initform nil)
+   (parent-gadget :accessor parent-gadget :initarg :parent-gadget :initform nil)))
 
 (defmacro keysym (name)
   `(cx :int ,(format nil "SDLK_~A" (if (= 1 (length (string name))) 
@@ -64,6 +66,7 @@
                      (setf ,hit-sym (funcall region (uic-mx uic) (uic-my uic)))))
                 *presentation-stack*)))
          ;;(format t "~&presenting ~A / ~A  --  hit: ~A~%" ,object ,type ,hit-sym)
+         ,(unless typep `(setf type object))
          (when ,hit-sym         
            (ecase (funcall *presentation-query* object type)
              (:discard  #| Discard this subtree |#)
@@ -71,6 +74,11 @@
               (push-new-presentation object type presentation-children))
              (:recurse  #| Don't push this presentation, but push accepted children |#
               (setf *presentation-stack* (nconc presentation-children *presentation-stack*)))))))))
+
+(defmacro query-presentations (callback-lambda &body body)
+  `(let ((*presentation-stack* nil)
+         (*presentation-query* ,callback-lambda))
+     ,@body))
 
 ;;;; Regions
 

@@ -293,6 +293,7 @@
     ("Gemini")
     ("Troy")
     ("Rhombus")
+    ("Isis")
 ))
 
 (defun constellation-name-list ()

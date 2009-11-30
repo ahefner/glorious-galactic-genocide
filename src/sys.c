@@ -49,8 +49,10 @@ int sys_init (char *title)
 
     SDL_VideoInfo *vinf = SDL_GetVideoInfo();
     if (!(vid_fullscreen)) {
-        window_width = vinf->current_w - 64;
-        window_height = vinf->current_h - 90;
+//        window_width = vinf->current_w - 64;
+//        window_height = vinf->current_h - 90;
+        window_width = 800;
+        window_height = 480;
     }
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
