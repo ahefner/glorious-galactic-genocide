@@ -40,9 +40,8 @@
              (objects (mapcar #'presentation-object (remove coordinate *presentation-stack*))))
         (when (clicked? uic +left+)
           (cond
-            ((and objects (not (second objects)))
+            ((and objects (not (second objects))) ; Only one object?
              (starmap-select gadget (first objects)))
-            (objects (printl :fixme "multiple objects under cursor"))
             (coordinate
              (scroll-to gadget (presentation-object coordinate)))))))))
 
@@ -183,7 +182,6 @@
     (cond
       ((<= 1 n 9) (aref fleet-count-images (1- n)))
       (t (aref fleet-count-images 9)))))
-                    
 
 (defun present-star (uic star x y)
   (let* ((planet-offset 14)
@@ -232,36 +230,22 @@
         (explored  (draw-img label-img x ly))))))
 
 (defun activate-panel (new-panel)
-  (with-slots (panel) *gameui*
+  (with-slots (panel closing-panel) *gameui*
     (when panel (finalize-object panel))
-    (setf panel new-panel)))
+    (setf panel new-panel
+          closing-panel nil)))
 
 (defun starmap-select (starmap object)
   (typecase object
-    (star 
-     (let ((colony (and.. (planet-of object) (colony-of $))))
-       (when colony (activate-panel (make-instance 'colony-panel :colony colony :starmap starmap)))))))
+    (star
+     (let* ((planet (planet-of object))
+            (colony (and.. planet (colony-of $))))
+       (cond
+         (planet (activate-panel (make-instance 'planet-panel :planet planet :starmap starmap)))
+          #+NIL
+         (colony (activate-panel (make-instance 'colony-panel :colony colony :starmap starmap))))))))
 
-;;;; Starmap panels
-
-(defgeneric run-panel (panel uic bottom))
-
-;;; A UI panel is essentially a gadget. It probably should be a
-;;; gadget, and the only serious distinction is some stupidity with
-;;; the way panels overlap and allocate space bottom-up that foils my
-;;; notion of how child gadget should behave.
-
-(defclass panel (dynamic-object) ())
-
-;;;; Colony Control Panel
-
-(defclass colony-panel (panel)
-  ((colony :accessor colony-of :initarg :colony)
-   (starmap :initarg :starmap)
-   
-   (name-label :initform nil)
-   (class-label :initform nil)
-   (stats-labels :initform nil)))
+;;;; Cursor Layout
 
 (defstruct cursor left x y (newline-p t) (descent 0) (y-pad 0) (min-line-height 14))
 
@@ -288,25 +272,102 @@
 (defun cursor-draw-lines (cursor line-seq)
   (map nil (lambda (line) (cursor-draw-line cursor line)) line-seq))
 
+;;;; Starmap panels
+
+(defgeneric run-panel (panel uic bottom))
+
+;;; A UI panel is essentially a gadget. It probably should be a
+;;; gadget, and the only serious distinction is some stupidity with
+;;; the way panels overlap and allocate space bottom-up that foils my
+;;; notion of how child gadget should behave.
+
+(defclass panel (dynamic-object) 
+  ((panel-height :accessor panel-height :initarg :panel-height)
+   (starmap :initarg :starmap)))
+
+;;;; Planet Panel
+
+(defparameter *planet-panel-px* 81)
+(defparameter *planet-panel-py* 88)
+(defparameter *planet-panel-col1-baseline* 133)
+(defparameter *planet-panel-col1-left* 165)
+
+(defclass planet-panel (panel)
+  ((planet :accessor :planet-of :initarg :planet)   
+   (name-label :initform nil)
+   (class-label :initform nil)
+   (col1-labels :initform nil))
+  (:default-initargs :panel-height 168))
+
+(defmethod run-panel ((panel planet-panel) uic bottom)
+  (when (and (uic-active uic) (released? uic +right+)) (close-panels))
+  (with-slots (starmap planet name-label class-label col1-labels) panel
+    (let* ((col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
+           (color1 (pstyle-label-color (style-of *player*)))
+           (color2 (color-lighten color1))
+           (terrains (terrains-of planet))
+           (area (reduce #'+ terrains)))
+
+      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+      (draw-panel-background uic bottom)    
+      (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
+      
+      (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Planet ~A" (name-of planet)))) color1)
+      (cursor-newline col1)
+      (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
+      (cursor-newline col1)
+      (incf (cursor-y col1) 9)
+
+      (cursor-draw-lines col1 
+       (orf col1-labels
+            (mapcar (lambda (string) (render-label panel :sans 11 string))
+                    (remove nil 
+                     (flet ((show (name units)
+                              (cond
+                                ((zerop units) (format nil "No ~A" name))
+                                ((= units 1) (format nil "Minimal ~A" name))
+                                (t (format nil "~,1F% ~A" (* 100 units (/ area)) name)))))
+                     (list (show "Solid Land" (aref terrains 0))
+                           (show "Surface Water" (aref terrains 1))
+                           (show "Surface Ice" (aref terrains 2))
+                           (show "Volcanic Regions" (aref terrains 3))))))))
+)))
+
+(defmethod finalize-object ((panel planet-panel))
+  (with-slots (name-label class-label col1-labels) panel
+    (free-img name-label)
+    (free-img class-label)
+    (map nil #'free-img col1-labels)))
+
+;;;; Colony Control Panel
+
+(defclass colony-panel (panel)
+  ((colony :accessor colony-of :initarg :colony)
+   (name-label :initform nil)
+   (class-label :initform nil)
+   (stats-labels :initform nil))
+  (:default-initargs :panel-height 168))
+
+(defun draw-panel-background (uic bottom)
+  (let* ((left (img :panel-left))
+         (right (img :panel-right))
+         (edge-top (- bottom (img-height left))))
+    (draw-bar left right *panel-fill* 0 edge-top (uic-width uic))
+    (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
+
 (defmethod run-panel ((panel colony-panel) uic bottom)
-  (setf bottom 200)
+  (when (and (uic-active uic) (released? uic +right+)) (close-panels))
   (with-slots (starmap colony name-label class-label stats-labels) panel
-    (let* ((left (img :panel-left))
-           (right (img :panel-right))
-           (edge-top (- bottom (img-height left)))
-           (player (owner-of colony))
+    (let* ((player (owner-of colony))
            (planet (planet-of colony))
            (color1 (pstyle-label-color (style-of player)))
-           (color2 (color-lighten color1) #+NIL (vector 180 180 180))
-           (col1 (make-cursor :left 165 :y (- bottom 133)))
-           (coordinate nil))
+           (color2 (color-lighten color1))
+           (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*))))
 
-      (gadget-paint starmap uic #+NIL (child-uic uic 0 0 :active nil))
+      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+      (draw-panel-background uic bottom)
       
-      (draw-bar left right *panel-fill* 0 edge-top (uic-width uic))
-      (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)
-
-      (draw-img (nth-value 1 (planet->images planet)) 81 (- bottom 88))
+      (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
       (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
       (cursor-newline col1)
       (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
@@ -330,7 +391,6 @@
 
 
 (defmethod finalize-object ((panel colony-panel))
-  (format t "~&Scuttled a colony panel. It should free its labels now...~%")
   (with-slots (name-label class-label stats-labels) panel
     (free-img name-label)
     (free-img class-label)

@@ -325,7 +325,7 @@
          (constellation (list root))
          (universe universe))
     (declare (special universe))
-    (format t "~&Creating constellation ~A~%" name)
+    ;;(format t "~&Creating constellation ~A~%" name)
     (setf (name-of root) (format nil "Alpha ~A" name))
     (pop prefixes)
     (vector-push-extend root (stars universe))
@@ -373,6 +373,7 @@
           when (star-within-safe-radius star stars *star-min-distance*) do
           (vector-push-extend star stars)
           (setf (name-of star) (choose-new-star-name uni))
+          #+NIL
           (format t "~&Created star ~A. Type ~A at ~A~%" 
                   (name-of star) (spectral-class star) (loc star)))
 
@@ -386,13 +387,12 @@
                    (terrains (and planet-type (choose-planet-terrains planet-type))))
               (when planet-type
                 (setf (slot-value star 'planet)
-                      (print
                       (make-instance 'planet
                                      :name (format nil "~A ~A" (name-of star) (random-elt '("I" "II" "II" "III" "III" "IV" "V")))
                                      :star star
                                      :planet-type planet-type
                                      :habitability (cdr (assoc planet-type *planet-type-habitabilities*))
-                                     :terrains terrains)))))))))
+                                     :terrains terrains))))))))
 
 ;;; TODO: Check that this star is in a reasonable position (other stars in range..)
 (defun find-suitable-homeworld (stars)
@@ -457,5 +457,5 @@
              do (add-initial-ships-and-designs uni player))
        (setf min-bound (reduce #'vmin stars :key #'loc)
              max-bound (reduce #'vmax stars :key #'loc))      
-       (format t "~&Universe bounds: ~A - ~A~%" min-bound max-bound))
+       #+NIL (format t "~&Universe bounds: ~A - ~A~%" min-bound max-bound))
      (values uni player))))

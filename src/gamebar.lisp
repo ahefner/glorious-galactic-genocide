@@ -5,6 +5,7 @@
 (defclass gameui (gadget)
   ((universe :reader universe-of :initarg :universe)
    (starmap)
+   (closing-panel :initform nil)
    (panel :initform nil)
    (panel-y :initform 0)))
 
@@ -38,19 +39,32 @@
     (and in (released? uic +left+))))
 
 (defun close-panels ()
-  (with-slots (panel) *gameui*
-    (when panel (finalize-object panel))
-    (setf panel nil)))                  ;XXX
+  (with-slots (closing-panel) *gameui*
+    (setf closing-panel t)))
 
 (defmethod gadget-paint ((gadget gameui) uic)
   ;; Run inferior UI elements first, because we have to draw on top of them.
-  (let* ((pointer-in-gamebar (< (uic-my uic) (img-height (img :gamebar-left))))
-                                        ;(pointer-in-panel (and panel (not pointer-in-gamebar) (< (uic-my uic) panel-y)))
+  (let* ((gb-height (img-height (img :gamebar-left)))
+         (pointer-in-gamebar (< (uic-my uic) gb-height))
+         ;;(pointer-in-panel (and panel (not pointer-in-gamebar) (< (uic-my uic) panel-y)))
          (child-uic (child-uic uic 0 0 :active (not pointer-in-gamebar))))
-    (with-slots (panel panel-y) gadget
-      (if panel
-          (run-panel panel child-uic panel-y)
-          (gadget-paint (next-gadget gadget) child-uic)))
+    (with-slots (panel panel-y closing-panel) gadget
+      (cond 
+        (panel
+         (let* ((target (if closing-panel 0 (+ gb-height (panel-height panel))))
+                (dist (- target panel-y))
+                (rate (* 10 (if (< dist 0)
+                                (min -1 (- (floor (* (uic-delta-t uic) (sqrt (- dist))))))
+                                (max  1 (ceiling  (* (uic-delta-t uic) (sqrt dist))))))))
+           (setf panel-y (clamp (+ panel-y rate) 0 (+ gb-height (panel-height panel))))
+           (when closing-panel (setf (uic-active child-uic) nil))
+           (run-panel panel child-uic panel-y)
+           (when (and closing-panel (<= panel-y gb-height))
+             (finalize-object panel)
+             (setf panel nil
+                   panel-y 0
+                   closing-panel nil))))
+        (t (gadget-paint (next-gadget gadget) child-uic))))
   
     (draw-bar (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
 
@@ -62,7 +76,7 @@
       (cond
         (clicked-game (printl "You clicked the Game button!"))
         (clicked-turn (printl "You clicked Next Turn!"))
-        ((and pointer-in-gamebar (clicked? uic +left+)) (close-panels))))
+        ((and pointer-in-gamebar (released? uic +left+)) (close-panels))))
       
       (values)))
 

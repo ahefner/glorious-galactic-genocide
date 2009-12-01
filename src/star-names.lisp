@@ -294,6 +294,7 @@
     ("Troy")
     ("Rhombus")
     ("Isis")
+    ("Astra")
 ))
 
 (defun constellation-name-list ()

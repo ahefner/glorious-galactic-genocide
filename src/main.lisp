@@ -69,7 +69,7 @@
   
   (load-assets)
   
-  (setf *packset* (make-packset 512 256))
+  (setf *packset* (make-packset 512 512))
 
   (format t "~&Running test game.~%")
 
