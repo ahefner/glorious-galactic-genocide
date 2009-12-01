@@ -2,6 +2,30 @@
 
 (ffi:clines "#include <SDL/SDL.h>")
 
+;;;; Resource Management
+
+;;;; The way this is works is objects with a well-defined lifetime
+;;;; (such as UI gadgets and panels) will inherit this mixin and the
+;;;; object-is-alive slot will indicate whether the object is still in
+;;;; use. Such an object, once discarded, can never return to
+;;;; life. These objects often own temporary images (text labels,
+;;;; mostly) and this way we have an easy way of instrumenting the
+;;;; code to check for leaks.
+
+(defclass dynamic-object ()
+  ((object-is-alive :accessor object-is-alive :initform t)))
+
+(defclass global-owner () ())
+(defmethod object-is-alive ((object global-owner)) (declare (ignore object)) t)
+
+;;; Objects can do resource cleanup here.
+(defgeneric finalize-object (object)
+  (:method ((object dynamic-object)) (declare (ignore object)))
+  (:method :after ((object dynamic-object))
+    (setf (object-is-alive object) nil)))
+
+;;;; UI context
+
 (defstruct uic
   ;; Bounding rectangle, in absolute screen coordinates. OpenGL will
   ;; have transformation applied so that abx/aby is the origin for
@@ -20,7 +44,7 @@
   active
   time delta-t)
 
-(defclass gadget ()
+(defclass gadget (dynamic-object)
   ((next-gadget :accessor next-gadget :initarg :next-gadget :initform nil)
    (parent-gadget :accessor parent-gadget :initarg :parent-gadget :initform nil)))
 

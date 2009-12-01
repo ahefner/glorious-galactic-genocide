@@ -53,11 +53,14 @@
         (system::invoke-debugger c)
         (format t "~&Better luck next time.~%")
         (ext:quit 1))))
+    
+    (setf si:*gc-verbose* t)              ; Doesn't work anymore..
+
     (%main)))
 
 (defun %main ()
 
-  (setf si:*gc-verbose* t)
+  (setf *global-owner* (make-instance 'global-owner))
 
   (setf *package* (find-package :g1))
   (unless (zerop (c :int "sys_init(\"Glorious Galactic Genocide!\")")) 
@@ -68,10 +71,10 @@
   
   (setf *packset* (make-packset 512 256))
 
-  (format t "~&Testing event loop.~%")
+  (format t "~&Running test game.~%")
 
-  (multiple-value-bind (universe *player*) (make-test-universe)
-    (setf *gameui* (create-gameui universe)
+  (multiple-value-bind (*universe* *player*) (make-test-universe)
+    (setf *gameui* (create-gameui *universe*)
           *gadget-root* *gameui*)
     (uim-sdl-run))
 

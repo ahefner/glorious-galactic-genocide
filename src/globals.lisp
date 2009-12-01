@@ -19,10 +19,11 @@
 (defvar *gadget-root*)
 (defvar *gameui*)
 (defvar *presentation-stack*)
+
 (defparameter *presentation-query* (constantly :discard))
 
+(defvar *global-owner* nil)
 
-
-
-(defvar *player* nil)
+(defvar *player*)
+(defvar *universe*)
 

@@ -201,7 +201,7 @@
 
     (with-slots (label-img) star
       (unless label-img
-        (setf label-img (render-label :sans label-height (name-of star) :align-x :center)))
+        (setf label-img (render-label *universe* :sans label-height (name-of star) :align-x :center)))
       (presenting (uic star)
         (:hit (circle x y 23))
         (:display (draw-img img x y)))
@@ -233,6 +233,7 @@
 
 (defun activate-panel (new-panel)
   (with-slots (panel) *gameui*
+    (when panel (finalize-object panel))
     (setf panel new-panel)))
 
 (defun starmap-select (starmap object)
@@ -241,11 +242,20 @@
      (let ((colony (and.. (planet-of object) (colony-of $))))
        (when colony (activate-panel (make-instance 'colony-panel :colony colony :starmap starmap)))))))
 
-;;;; -- Star/planet panel --
+;;;; Starmap panels
 
 (defgeneric run-panel (panel uic bottom))
 
-(defclass colony-panel ()
+;;; A UI panel is essentially a gadget. It probably should be a
+;;; gadget, and the only serious distinction is some stupidity with
+;;; the way panels overlap and allocate space bottom-up that foils my
+;;; notion of how child gadget should behave.
+
+(defclass panel (dynamic-object) ())
+
+;;;; Colony Control Panel
+
+(defclass colony-panel (panel)
   ((colony :accessor colony-of :initarg :colony)
    (starmap :initarg :starmap)
    
@@ -291,20 +301,20 @@
            (col1 (make-cursor :left 165 :y (- bottom 133)))
            (coordinate nil))
 
-      (present-starmap starmap (child-uic uic 0 0 :active nil))
+      (gadget-paint starmap uic #+NIL (child-uic uic 0 0 :active nil))
       
       (draw-bar left right *panel-fill* 0 edge-top (uic-width uic))
       (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)
 
       (draw-img (nth-value 1 (planet->images planet)) 81 (- bottom 88))
-      (cursor-draw-img col1 (orf name-label (render-label :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
+      (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
       (cursor-newline col1)
-      (cursor-draw-img col1 (orf class-label (render-label :sans 11 (planet-type-description (planet-type-of planet)))) color2)
+      (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
       (cursor-newline col1)
       (incf (cursor-y col1) 9)
       (cursor-draw-lines col1 
        (orf stats-labels
-            (mapcar (lambda (string) (render-label :sans 11 string))
+            (mapcar (lambda (string) (render-label panel :sans 11 string))
                     (list (format nil "Population: ~D Million (max. ~D)"
                                   (population-of colony) (compute-max-population colony))
                           (format nil "Industry: ~D Factories (max. ~D)"
@@ -317,4 +327,12 @@
                                   (production-of colony))))))
 
 )))
+
+
+(defmethod finalize-object ((panel colony-panel))
+  (format t "~&Scuttled a colony panel. It should free its labels now...~%")
+  (with-slots (name-label class-label stats-labels) panel
+    (free-img name-label)
+    (free-img class-label)
+    (map nil #'free-img stats-labels)))
 

@@ -108,7 +108,19 @@
 ;;;; texture. In contrast to texture structs (see above), we retain
 ;;;; the SDL surface, as we may need to upload the image at any time.
 
-(defstruct img width height resident-p x y x-offset y-offset surface pixels name)
+(defstruct img width height resident-p x y x-offset y-offset surface pixels name owner)
+
+(defun img-is-free? (img)
+  (not (or (img-surface img) (img-pixels img))))
+
+(defun free-img (img)
+  (cond
+    ((null img) (values))
+    ((img-surface img) (call "SDL_FreeSurface" :pointer-void (img-surface img)))
+    ((img-pixels img)  (call "free" :pointer-void (img-pixels img)))
+    (t (warn "Attempt to free IMG ~A with no underlying surface or pixel pointer. Odd." img)))
+  (setf (img-surface img) nil
+        (img-pixels img) nil))
 
 (defun load-image-file (filename &optional x-offset y-offset)
   (format t "~&Loading ~A~%" filename)
@@ -130,7 +142,8 @@
     (or (gethash name img-lookaside)
         (let ((img (or (gethash name img-hash)
                        (load-image-file (apath name)))))
-          (setf (gethash name img-hash) img
+          (setf (img-owner img) *global-owner*
+                (gethash name img-hash) img                
                 (gethash name img-lookaside) img)))))
 
 (defun imgblock (name)
@@ -202,7 +215,7 @@
 
 ;;;; Text renderer
 
-(defun render-label (face height string &key (align-x :left) (align-y :baseline))
+(defun render-label (owner face height string &key (align-x :left) (align-y :baseline))
   (let* ((facenum (ecase face
                     (:sans 0)
                     (:gothic 1)))
@@ -212,9 +225,11 @@
          (img (make-img :width  (cx :int "((image_t)#0)->w" :pointer-void cimage)
                         :height (cx :int "((image_t)#0)->h" :pointer-void cimage)
                         :name string
+                        :owner owner
                         :pixels (cx :pointer-void "((image_t)#0)->pixels" :pointer-void cimage)
                         :x-offset (cx :int "((image_t)#0)->x_origin" :pointer-void cimage)
                         :y-offset (cx :int "((image_t)#0)->y_origin" :pointer-void cimage))))
+    #+NIL
     (format t "~&Rendered label ~W: ~Dx~D~%"
             string
             (cx :int "((image_t)#0)->w" :pointer-void cimage)
@@ -243,6 +258,10 @@
     (packset-clear ps)
     ps))
 
+;;; FIXME: When I've peeked at the packset texture, there were
+;;; overlapping (clipped) images, making me suspect that this routine
+;;; either isn't called upon repack or fails to clear the image as
+;;; expected. Strange.
 (defun packset-clear (ps)
   (ffi:c-inline ((packset-texid ps) (packset-width ps) (packset-height ps)) (:int :int :int) (values)
                 "{ void *tmp = calloc(#1*#2, 4);
@@ -301,11 +320,13 @@
        (packset-repack-for-object packset object))))
 
 (defun packset-upload-object (object)
-  ;; Note: Must bind the packset texture before calling this!
+  ;; Beware! Must bind the packset texture before calling this!
   (let ((x (img-x object))
         (y (img-y object))
         (width (img-width object))
         (height (img-height object)))
+    (assert (not (img-is-free? object)))
+    #+NIL
     (format t "~&Uploaded ~A at (~D,~D) [~Dx~D]~%" object x y width height)
     (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
        :int x :int y :int width :int height :pointer-void (img-pixels object))
@@ -335,8 +356,13 @@
   (bind-texobj ps)
   (format t "~&Repacking for ~A..~%" object)
   ;; First, try sorting by height and reinserting the images.
-  (packset-reset ps)
-  (setf (packset-images ps) (sort (packset-images ps) #'> :key #'img-height))
+  (packset-reset ps)  
+  ;; Technically, SORT isn't required to give us an vector that has a
+  ;; fill pointer when the input vector has one, but as it happens ECL
+  ;; does, so I'll rely on that.. because any Lisp that doesn't is
+  ;; fucking INSANE. Note that I'll make the same claim about
+  ;; DELETE-IF, but ECL fails on that front.
+  (setf (packset-images ps) (sort (sane-delete-if #'img-is-free? (packset-images ps)) #'> :key #'img-height))
   ;;(print (packset-images ps))
   (cond
     ;; Can we repack everything into one texture? If so, upload and we're done.
