@@ -15,17 +15,13 @@
 /*** Freetype glue ***/
 
 FT_Library ftlibrary;
-FT_Face face_sans;
 int freetype_init = 0;
 
-char *asset (char *name) 
-{
-    /* QUICK HACK FIXME? */
-    return name;
-}
+static FT_Face faces[2];
 
 int ensure_freetype (void)
 {
+    char *filename;
     if (!freetype_init) {
         freetype_init = -1;
         int error = FT_Init_FreeType(&ftlibrary);
@@ -34,8 +30,15 @@ int ensure_freetype (void)
             return -1;
         }
 
-        char *filename = asset("data/DejaVuSans.ttf");
-        error = FT_New_Face(ftlibrary, filename, 0, &face_sans);
+        filename = "data/DejaVuSans.ttf";
+        error = FT_New_Face(ftlibrary, filename, 0, &faces[0]);
+        if (error) {
+            fprintf(stderr, "Error opening %s\n", filename);
+            return -1;
+        }
+
+        filename = "data/URWGothicL-Book.ttf";
+        error = FT_New_Face(ftlibrary, filename, 0, &faces[1]);
         if (error) {
             fprintf(stderr, "Error opening %s\n", filename);
             return -1;
@@ -47,7 +50,7 @@ int ensure_freetype (void)
     return freetype_init;
 }
 
-image_t sans_label (uint32_t color, unsigned text_height, char *string)
+image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, char *string)
 {
     static uint8_t *rtmp = NULL;
     int rwidth = 4096;          /* KLUDGE */
@@ -62,6 +65,7 @@ image_t sans_label (uint32_t color, unsigned text_height, char *string)
     int max_x = 1;
 
     ensure_freetype();
+    FT_Face face = faces[facenum];    /* Why? Because the fonts may not be loaded by ensure_freetype before now. =p */
 
     assert(text_height > 0);
     if (text_height > tmpheight) {
@@ -73,7 +77,7 @@ image_t sans_label (uint32_t color, unsigned text_height, char *string)
         tmpheight = text_height;
     } else memset(rtmp, 0, rwidth * rheight);
 
-    FT_Set_Pixel_Sizes(face_sans, 0, text_height);
+    FT_Set_Pixel_Sizes(face, 0, text_height);
 
     int pen_x = 0;
     FT_UInt last_glyph_index = 0;
@@ -81,34 +85,34 @@ image_t sans_label (uint32_t color, unsigned text_height, char *string)
     char *str = string;
     for (char c = *str++; c; c=*str++) {
         // Beg Freetype to render the glyph
-        FT_UInt glyph_index = FT_Get_Char_Index(face_sans, c); 
+        FT_UInt glyph_index = FT_Get_Char_Index(face, c); 
 
         if (first_char) first_char = 0;
         else {
             FT_Vector delta;
-            FT_Get_Kerning(face_sans, last_glyph_index, glyph_index, 
+            FT_Get_Kerning(face, last_glyph_index, glyph_index, 
                            FT_KERNING_DEFAULT, &delta);
             pen_x += delta.x >> 6;
             last_glyph_index = glyph_index;
         }
 
-        error = FT_Load_Glyph(face_sans, glyph_index, 
+        error = FT_Load_Glyph(face, glyph_index, 
                               FT_LOAD_RENDER | 
                               FT_LOAD_NO_HINTING | 
                               FT_LOAD_TARGET_LIGHT);
         if (error) continue;
 
-        FT_Bitmap *bmp = &face_sans->glyph->bitmap;
+        FT_Bitmap *bmp = &face->glyph->bitmap;
         /*
         printf("  x=%3i: Char %c:   %ix%i + %i + %i   advance=%f\n",
                pen_x, c, bmp->width, bmp->rows,
-               face_sans->glyph->bitmap_left,
-               face_sans->glyph->bitmap_top,
-               ((float)face_sans->glyph->advance.x) / 64.0);
+               face->glyph->bitmap_left,
+               face->glyph->bitmap_top,
+               ((float)face->glyph->advance.x) / 64.0);
         */        
 
         /* Transfer the glyph to the temporary buffer.. */
-        int ox0 = pen_x + face_sans->glyph->bitmap_left;
+        int ox0 = pen_x + face->glyph->bitmap_left;
         int ix0 = 0;
         int ox1 = ox0 + bmp->width;
         int ix1 = bmp->width;
@@ -132,7 +136,7 @@ image_t sans_label (uint32_t color, unsigned text_height, char *string)
         assert(width >= 0);
         assert(ix0 >= 0);
 
-        int oy0 = baseline - face_sans->glyph->bitmap_top;
+        int oy0 = baseline - face->glyph->bitmap_top;
         int height = bmp->rows;
 
         // Update bounding rectangle
@@ -158,7 +162,7 @@ image_t sans_label (uint32_t color, unsigned text_height, char *string)
             } else printf("    fuck off at %i\n", y);
         }
 
-        pen_x += face_sans->glyph->advance.x >> 6;
+        pen_x += face->glyph->advance.x >> 6;
     }
 
     uint32_t *data = malloc(4*(max_x - min_x)*(max_y - min_y));

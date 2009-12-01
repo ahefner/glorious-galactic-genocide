@@ -299,3 +299,19 @@
 (defun constellation-name-list ()
   (copy-list *constellations*))
 
+
+(defun planet-type-description (planet-type)
+  (ecase planet-type
+    (terran   "Terran Habitat")
+    (oceanic  "Oceanic Habitat")
+    (jungle   "Jungle Habitat")
+    (arid     "Arid Habitat")
+    (desert   "Desert Habitat")
+    (tundra   "Tundra Habitat")
+    (minimal  "Minimal Habitat")
+    (barren   "Barren World")
+    (volcanic "Volcanic World")
+    (dead     "Dead World")
+    (inferno  "Inferno World")
+    (toxic    "Toxic World")
+    (radiated "Radiated World")))

@@ -101,7 +101,7 @@
   (list (make-pstyle :label-color (vector 255  90  90) :fill-color (vector 180 0 0))
         (make-pstyle :label-color (vector 255 134   0) :fill-color (vector 167 106 0))
         (make-pstyle :label-color (vector 255 255  90) :fill-color (vector 131 127 55))
-        (make-pstyle :label-color (vector 120 255 120) :fill-color (vector 64 128 64))
+        (make-pstyle :label-color (vector 170 224 108) :fill-color (vector 86 140 22))
         (make-pstyle :label-color (vector  40 160 255) :fill-color (vector 0 64 128))
         (make-pstyle :label-color (vector 190 116 255) :fill-color (vector 64 64 128))))
 

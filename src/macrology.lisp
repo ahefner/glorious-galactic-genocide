@@ -76,6 +76,13 @@
 (define-modify-macro deletef (item &rest remove-keywords)
   (lambda (sequence item &rest args) (apply #'delete item sequence args)))
 
+(defmacro orf (place value)
+  ;; Can multiply evaluate place. Whatever, much trouble to fix.
+  `(or ,place (setf ,place ,value)))
+
+(define-modify-macro minf (other) min)
+(define-modify-macro maxf (other) max)
+
 (defmacro random-choice (&body body-clauses)
   (let ((total-weights (reduce #'+ body-clauses :initial-value 0 :key #'first))
         (index 0)

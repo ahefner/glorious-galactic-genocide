@@ -145,9 +145,9 @@
         (img-y img) nil))
 
 (defun draw-img (img x y)
-  (draw-img-deluxe img x y 255 255 255))
+  (draw-img-deluxe* img x y 255 255 255 255))
 
-(defun draw-img-deluxe (img x y r g b)
+(defun draw-img-deluxe* (img x y r g b a)
   ;;; FIXME: Inefficient. Batch these inside one glBegin.
 
   ;;; FIXME: Check whether the damn thing is on screen before we consider uploading a texture.
@@ -159,7 +159,7 @@
   ;;(c "glTexParameter(GL_TEXTURE_2D, TEXTURE_BORDER_COLOR, whatever))
 
   (c "glBegin(GL_QUADS)")
-  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte 255)
+  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a)
 
   (ffi:c-inline (x y (img-x img) (img-y img) (img-width img) (img-height img) (img-x-offset img) (img-y-offset img))
                 (:int :int :int :int :int :int :int :int)
@@ -177,6 +177,9 @@
                    glVertex2i(x, y+h);
                  }")
   (c "glEnd()"))
+
+(defun draw-img-deluxe (img x y color)
+  (draw-img-deluxe* img x y (aref color 0) (aref color 1) (aref color 2) (if (= 4 (length color)) (aref color 3) 255)))
 
 (defun fill-rect (x0 y0 x1 y1 r g b a)
   (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a)
@@ -199,8 +202,13 @@
 
 ;;;; Text renderer
 
-(defun render-label (string height &key (align-x :left) (align-y :baseline))
-  (let* ((cimage (call :pointer-void "sans_label" :unsigned-int #xFFFFFF :unsigned-int height :cstring string))
+(defun render-label (face height string &key (align-x :left) (align-y :baseline))
+  (let* ((facenum (ecase face
+                    (:sans 0)
+                    (:gothic 1)))
+         (cimage (call :pointer-void "render_label"
+                       :unsigned-int facenum
+                       :unsigned-int #xFFFFFF :unsigned-int height :cstring string))
          (img (make-img :width  (cx :int "((image_t)#0)->w" :pointer-void cimage)
                         :height (cx :int "((image_t)#0)->h" :pointer-void cimage)
                         :name string

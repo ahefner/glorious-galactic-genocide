@@ -151,20 +151,22 @@
            (3 (img :star-m-03))))
       (t (img :star-unknown)))))
 
-(defun planet->image (planet)
+(defun planet->images (planet)
   (case (planet-type-of planet)
-    ((terran jungle oceanic) (img :spl-oceanic-0)) ; TODO: Terran images
-    (arid  (img :spl-desert-0))         ; TODO: arid
-    (desert  (img :spl-desert-0))
-    (tundra (img :spl-tundra-0))
-    (minimal (img :spl-minimal-0))
-    (barren  (img :spl-barren-0))
-    (dead    (img :spl-dead-0))
+    ((terran jungle oceanic) (values (img :spl-oceanic-0) (img :ppl-ocean))) ; TODO: Terran images
+    ((arid desert)  (values (img :spl-desert-0) (img :ppl-desert)))
+    (tundra  (values (img :spl-tundra-0)  (img :ppl-tundra)))
+    (minimal (values (img :spl-minimal-0) (img :ppl-minimal)))
+    (barren  (values (img :spl-barren-0)  (img :ppl-barren)))
+    (dead    (values (img :spl-dead-0)    (img :ppl-dead)))
     ;; Still need: volcanic, inferno, toxic, radiated.
-    (otherwise (img :spl-dead-0))))
+    (otherwise (values (img :spl-dead-0) (img :ppl-dead)))))
+
+(defun planet->starmap-image (planet)
+  (nth-value 0 (planet->images planet)))
 
 (defun draw-planet (planet x y)
-  (draw-img (planet->image planet) x y))
+  (draw-img (planet->starmap-image planet) x y))
 
 (let (orbital-vectors)
   (defun relative-orbital-vectors ()
@@ -199,7 +201,7 @@
 
     (with-slots (label-img) star
       (unless label-img
-        (setf label-img (render-label (name-of star) label-height :align-x :center)))
+        (setf label-img (render-label :sans label-height (name-of star) :align-x :center)))
       (presenting (uic star)
         (:hit (circle x y 23))
         (:display (draw-img img x y)))
@@ -219,14 +221,14 @@
                 (:hit (circle ox oy 8))
                 (:display
                  (draw-img (img :circle-16) ox oy)
-                 (draw-img-deluxe (img :inner-16) ox oy (aref color 0) (aref color 1) (aref color 2))
+                 (draw-img-deluxe (img :inner-16) ox oy color)
                  (draw-img (fleet-count-image num-ships) ox oy)))))
 
       (when (and planet explored)
         (draw-planet planet (+ x planet-offset) (+ y planet-offset)))
       (cond
         ((and owner (players-in-contact owner *player*))
-         (draw-img-deluxe label-img x ly (aref ocolor 0) (aref ocolor 1) (aref ocolor 2)))
+         (draw-img-deluxe label-img x ly ocolor))
         (explored  (draw-img label-img x ly))))))
 
 (defun activate-panel (new-panel)
@@ -236,29 +238,83 @@
 (defun starmap-select (starmap object)
   (typecase object
     (star 
-     (activate-panel (make-instance 'star-panel :star object :starmap starmap)))))
-
-
+     (let ((colony (and.. (planet-of object) (colony-of $))))
+       (when colony (activate-panel (make-instance 'colony-panel :colony colony :starmap starmap)))))))
 
 ;;;; -- Star/planet panel --
 
 (defgeneric run-panel (panel uic bottom))
 
-(defclass star-panel ()
-  ((star :accessor star-of :initarg :star)
-   (starmap :initarg :starmap)))
+(defclass colony-panel ()
+  ((colony :accessor colony-of :initarg :colony)
+   (starmap :initarg :starmap)
+   
+   (name-label :initform nil)
+   (class-label :initform nil)
+   (stats-labels :initform nil)))
 
-(defmethod run-panel ((panel star-panel) uic bottom)
-  (declare (ignore bottom))
+(defstruct cursor left x y (newline-p t) (descent 0) (y-pad 0) (min-line-height 14))
+
+(defun cursor-draw-img (cursor img &optional (color (vector 255 255 255 255)))
+  (when (cursor-newline-p cursor)
+    (setf (cursor-x cursor) (cursor-left cursor)))
+  (draw-img-deluxe img (cursor-x cursor) (cursor-y cursor) color)
+  (maxf (cursor-descent cursor) (- (img-height img) (img-y-offset img)))
+  (incf (cursor-x cursor) (img-width img)))
+
+(defun cursor-newline (cursor)
+  (incf (cursor-y cursor) (max (cursor-min-line-height cursor)
+                               (+ (cursor-y-pad cursor) (cursor-descent cursor))))
+  (setf (cursor-newline-p cursor) t
+        (cursor-descent cursor) 0
+        (cursor-x cursor) (cursor-left cursor)))
+
+(defun cursor-draw-line (cursor images)
+  (if (or (listp images) (vectorp images))
+      (map nil (lambda (img) (cursor-draw-img cursor img)) images)
+      (cursor-draw-img cursor images))
+  (cursor-newline cursor))
+
+(defun cursor-draw-lines (cursor line-seq)
+  (map nil (lambda (line) (cursor-draw-line cursor line)) line-seq))
+
+(defmethod run-panel ((panel colony-panel) uic bottom)
   (setf bottom 200)
-  (let* ((left (img :panel-left))
-         (right (img :panel-right))
-         (edge-top (- bottom (img-height left)))
-         (coordinate nil))
+  (with-slots (starmap colony name-label class-label stats-labels) panel
+    (let* ((left (img :panel-left))
+           (right (img :panel-right))
+           (edge-top (- bottom (img-height left)))
+           (player (owner-of colony))
+           (planet (planet-of colony))
+           (color1 (pstyle-label-color (style-of player)))
+           (color2 (color-lighten color1) #+NIL (vector 180 180 180))
+           (col1 (make-cursor :left 165 :y (- bottom 133)))
+           (coordinate nil))
 
-    (with-slots (starmap star) panel
       (present-starmap starmap (child-uic uic 0 0 :active nil))
       
-      (draw-bar left right *panel-fill* 0 edge-top (uic-width uic))      
-      (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244))))
+      (draw-bar left right *panel-fill* 0 edge-top (uic-width uic))
+      (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)
+
+      (draw-img (nth-value 1 (planet->images planet)) 81 (- bottom 88))
+      (cursor-draw-img col1 (orf name-label (render-label :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
+      (cursor-newline col1)
+      (cursor-draw-img col1 (orf class-label (render-label :sans 11 (planet-type-description (planet-type-of planet)))) color2)
+      (cursor-newline col1)
+      (incf (cursor-y col1) 9)
+      (cursor-draw-lines col1 
+       (orf stats-labels
+            (mapcar (lambda (string) (render-label :sans 11 string))
+                    (list (format nil "Population: ~D Million (max. ~D)"
+                                  (population-of colony) (compute-max-population colony))
+                          (format nil "Industry: ~D Factories (max. ~D)"
+                                  (factories-of colony) (max-factories colony))
+                          (format nil "Pollution: ~A" (whenzero "None" (pollution-of planet)))
+                          (format nil "~A Missile Bases" (whenzero "No" 0))
+                          " "
+                          (format nil "Available Production: ~D of ~D BC" 
+                                  (unallocated-production-of colony)
+                                  (production-of colony))))))
+
+)))
 

@@ -45,3 +45,10 @@ error if SEQUENCE is not a proper sequence."
 
 (defun printl (&rest args) (print args))
 
+(defun whenzero (string number)
+  (if (zerop number) string number))
+
+(defun color-lighten (color)
+  (macrolet ((f (x) `(ash (+ ,x 255) -1)))
+    (vector (f (aref color 0)) (f (aref color 1)) (f (aref color 2)))))
+
