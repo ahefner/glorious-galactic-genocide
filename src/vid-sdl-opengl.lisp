@@ -119,8 +119,9 @@
     ((img-surface img) (call "SDL_FreeSurface" :pointer-void (img-surface img)))
     ((img-pixels img)  (call "free" :pointer-void (img-pixels img)))
     (t (warn "Attempt to free IMG ~A with no underlying surface or pixel pointer. Odd." img)))
-  (setf (img-surface img) nil
-        (img-pixels img) nil))
+  (when img
+    (setf (img-surface img) nil
+          (img-pixels img) nil)))
 
 (defun load-image-file (filename &optional x-offset y-offset)
   (format t "~&Loading ~A~%" filename)
@@ -229,7 +230,7 @@
                         :pixels (cx :pointer-void "((image_t)#0)->pixels" :pointer-void cimage)
                         :x-offset (cx :int "((image_t)#0)->x_origin" :pointer-void cimage)
                         :y-offset (cx :int "((image_t)#0)->y_origin" :pointer-void cimage))))
-    #+NIL
+
     (format t "~&Rendered label ~W: ~Dx~D~%"
             string
             (cx :int "((image_t)#0)->w" :pointer-void cimage)

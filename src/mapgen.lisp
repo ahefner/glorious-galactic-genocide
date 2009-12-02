@@ -8,16 +8,84 @@
   '((terran   . 1.0)
     (oceanic  . 1.0)
     (jungle   . 0.8)
-    (arid     . 0.5)
-    (desert   . 0.3)
-    (tundra   . 0.2)
-    (minimal  . 0.1)
+    (arid     . 0.4)
+    (tundra   . 0.3)
+    (desert   . 0.2)
+    (minimal  . 0.15)
     (barren   . 0.1)
     (volcanic . 0.1)
     (dead     . 0.1)
     (inferno  . 0.1)
     (toxic    . 0.1)
     (radiated . 0.1)))
+
+(defparameter *planet-type-rich-probability*
+  '((terran   . 0.01)
+    (oceanic  . 0.02)
+    (jungle   . 0.02)
+    (arid     . 0.10)
+    (tundra   . 0.15)
+    (desert   . 0.15)
+    (minimal  . 0.25)
+    (barren   . 0.35)
+    (volcanic . 0.35)
+    (dead     . 0.35)
+    (inferno  . 0.50)
+    (toxic    . 0.60)
+    (radiated . 0.75)))
+
+(defparameter *planet-type-urich-probability*
+  '((terran   . 0.00)
+    (oceanic  . 0.00)
+    (jungle   . 0.00)
+    (arid     . 0.02)
+    (tundra   . 0.05)
+    (desert   . 0.05)
+    (minimal  . 0.10)
+    (barren   . 0.10)
+    (volcanic . 0.10)
+    (dead     . 0.10)
+    (inferno  . 0.20)
+    (toxic    . 0.20)
+    (radiated . 0.25)))
+
+(defparameter *planet-type-poor-probability*
+  '((terran   . 0.30)
+    (oceanic  . 0.20)
+    (jungle   . 0.30)
+    (arid     . 0.20)
+    (tundra   . 0.15)
+    (desert   . 0.15)
+    (minimal  . 0.10)
+    (barren   . 0.05)
+    (volcanic . 0.05)
+    (dead     . 0.05)
+    (inferno  . 0.00)
+    (toxic    . 0.00)
+    (radiated . 0.00)))
+
+(defparameter *planet-type-upoor-probability*
+  '((terran   . 0.10)
+    (oceanic  . 0.05)
+    (jungle   . 0.10)
+    (arid     . 0.05)
+    (tundra   . 0.05)
+    (desert   . 0.05)
+    (minimal  . 0.04)
+    (barren   . 0.04)
+    (volcanic . 0.02)
+    (dead     . 0.01)
+    (inferno  . 0.00)
+    (toxic    . 0.00)
+    (radiated . 0.00)))
+
+(defun choose-planet-attribute (type score)
+  (cond
+    ((< score (cdr (assoc type *planet-type-urich-probability*))) :ultra-rich)
+    ((< score (cdr (assoc type *planet-type-rich-probability*))) :rich)
+    ((< score (- 1.0 (cdr (assoc type *planet-type-poor-probability*)))) :abundant)
+    ((< score (- 1.0 (cdr (assoc type *planet-type-upoor-probability*)))) :poor)
+    (t :ultra-poor)))
 
 (defgeneric choose-planet-terrains (planet-type))
 
@@ -86,10 +154,10 @@
 
 (defmethod choose-planet-terrains ((planet-type (eql 'dead)))
   (declare (ignorable planet-type))
-  (vector (+ 12 (random 28))
+  (vector (+ 10 (random 78))
           0
           0
-          (+  0 (max 0 (+ -8 (random 16))))))
+          (+  0 (max 0 (+ -13 (random 16))))))
 
 (defmethod choose-planet-terrains ((planet-type (eql 'inferno)))
   (declare (ignorable planet-type))
@@ -100,14 +168,14 @@
 
 (defmethod choose-planet-terrains ((planet-type (eql 'toxic)))
   (declare (ignorable planet-type))
-  (vector (+ 18 (random 36))
-          0
+  (vector (+ 19 (random 45))
+          (max 0 (+ -7 (random 13)))
           0
           (+  0 (max 0 (+ -7 (random 15))))))
 
 (defmethod choose-planet-terrains ((planet-type (eql 'radiated)))
   (declare (ignorable planet-type))
-  (vector (+ 13 (random 36))
+  (vector (+ 13 (random 46))
           0
           0
           (+  0 (max 0 (+ -7 (random 13))))))
@@ -384,13 +452,22 @@
     (loop for star across stars do
           (unless (planet-of star)
             (let* ((planet-type (choose-random-planet-type (spectral-class star)))
-                   (terrains (and planet-type (choose-planet-terrains planet-type))))
+                   (terrains (and planet-type (choose-planet-terrains planet-type)))
+                   (attribute (and planet-type (choose-planet-attribute planet-type (random 1.0)))))
               (when planet-type
                 (setf (slot-value star 'planet)
                       (make-instance 'planet
                                      :name (format nil "~A ~A" (name-of star) (random-elt '("I" "II" "II" "III" "III" "IV" "V")))
                                      :star star
                                      :planet-type planet-type
+                                     :planet-attribute attribute
+                                     :production-modifier (case attribute
+                                                            (:abundant 1)
+                                                            (:rich 2)
+                                                            (:ultra-rich 3)
+                                                            (:poor 1/2)
+                                                            (:ultra-poor 1/3)
+                                                            (t 1))
                                      :habitability (cdr (assoc planet-type *planet-type-habitabilities*))
                                      :terrains terrains))))))))
 

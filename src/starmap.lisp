@@ -1,3 +1,5 @@
+;;;; -*- Coding: latin-1 -*-
+
 ;;;; Starmap
 
 (in-package :g1)
@@ -40,8 +42,14 @@
              (objects (mapcar #'presentation-object (remove coordinate *presentation-stack*))))
         (when (clicked? uic +left+)
           (cond
-            ((and objects (not (second objects))) ; Only one object?
+            ;; If there's precisely one object under the cursor, and
+            ;; it isn't already selected, select it.
+            ((and objects (not (second objects)) 
+                  (not (eql (first objects) *selected-object*)))
              (starmap-select gadget (first objects)))
+            ;; Otherwise scroll to the pointer coordinate. Note that
+            ;; this allows double-clicking to select and scroll to an
+            ;; object.
             (coordinate
              (scroll-to gadget (presentation-object coordinate)))))))))
 
@@ -84,28 +92,10 @@
         (render-starfield (v2.x scroll-coord) (v2.y scroll-coord))
 
         (loop for star across stars
-              with pointer-radius-sq = (square 23)
               as v = (perspective-transform (v- (loc star) camera))
-              as pointer-distance-sq = (+ (square (- (v.x v) (uic-mx uic)))
-                                          (square (- (v.y v) (uic-my uic))))
               as x = (round (v.x v)) as y = (round (v.y v))
               do
-              ;; This is absolutely NOT how things should be done.
-              #+NIL
-              (when (<= pointer-distance-sq pointer-radius-sq)
-                (when (clicked? uic +right+)
-                  (cond
-                    ((not (planet-of star)) (format t "~&Star ~A has no inhabitable planet.~%" (name-of star)))
-                    (t (let* ((planet (planet-of star))
-                              (colony (colony-of planet))
-                              (terrain (terrains-of planet)))
-                         (apply 'format t "~&Planet ~A (~A)~%  Pop ~D  Ind ~D  Waste ~D~%  Total size: ~D (~D land, ~D sea, ~D ice, ~D magma)~%"
-                                 (name-of planet) (planet-type-of planet)                                 
-                                 (population-of colony)
-                                 (factories-of colony)
-                                 (pollution-of planet)
-                                 (reduce #'+ terrain)
-                                 (coerce terrain 'list))))))
+              (when (eql star *selected-object*)
                 (draw-img (img :halo-0) x y))
               (present-star uic star x y)
  )))))
@@ -231,21 +221,25 @@
 
 (defun activate-panel (new-panel)
   (with-slots (panel closing-panel) *gameui*
-    (when panel (finalize-object panel))
+    (when panel 
+      (setf (slot-value *gameui* 'panel-y) (+ (img-height (img :gamebar-left)) (panel-height new-panel)))
+      (finalize-object panel))
     (setf panel new-panel
           closing-panel nil)))
 
 (defun starmap-select (starmap object)
   (typecase object
     (star
-     (let* ((planet (planet-of object))
+     (let* ((star (and (typep object 'star) object))
+            (explored (explored? *player* star))
+            (planet (and.. explored star (planet-of $)))
             (colony (and.. planet (colony-of $))))
        (cond
-         (planet (activate-panel (make-instance 'planet-panel :planet planet :starmap starmap)))
-          #+NIL
-         (colony (activate-panel (make-instance 'colony-panel :colony colony :starmap starmap))))))))
+         (colony (activate-panel (make-instance 'colony-panel :starmap starmap :colony colony)))
+         (planet (activate-panel (make-instance 'planet-panel :starmap starmap :planet planet)))
+         (star   (activate-panel (make-instance 'star-panel   :starmap starmap :star star))))))))
 
-;;;; Cursor Layout
+;;;; Cursor Layout Utility
 
 (defstruct cursor left x y (newline-p t) (descent 0) (y-pad 0) (min-line-height 14))
 
@@ -285,59 +279,127 @@
   ((panel-height :accessor panel-height :initarg :panel-height)
    (starmap :initarg :starmap)))
 
+;;; Common panel labels
+
+(defvar *plabel-show-planet* nil)
+(defun show-planet-label ()
+  (orf *plabel-show-planet* (render-label *global-owner* :sans 12 "Show Planet Overview" :align-x :center)))
+
+(defvar *plabel-show-colony* nil)
+(defun show-colony-control-label ()
+  (orf *plabel-show-colony* (render-label *global-owner* :sans 12 "Show Colony Controls" :align-x :center)))
+
 ;;;; Planet Panel
 
 (defparameter *planet-panel-px* 81)
 (defparameter *planet-panel-py* 88)
-(defparameter *planet-panel-col1-baseline* 133)
 (defparameter *planet-panel-col1-left* 165)
+(defparameter *planet-panel-col1-baseline* 133)
+(defparameter *planet-panel-col2-left* 372)
+(defparameter *planet-panel-col2-baseline* 119)
 
 (defclass planet-panel (panel)
-  ((planet :accessor :planet-of :initarg :planet)   
+  ((planet :accessor :planet-of :initarg :planet)
    (name-label :initform nil)
    (class-label :initform nil)
-   (col1-labels :initform nil))
+   (owner-label :initform nil)
+   (col1-labels :initform nil)
+   (col2-labels :initform nil)
+   (area-label :initform nil))
   (:default-initargs :panel-height 168))
 
 (defmethod run-panel ((panel planet-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
-  (with-slots (starmap planet name-label class-label col1-labels) panel
-    (let* ((col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
-           (color1 (pstyle-label-color (style-of *player*)))
+  (with-slots (starmap planet name-label class-label owner-label col1-labels col2-labels area-label) panel
+    (let* ((*selected-object* (star-of planet))
+           (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
+           (col2 (make-cursor :left *planet-panel-col2-left* :y (- bottom *planet-panel-col2-baseline*)))
+           (owner (and.. (colony-of planet) (owner-of $)))
+           (maxpop-owner (and owner (planet-max-population planet owner)))
+           (maxpop-us (planet-max-population planet *player*))
+           (style (style-of (or owner *player*)))
+           (color1 (pstyle-label-color style))
            (color2 (color-lighten color1))
            (terrains (terrains-of planet))
+           (units-to-mm 6)
            (area (reduce #'+ terrains)))
 
       (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
-      (draw-panel-background uic bottom)    
+      (draw-panel-background uic bottom)
       (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
       
-      (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Planet ~A" (name-of planet)))) color1)
+      (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "~A ~A"
+                                                                                   (if owner "Colony" "Planet")
+                                                                                   (name-of planet)))) color1)
       (cursor-newline col1)
       (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
       (cursor-newline col1)
-      (incf (cursor-y col1) 9)
+      
+      (when (and owner (not (eql *player* owner)))
+        (cursor-draw-img col1 (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of owner)))))
+        (cursor-newline col1))
 
-      (cursor-draw-lines col1 
-       (orf col1-labels
+      (incf (cursor-y col1) 9)
+      (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
+
+      (cursor-draw-lines col1
+        (orf col1-labels
             (mapcar (lambda (string) (render-label panel :sans 11 string))
-                    (remove nil 
-                     (flet ((show (name units)
-                              (cond
-                                ((zerop units) (format nil "No ~A" name))
-                                ((= units 1) (format nil "Minimal ~A" name))
-                                (t (format nil "~,1F% ~A" (* 100 units (/ area)) name)))))
-                     (list (show "Solid Land" (aref terrains 0))
-                           (show "Surface Water" (aref terrains 1))
-                           (show "Surface Ice" (aref terrains 2))
-                           (show "Volcanic Regions" (aref terrains 3))))))))
-)))
+                    (flet ((show (name units)
+                             (cond
+                               ((zerop units) (format nil "No ~A" name))
+                               ((= units 1) (format nil "Minimal ~A" name))
+                               (t (format nil "~,1F% ~A (~:D Mm²)" (* 100 units (/ area)) name (* units units-to-mm))))))
+                      (list (show "Solid Land"        (aref terrains 0))
+                            (show "Surface Water"     (aref terrains 1))
+                            (show "Surface Ice"       (aref terrains 2))
+                            (show "Volcanic Activity" (aref terrains 3)))))))
+      (incf (cursor-y col1) 9)
+      (cursor-draw-img col1
+        (orf area-label (render-label panel :sans 11 (format nil "Total Surface Area: ~:D Mm²" (* area units-to-mm)))))
+
+      (with-slots (habitability production-modifier) planet
+        (cursor-draw-lines col2
+          (orf col2-labels
+            (mapcar (lambda (string) (render-label panel :sans 11 string))
+                    (remove nil
+                     (list
+                      (and (not (eql owner *player*)) (format nil "Distance: ~:D LY" (distance-from-player *player* planet)))
+                      (and (or (not maxpop-owner) (= maxpop-owner maxpop-us))
+                           (format nil "Max Population: ~:D million" maxpop-us))
+                      (and maxpop-owner (/= maxpop-owner maxpop-us) (format nil "Max Population (owner): ~:D million" maxpop-owner))
+                      (and maxpop-owner (/= maxpop-owner maxpop-us) (format nil "Max Population (us): ~:D million" maxpop-us))
+                      (cond ((<= habitability 0.11) "Extremely Hostile")
+                            ((<= habitability 0.25) "Hostile Environment")
+                            ((<= habitability 0.55) "Capable of Supporting Life")
+                            (t "Favorable to Organic Life"))
+                      (cond ((<= production-modifier 0.4) "Extremely Mineral Poor")
+                            ((<= production-modifier 0.8) "Mineral Poor")
+                            ((<= production-modifier 1.5) "Abundant Minerals")
+                            ((<= production-modifier 2.5) "Rich Mineral Deposits")
+                            (t "Very Rich Mineral Deposits"))
+                      (unless (zerop (pollution-of planet))
+                        (format nil "Pollution: ~:D" (pollution-of planet)))
+                      ))))))
+
+      ;; Allow the user to switch the colony control panel.
+      (when (and (uic-active uic) 
+                 (colony-of planet)
+                 (eq (owner-of (colony-of planet)) *player*)
+                 (pointer-in-radius* uic 71 *planet-panel-px* *planet-panel-py*))
+        (draw-img (show-colony-control-label) *planet-panel-px* (- bottom *planet-panel-py* -50))
+        (when (clicked? uic +left+)
+          (activate-panel (make-instance 'colony-panel :colony (colony-of planet) :starmap starmap))))
+
+      )))
 
 (defmethod finalize-object ((panel planet-panel))
-  (with-slots (name-label class-label col1-labels) panel
+  (with-slots (name-label class-label col1-labels col2-labels area-label) panel
     (free-img name-label)
     (free-img class-label)
-    (map nil #'free-img col1-labels)))
+    (free-img area-label)
+    (map nil #'free-img col1-labels)
+    (map nil #'free-img col2-labels)))
 
 ;;;; Colony Control Panel
 
@@ -345,7 +407,9 @@
   ((colony :accessor colony-of :initarg :colony)
    (name-label :initform nil)
    (class-label :initform nil)
-   (stats-labels :initform nil))
+   (owner-label :initform nil)
+   (stats-labels :initform nil)
+   (production-label :initform nil))
   (:default-initargs :panel-height 168))
 
 (defun draw-panel-background (uic bottom)
@@ -357,8 +421,9 @@
 
 (defmethod run-panel ((panel colony-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
-  (with-slots (starmap colony name-label class-label stats-labels) panel
-    (let* ((player (owner-of colony))
+  (with-slots (starmap colony name-label class-label owner-label stats-labels production-label) panel
+    (let* ((*selected-object* (star-of colony))
+           (player (owner-of colony))
            (planet (planet-of colony))
            (color1 (pstyle-label-color (style-of player)))
            (color2 (color-lighten color1))
@@ -370,29 +435,94 @@
       (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
       (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
       (cursor-newline col1)
+      (unless (eql *player* player)
+        (cursor-draw-img col1 (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of player)))))
+        (cursor-newline col1))
       (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
       (cursor-newline col1)
       (incf (cursor-y col1) 9)
       (cursor-draw-lines col1 
        (orf stats-labels
             (mapcar (lambda (string) (render-label panel :sans 11 string))
-                    (list (format nil "Population: ~D Million (max. ~D)"
+                    (list (format nil "Population: ~:D Million (max. ~:D)"
                                   (population-of colony) (compute-max-population colony))
-                          (format nil "Industry: ~D Factories (max. ~D)"
+                          (format nil "Industry: ~:D Factories (max. ~:D)"
                                   (factories-of colony) (max-factories colony))
-                          (format nil "Pollution: ~A" (whenzero "None" (pollution-of planet)))
-                          (format nil "~A Missile Bases" (whenzero "No" 0))
-                          " "
-                          (format nil "Available Production: ~D of ~D BC" 
-                                  (unallocated-production-of colony)
-                                  (production-of colony))))))
+                          (format nil "Pollution: ~:D" (whenzero "None" (pollution-of planet)))
+                          (format nil "~A Missile Bases" (whenzero "No" 0))))))
+      (incf (cursor-y col1) 9)
+      (cursor-draw-img col1 
+                       (orf production-label 
+                        (render-label panel :sans 11
+                         (format nil "Available Production: ~:D of ~:D BC" 
+                                 (unallocated-production-of colony)
+                                 (production-of colony)))))
+
+      (when (and (uic-active uic) (pointer-in-radius* uic 71 *planet-panel-px* *planet-panel-py*))
+        (draw-img (show-planet-label) *planet-panel-px* (- bottom *planet-panel-py* -50))
+        (when (clicked? uic +left+)
+          (activate-panel (make-instance 'planet-panel :planet (planet-of colony) :starmap starmap))))
 
 )))
 
 
 (defmethod finalize-object ((panel colony-panel))
-  (with-slots (name-label class-label stats-labels) panel
+  (with-slots (name-label class-label stats-labels production-label) panel
     (free-img name-label)
     (free-img class-label)
+    (free-img production-label)
     (map nil #'free-img stats-labels)))
 
+;;;; Star Panel
+
+(defclass star-panel (panel)
+  ((star :initarg :star)
+   (name-label :initform nil)
+   (class-label :initform nil)
+   (distance-label :initform nil)
+   (blurb-label :initform nil))
+  (:default-initargs :panel-height 120))
+
+(defmethod run-panel ((panel star-panel) uic bottom)
+  (when (and (uic-active uic) (released? uic +right+)) (close-panels))
+  (with-slots (starmap star name-label distance-label class-label blurb-label) panel
+    (let* ((*selected-object* star)
+           (color1 (pstyle-label-color (style-of *player*)))
+           (color2 (color-lighten color1))
+           (column (make-cursor :left 120 :y (- bottom 85))))
+      
+      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+      (draw-panel-background uic bottom)
+
+      (draw-img (star->image star) 60 (- bottom 60))
+      (cursor-draw-img column
+       (orf name-label (render-label panel :gothic 20 (name-of star) #+NIL (format nil "Star ~A" (name-of star))))
+       color1)
+      (cursor-newline column)
+      (cursor-draw-img column
+       (orf class-label (render-label panel :sans 11 (format nil "Spectral Class ~A" (spectral-class star))))
+       color2)
+      (cursor-newline column)
+      (incf (cursor-y column) 9)
+      (cursor-draw-img column
+                       (orf distance-label (render-label panel :sans 11
+                                            (format nil "Distance: ~:D LY" (distance-from-player *player* star)))))
+      (cursor-newline column)
+      (cursor-draw-img column
+       (orf blurb-label
+            (render-label panel :sans 11
+             (cond
+               ((not (explored? *player* star)) "This star has not yet been explored.")
+               ((not (planet-of star)) "This star has no colonizable planets.")
+              (t "")))))
+)))
+
+(defmethod finalize-object ((panel star-panel))
+  (with-slots (name-label class-label distance-label blurb-label) panel
+    (free-img name-label)
+    (free-img class-label)
+    (free-img distance-label)
+    (free-img blurb-label)))
+    
+  
+  

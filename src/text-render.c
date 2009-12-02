@@ -44,6 +44,11 @@ int ensure_freetype (void)
             return -1;
         }
 
+        for (int i=0; i<sizeof(faces)/sizeof(faces[0]); i++) 
+        {
+            FT_Select_Charmap(faces[i], FT_ENCODING_ADOBE_LATIN_1);
+        }
+
         freetype_init = 1;
     }
 
@@ -82,10 +87,10 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
     int pen_x = 0;
     FT_UInt last_glyph_index = 0;
 
-    char *str = string;
-    for (char c = *str++; c; c=*str++) {
+    unsigned char *str = string;
+    for (unsigned char c = *str++; c; c=*str++) {
         // Beg Freetype to render the glyph
-        FT_UInt glyph_index = FT_Get_Char_Index(face, c); 
+        FT_UInt glyph_index = FT_Get_Char_Index(face, c);
 
         if (first_char) first_char = 0;
         else {
@@ -119,7 +124,7 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
 
         // Clip to left edge
         if (ox0 < 0) {
-            printf("PRECLIP %s\n", string);
+            //printf("PRECLIP %s\n", string);
             ix0 -= ox0;
             ox0 -= ox0;
         }
@@ -159,7 +164,7 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
                     tmp += row[xoff];
                     ptr[ox0+xoff] = clamp_byte(tmp);
                 }
-            } else printf("    fuck off at %i\n", y);
+            }
         }
 
         pen_x += face->glyph->advance.x >> 6;
@@ -167,7 +172,7 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
 
     uint32_t *data = malloc(4*(max_x - min_x)*(max_y - min_y));
 
-    printf("Final bounds: %i %i %i %i baseline=%i\n", 0, min_y, max_x, max_y, baseline);
+    //printf("Final bounds: %i %i %i %i baseline=%i\n", 0, min_y, max_x, max_y, baseline);
 
     if (data == NULL) {
         printf("Can't allocate final memory for size %i label \"%s\"\n", text_height, string);

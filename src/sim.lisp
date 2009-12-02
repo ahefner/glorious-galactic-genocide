@@ -95,6 +95,10 @@
 (defun all-planets (universe)
   (remove nil (map 'list #'planet-of (stars universe))))
 
+(defun distance-from-player (player staroid)
+  (round (reduce #'min (colonies player) :key (lambda (col) (len (v- (loc col) (loc staroid)))))
+         light-years/units))
+
 ;;;;
 
 (defun get-player-styles ()
@@ -142,21 +146,24 @@
                    (* 3.00 (magma# (planet-of colony)))
                    (* 0.15 (ocean# (planet-of colony))))))))
 
-(defun compute-max-population (colony)
+(defun maxpops-by-terrain (planet owner)
+  (map 'vector
+       (lambda (x y) (round (* x y (habitability-of planet))))
+       (adaptation-vector-of owner)
+       (terrains-of planet)))
+
+(defun planet-max-population (planet player)
   ;; Max population less pollution penalty (-1 pop unit per unit pollution)
   (round
-   (max 0 (- (reduce #'+ (maxpops-by-terrain colony))
-             (pollution-of (planet-of colony))))))
+   (max 0 (- (reduce #'+ (maxpops-by-terrain planet player))
+             (pollution-of planet)))))
 
-(defun maxpops-by-terrain (colony)
-  (map 'vector
-       (lambda (x y) (round (* x y (habitability-of (planet-of colony)))))
-       (adaptation-vector-of (owner-of colony))
-       (terrains-of (planet-of colony))))
+(defun compute-max-population (colony)
+  (planet-max-population (planet-of colony) (owner-of colony)))
 
 (defun compute-population-distribution (colony population)
   (let* ((max-population (compute-max-population colony))
-         (maxpops (maxpops-by-terrain colony))
+         (maxpops (maxpops-by-terrain (planet-of colony) (owner-of colony)))
          (pop (min population max-population)) ; Initially, sustainable population.
          (displaced (- population pop))
          (pops (make-array 4 :initial-element 0)))

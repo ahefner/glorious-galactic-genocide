@@ -4,7 +4,7 @@
 
 (defun child-uic (uic dx dy &key width height (active t))
   (let ((new (copy-uic uic)))
-    (setf (uic-active new) active)
+    (setf (uic-active new) (and active (uic-active uic))) ; Don't override deactivation by a parent.
     (incf (uic-abx new) dx)
     (incf (uic-aby new) dy)
     (decf (uic-mx  new) dx)
@@ -135,6 +135,10 @@
 
 (defun held? (uic button-mask)
   (= button-mask (logand (uic-buttons uic) button-mask)))
+
+(defun pointer-normsq* (uic x y) (+ (square (- x (uic-mx uic))) (square (- y (uic-my uic)))))
+(defun pointer-in-radius* (uic radius x y) (<= (pointer-normsq* uic x y) (square radius)))
+  
 
 ;;;; Presentations
 

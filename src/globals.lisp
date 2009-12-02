@@ -1,7 +1,7 @@
 ;;;; Global variables.
 
 ;;;; We have to put them here and define them during compilation,
-;;;; otherwise the compiler will bitch when compiling files that use
+;;;; otherwise the compiler will warn when compiling files that use
 ;;;; them, because it hasn't necessarily seen the definition.
 
 (in-package :g1)
@@ -20,6 +20,9 @@
 (defvar *gameui*)
 (defvar *presentation-stack*)
 
+;;; Object currently being inspected by a panel, to highlight in the starmap.
+(defvar *selected-object* nil)
+
 (defparameter *presentation-query* (constantly :discard))
 
 (defvar *global-owner* nil)
@@ -27,3 +30,4 @@
 (defvar *player*)
 (defvar *universe*)
 
+(defconstant light-years/units 65.0)
