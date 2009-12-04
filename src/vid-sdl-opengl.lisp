@@ -374,7 +374,10 @@
     (t
      ;; Reset previous attempt at allocation.
      (packset-reset ps)
-     (error "I'm one lazy fucker, right? Still need to allocate ~A" object))))
+     (format t "~&FAILURE! Packset contents:~%"
+     (loop for item across (packset-images ps)
+           do (format t "~&   ~A~%" item))
+     (error "I'm one lazy fucker, right? Still need to allocate ~A" object)))))
 
 (defun debug-show-packset ()
   (fill-rect 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)

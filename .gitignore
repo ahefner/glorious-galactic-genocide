@@ -4,3 +4,5 @@
 #*
 g1
 src/tmp
+src/*.fas
+src/#*

@@ -27,7 +27,11 @@
   (print (list :press keysym char))
   (cond
     ((eql keysym (keysym :G))
-     (setf (slot-value starmap 'universe) (make-test-universe)))))
+     (setf (values *universe* *player*) (make-test-universe)
+           (slot-value starmap 'universe) *universe*))
+    ((eql keysym (keysym :E))
+     (print "Exploring the universe!")
+     (loop for star across (stars *universe*) do (explore-star star *player*)))))
 
 (defmethod gadget-key-released ((starmap debug-starmap) uic keysym)
   (declare (ignore starmap uic))
@@ -142,14 +146,21 @@
 
 (defun planet->images (planet)
   (case (planet-type-of planet)
-    ((terran jungle oceanic) (values (img :spl-oceanic-0) (img :ppl-ocean))) ; TODO: Terran images
-    ((arid desert)  (values (img :spl-desert-0) (img :ppl-desert)))
-    (tundra  (values (img :spl-tundra-0)  (img :ppl-tundra)))
-    (minimal (values (img :spl-minimal-0) (img :ppl-minimal)))
-    (barren  (values (img :spl-barren-0)  (img :ppl-barren)))
-    (dead    (values (img :spl-dead-0)    (img :ppl-dead)))
-    ;; Still need: volcanic, inferno, toxic, radiated.
-    (otherwise (values (img :spl-dead-0) (img :ppl-dead)))))
+    (terran   (values (img :spl-terran-0)   (img :ppl-terran)))
+    (jungle   (values (img :spl-jungle-0)   (img :ppl-jungle)))
+    (oceanic  (values (img :spl-oceanic-0)  (img :ppl-ocean)))
+    (arid     (values (img :spl-arid-0)     (img :ppl-arid)))
+    (desert   (values (img :spl-desert-0)   (img :ppl-desert)))
+    (tundra   (values (img :spl-tundra-0)   (img :ppl-tundra)))
+    (minimal  (values (img :spl-minimal-0)  (img :ppl-minimal)))
+    (barren   (values (img :spl-barren-0)   (img :ppl-barren)))
+    (volcanic (values (img :spl-volcanic-0) (img :ppl-volcanic)))
+    (dead     (values (img :spl-dead-0)     (img :ppl-dead)))
+    (inferno  (values (img :spl-inferno-0)  (img :ppl-inferno)))
+    (toxic    (values (img :spl-toxic-0)    (img :ppl-toxic)))
+    (radiated (values (img :spl-radiated-0) (img :ppl-radiated)))
+    ;; This shouldn't happen:
+    (otherwise (values (img :spl-dead-0)  (img :ppl-dead)))))
 
 (defun planet->starmap-image (planet)
   (nth-value 0 (planet->images planet)))
@@ -231,7 +242,7 @@
   (typecase object
     (star
      (let* ((star (and (typep object 'star) object))
-            (explored (explored? *player* star))
+            (explored (explored? *player* star)) ; XXX
             (planet (and.. explored star (planet-of $)))
             (colony (and.. planet (colony-of $))))
        (cond
@@ -318,7 +329,8 @@
            (style (style-of (or owner *player*)))
            (color1 (pstyle-label-color style))
            (color2 (color-lighten color1))
-           (terrains (terrains-of planet))           
+           (terrains (terrains-of planet))
+           (*planet-panel-col1-baseline* (+ *planet-panel-col1-baseline* (if (and owner (not (eql owner *player*))) 7 0)))
            (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
            (col2 (make-cursor :left *planet-panel-col2-left* :y (- bottom *planet-panel-col2-baseline*)))
            (units-to-mm 6)
@@ -345,15 +357,15 @@
       (cursor-draw-lines col1
         (orf col1-labels
             (mapcar (lambda (string) (render-label panel :sans 11 string))
-                    (flet ((show (name units)
+                    (flet ((show (name units &optional (pl name))
                              (cond
                                ((zerop units) (format nil "No ~A" name))
                                ((= units 1) (format nil "Minimal ~A" name))
-                               (t (format nil "~,1F% ~A (~:D Mm²)" (* 100 units (/ area)) name (* units units-to-mm))))))
+                               (t (format nil "~,1F% ~A (~:D Mm²)" (* 100 units (/ area)) pl (* units units-to-mm))))))
                       (list (show "Solid Land"        (aref terrains 0))
                             (show "Surface Water"     (aref terrains 1))
                             (show "Surface Ice"       (aref terrains 2))
-                            (show "Volcanic Activity" (aref terrains 3)))))))
+                            (show "Volcanic Activity" (aref terrains 3) "Volcanically Active"))))))
       (incf (cursor-y col1) 9)
       (cursor-draw-img col1
         (orf area-label (render-label panel :sans 11 (format nil "Total Surface Area: ~:D Mm²" (* area units-to-mm)))))
@@ -394,10 +406,11 @@
       )))
 
 (defmethod finalize-object ((panel planet-panel))
-  (with-slots (name-label class-label col1-labels col2-labels area-label) panel
+  (with-slots (name-label class-label col1-labels col2-labels area-label owner-label) panel
     (free-img name-label)
     (free-img class-label)
     (free-img area-label)
+    (free-img owner-label)
     (map nil #'free-img col1-labels)
     (map nil #'free-img col2-labels)))
 
@@ -436,11 +449,11 @@
       (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
       (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
       (cursor-newline col1)
+      (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
+      (cursor-newline col1)
       (unless (eql *player* player)
         (cursor-draw-img col1 (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of player)))))
         (cursor-newline col1))
-      (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
-      (cursor-newline col1)
       (incf (cursor-y col1) 9)
       (cursor-draw-lines col1 
        (orf stats-labels
@@ -468,10 +481,11 @@
 
 
 (defmethod finalize-object ((panel colony-panel))
-  (with-slots (name-label class-label stats-labels production-label) panel
+  (with-slots (name-label class-label stats-labels production-label owner-label) panel
     (free-img name-label)
     (free-img class-label)
     (free-img production-label)
+    (free-img owner-label)
     (map nil #'free-img stats-labels)))
 
 ;;;; Star Panel

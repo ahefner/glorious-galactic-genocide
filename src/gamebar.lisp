@@ -9,6 +9,16 @@
    (panel :initform nil)
    (panel-y :initform 0)))
 
+(defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
+  (with-slots (starmap panel closing-panel) gadget
+    (cond ((and panel (not closing-panel)) (gadget-key-pressed panel uic keysym char))
+          (t (gadget-key-pressed starmap uic keysym char)))))
+
+(defmethod gadget-key-released ((gadget gameui) uic keysym)
+  (with-slots (starmap panel closing-panel) gadget
+    (cond ((and panel (not closing-panel)) (gadget-key-released panel uic keysym))
+          (t (gadget-key-released starmap uic keysym)))))
+
 (defun create-gameui (universe)
   (let* ((gameui (make-instance 'gameui :universe universe))
          (homeworld (aref (colonies *player*) 0))
