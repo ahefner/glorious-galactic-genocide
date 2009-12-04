@@ -145,3 +145,26 @@
 (defun push-new-presentation (object type children)
   (push (make-presentation :object object :type (or type object) :children children)
         *presentation-stack*))
+
+
+;;;; Gadgetry
+
+(defun run-img-button (uic img-up img-down x y)
+  (let ((in (and (uic-active uic) (pointer-in-img-rect uic img-up x y))))
+    (draw-img (if (and in (held? uic +left+)) img-down img-up) x y)
+    (and in (released? uic +left+))))
+
+(defun labelled-button-rect (button-style label x y &key min-width (center-x t))
+  (let* ((style (button-style-released button-style))
+         (label-width (max (or min-width 0) (if label (img-width label) 0)))
+         (bar-width (+ label-width (bar-style-width style)))
+         (lx (if center-x (- x (ash bar-width -1)) x)))
+  (values lx y (+ lx bar-width) (+ y (bar-style-height style)))))
+
+(defun run-labelled-button (uic label x y &key min-width (center-x t) (color (vector 255 255 255)) (style *button-a*))
+  (let ((in (and (uic-active uic)
+                 (multiple-value-call #'pointer-in-rect* uic
+                   (labelled-button-rect style label x y :min-width min-width :center-x center-x)))))
+    (draw-button style label (and in (held? uic +left+)) x y :min-width min-width :center-x center-x :color color)
+    (and in (released? uic +left+))))
+

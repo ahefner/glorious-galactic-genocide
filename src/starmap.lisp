@@ -290,6 +290,13 @@
   ((panel-height :accessor panel-height :initarg :panel-height)
    (starmap :initarg :starmap)))
 
+(defun draw-panel-background (uic bottom)
+  (let* ((left (img :panel-left))
+         (right (img :panel-right))
+         (edge-top (- bottom (img-height left))))
+    (draw-bar* left right *panel-fill* 0 edge-top (uic-width uic))
+    (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
+
 ;;; Common panel labels
 
 (defvar *plabel-show-planet* nil)
@@ -353,7 +360,7 @@
 
       (incf (cursor-y col1) 9)
       (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
-
+      
       (cursor-draw-lines col1
         (orf col1-labels
             (mapcar (lambda (string) (render-label panel :sans 11 string))
@@ -425,14 +432,9 @@
    (production-label :initform nil))
   (:default-initargs :panel-height 168))
 
-(defun draw-panel-background (uic bottom)
-  (let* ((left (img :panel-left))
-         (right (img :panel-right))
-         (edge-top (- bottom (img-height left))))
-    (draw-bar left right *panel-fill* 0 edge-top (uic-width uic))
-    (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
-
-(defmethod run-panel ((panel colony-panel) uic bottom)
+(let (build-ships-label
+      set-defenses-label)
+ (defmethod run-panel ((panel colony-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
   (with-slots (starmap colony name-label class-label owner-label stats-labels production-label) panel
     (let* ((*selected-object* (star-of colony))
@@ -444,9 +446,10 @@
            (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*))))
 
       (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
-      (draw-panel-background uic bottom)
-      
+      (draw-panel-background uic bottom)     
       (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
+      
+      ;; Draw the title and first column
       (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
       (cursor-newline col1)
       (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
@@ -472,12 +475,20 @@
                                  (unallocated-production-of colony)
                                  (production-of colony)))))
 
+      ;; Draw the hypothetical second column
+      
+      ;; Draw the shipyard controls
+      (run-labelled-button uic (player-label :shipyard-button :bold 14 "Shipyard") 710 (- bottom 40) :color color1)
+      (run-labelled-button uic (player-label :defense-button  :bold 14 "Defenses") 710 (- bottom 70) :color color2)
+
+
+      ;; Allow toggling between planet and star panel
       (when (and (uic-active uic) (pointer-in-radius* uic 71 *planet-panel-px* *planet-panel-py*))
         (draw-img (show-planet-label) *planet-panel-px* (- bottom *planet-panel-py* -50))
         (when (clicked? uic +left+)
           (activate-panel (make-instance 'planet-panel :planet (planet-of colony) :starmap starmap))))
 
-)))
+))))
 
 
 (defmethod finalize-object ((panel colony-panel))
@@ -521,7 +532,7 @@
       (incf (cursor-y column) 9)
       (cursor-draw-img column
                        (orf distance-label (render-label panel :sans 11
-                                            (format nil "Distance: ~:D LY" (distance-from-player *player* star)))))
+                                            (format nil "Distance: ~:D LY" (distance-from-player *player* star)))))      
       (cursor-newline column)
       (cursor-draw-img column
        (orf blurb-label

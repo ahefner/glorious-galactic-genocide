@@ -33,21 +33,6 @@
               (parent-gadget starmap) gameui
               next-gadget starmap)))))
 
-(defun img-bounds* (img x y)
-  (let ((x (- x (img-x-offset img)))
-        (y (- y (img-y-offset img))))
-    (values x y (+ x (img-width img)) (+ y (img-height img)))))
-
-(defun in-img-rect (uic img x y)
-  (multiple-value-bind (x0 y0 x1 y1) (img-bounds* img x y)
-    (and (<= x0 (uic-mx uic)) (<= y0 (uic-my uic))
-         (< (uic-mx uic) x1) (< (uic-my uic) y1))))
-
-(defun run-img-button (uic img-up img-down x y)
-  (let ((in (and (uic-active uic) (in-img-rect uic img-up x y))))
-    (draw-img (if (and in (held? uic +left+)) img-down img-up) x y)
-    (and in (released? uic +left+))))
-
 (defun close-panels ()
   (with-slots (closing-panel) *gameui*
     (setf closing-panel t)))
@@ -76,13 +61,15 @@
                    closing-panel nil))))
         (t (gadget-paint (next-gadget gadget) child-uic))))
   
-    (draw-bar (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
+    (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
 
-    (let* ((turn-up (imgblock :next-turn-button-up))
-           (turn-down (imgblock :next-turn-button-down))
+    (let* ((game-label (player-label :game-button :bold 14 "Game"))
+           (turn-label (player-label :turn-button :bold 14 "Next Turn"))
+           (color (pstyle-label-color (style-of *player*)))
            ;; Button states:
-           (clicked-game (run-img-button uic (imgblock :game-button-up) (imgblock :game-button-down) 16 3))
-           (clicked-turn (run-img-button uic turn-up turn-down (- (uic-width uic) 16 (img-width turn-up)) 3)))
+           (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
+           (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color)))
+      
       (cond
         (clicked-game (printl "You clicked the Game button!"))
         (clicked-turn (printl "You clicked Next Turn!"))

@@ -58,6 +58,8 @@
    (style :accessor style-of :initarg :style :initform nil)
    (ship-designs-of :reader ship-designs-of :initform (make-array 9))
 
+   (owned-images :accessor owned-images-of :initform (make-hash-table))
+
    ;;; All the slots below are cached values:
 
    ;; Number of population units current technology permits to inhabit per square of each terrain type:

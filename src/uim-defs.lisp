@@ -117,7 +117,9 @@
     (lambda (x y)
       (<= (+ (square (- x cx)) (square (- y cy))) r^2))))
 
-#+NIL
-(presenting (uic star)
-  (:display (draw-star star x y))
-  (:hit (pointer-radius-test uic x y radius)))
+
+;;;; Hi there.
+
+(defstruct bar-style left right fill)
+(defstruct button-style pressed released baseline)
+

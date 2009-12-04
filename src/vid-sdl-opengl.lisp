@@ -195,31 +195,15 @@
 (defun draw-img-deluxe (img x y color)
   (draw-img-deluxe* img x y (aref color 0) (aref color 1) (aref color 2) (if (= 4 (length color)) (aref color 3) 255)))
 
-(defun fill-rect (x0 y0 x1 y1 r g b a)
-  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a)
-  (c "glDisable(GL_TEXTURE_2D)")
-  (c "glBegin(GL_QUADS)")
-  (ffi:c-inline (x0 y0 x1 y1) (:int :int :int :int) (values)
-                " { glVertex2i(#0,#1); glVertex2i(#2,#1); glVertex2i(#2,#3); glVertex2i(#0,#3); }")
-  (c "glEnd()")
-  (c "glEnable(GL_TEXTURE_2D)")
-  (values))
-
-(defun draw-bar (left-img right-img fill-tile x y width)
-  (let ((left-x (img-width left-img))
-        (right-x (- width (img-width right-img)))
-        (fill-y (img-height left-img)))
-  (draw-img right-img (+ x right-x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
-  (draw-img left-img (+ x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
-  (bind-texobj fill-tile)
-  (draw-tile (+ x left-x) y (+ x right-x) (+ y fill-y) 0 0)))
-
 ;;;; Text renderer
 
 (defun render-label (owner face height string &key (align-x :left) (align-y :baseline))
   (let* ((facenum (ecase face
                     (:sans 0)
-                    (:gothic 1)))
+                    (:bold 1)
+                    (:italic 2)
+                    (:bold-italic 3)
+                    (:gothic 4)))
          (cimage (call :pointer-void "render_label"
                        :unsigned-int facenum
                        :unsigned-int #xFFFFFF :unsigned-int height :cstring string))
@@ -244,6 +228,73 @@
       (:baseline)
       (:bottom (setf (img-y-offset img) (img-height img))))
     img))
+
+(let ((global-labels (make-hash-table :test 'equal)))
+  (defun global-label (&rest args)
+    (orf (gethash args global-labels)
+         (destructuring-bind (face size string) args
+           (render-label *global-owner* face size string)))))
+
+(defun player-label (key face size string)
+  (orf (gethash key (owned-images-of *player*))
+       (render-label *player* face size string)))
+
+;;;; Various utilities
+
+(defun fill-rect (x0 y0 x1 y1 r g b a)
+  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a)
+  (c "glDisable(GL_TEXTURE_2D)")
+  (c "glBegin(GL_QUADS)")
+  (ffi:c-inline (x0 y0 x1 y1) (:int :int :int :int) (values)
+                " { glVertex2i(#0,#1); glVertex2i(#2,#1); glVertex2i(#2,#3); glVertex2i(#0,#3); }")
+  (c "glEnd()")
+  (c "glEnable(GL_TEXTURE_2D)")
+  (values))
+
+(defun bar-style-width (style)
+  (+ (img-width (bar-style-left style)) (img-width (bar-style-right style))))
+
+(defun bar-style-height (style) (img-height (bar-style-left style)))
+
+(defun draw-bar* (left-img right-img fill-tile x y width)
+  (let ((left-x (img-width left-img))
+        (right-x (- width (img-width right-img)))
+        (fill-y (img-height left-img)))
+  (draw-img right-img (+ x right-x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
+  (draw-img left-img (+ x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
+  (bind-texobj fill-tile)
+  (draw-tile (+ x left-x) y (+ x right-x) (+ y fill-y) 0 0)))
+
+(defun draw-bar (style x y width)
+  (draw-bar* (bar-style-left style) (bar-style-right style) (bar-style-fill style) x y width))
+
+(defun img-bounds* (img x y)
+  (let ((x (- x (img-x-offset img)))
+        (y (- y (img-y-offset img))))
+    (values x y (+ x (img-width img)) (+ y (img-height img)))))
+
+(defun pointer-in-rect* (uic x0 y0 x1 y1)
+  (and (<= x0 (uic-mx uic)) (<= y0 (uic-my uic))
+       (< (uic-mx uic) x1) (< (uic-my uic) y1)))
+
+(defun pointer-in-img-rect (uic img x y)
+  (multiple-value-bind (x0 y0 x1 y1) (img-bounds* img x y)
+    (pointer-in-rect* uic x0 y0 x1 y1)))
+
+(defun draw-button (button-style label pressed x top &key (center-x t) min-width (baseline-adjust 0) (color (vector 255 255 255)))
+  (let* ((bar-style (if pressed (button-style-pressed button-style) (button-style-released button-style)))
+         (label-width (max (or min-width 0) (if label (img-width label) 0)))
+         (bar-width (+ label-width (bar-style-width bar-style)))
+         (lx (if center-x (- x (ash bar-width -1)) x)))
+    (draw-bar bar-style lx top bar-width)
+    (when label
+      (draw-img-deluxe label
+                       (+ (img-x-offset label)
+                          (if center-x
+                              (- x (ash label-width -1))
+                              (+ lx (img-width (bar-style-left bar-style)))))
+                       (+ top (+ baseline-adjust (button-style-baseline button-style)))
+                       color))))
 
 ;;;; Packed texture manager - pack multiple images into one texture.
 

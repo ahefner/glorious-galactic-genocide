@@ -31,3 +31,5 @@
 (defvar *universe*)
 
 (defconstant light-years/units 65.0)
+
+(defvar *button-a*)                     ; Standard button-style

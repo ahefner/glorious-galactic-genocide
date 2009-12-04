@@ -13,7 +13,16 @@
         *stars02* (load-texture-file (apath "stars02.png"))
         *stars03* (load-texture-file (apath "stars03.png"))
         *gamebar-fill* (load-texture-file (apath "gamebar-fill.png"))
-        *panel-fill* (load-texture-file (apath "panel-fill.png"))))
+        *panel-fill* (load-texture-file (apath "panel-fill.png"))
+        *button-a* (make-button-style
+                    :baseline 16
+                    :pressed (make-bar-style :left  (img :button-a-pressed-left)
+                                             :right (img :button-a-pressed-right)
+                                             :fill  (load-texture-file (apath "button-a-pressed-fill.png")))
+                    :released (make-bar-style :left  (img :button-a-released-left)
+                                              :right (img :button-a-released-right)
+                                              :fill  (load-texture-file (apath "button-a-released-fill.png"))))
+ ))
 
 (let ((total-frames 0)
       (times (make-array 300)))

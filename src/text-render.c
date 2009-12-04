@@ -17,39 +17,45 @@
 FT_Library ftlibrary;
 int freetype_init = 0;
 
-static FT_Face faces[2];
+static FT_Face faces[5];
 
-int ensure_freetype (void)
+static int load_face (int index, char *filename)
+{
+    if (FT_New_Face(ftlibrary, filename, 0, &faces[index])) {
+        fprintf(stderr, "Error opening %s\n", filename);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int ensure_freetype (void)
 {
     char *filename;
     if (!freetype_init) {
         freetype_init = -1;
         int error = FT_Init_FreeType(&ftlibrary);
+
         if (error) {
             fprintf(stderr, "Unable to initialize freetype.\n");
             return -1;
         }
 
-        filename = "data/DejaVuSans.ttf";
-        error = FT_New_Face(ftlibrary, filename, 0, &faces[0]);
-        if (error) {
-            fprintf(stderr, "Error opening %s\n", filename);
-            return -1;
-        }
+        freetype_init = 
+            load_face(0, "data/Vera.ttf") &&
+            load_face(1, "data/VeraBd.ttf") &&
+            load_face(2, "data/VeraIt.ttf") &&
+            load_face(3, "data/VeraBI.ttf") &&
+            load_face(4, "data/URWGothicL-Book.ttf");
 
-        filename = "data/URWGothicL-Book.ttf";
-        error = FT_New_Face(ftlibrary, filename, 0, &faces[1]);
-        if (error) {
-            fprintf(stderr, "Error opening %s\n", filename);
-            return -1;
-        }
-
+/*
         for (int i=0; i<sizeof(faces)/sizeof(faces[0]); i++) 
         {
             FT_Select_Charmap(faces[i], FT_ENCODING_ADOBE_LATIN_1);
         }
+*/
 
-        freetype_init = 1;
+
     }
 
     return freetype_init;
@@ -69,8 +75,12 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
     int max_y = baseline + 1;
     int max_x = 1;
 
-    ensure_freetype();
-    FT_Face face = faces[facenum];    /* Why? Because the fonts may not be loaded by ensure_freetype before now. =p */
+    if (!ensure_freetype()) {
+        fprintf(stderr, "Unable to load fonts.\n");
+        exit(1);
+    }
+
+    FT_Face face = faces[facenum];
 
     assert(text_height > 0);
     if (text_height > tmpheight) {
