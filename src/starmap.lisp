@@ -256,7 +256,8 @@
 
 (defun cursor-draw-img (cursor img &optional (color (vector 255 255 255 255)))
   (when (cursor-newline-p cursor)
-    (setf (cursor-x cursor) (cursor-left cursor)))
+    (setf (cursor-x cursor) (cursor-left cursor)
+          (cursor-newline-p cursor) nil))
   (draw-img-deluxe img (cursor-x cursor) (cursor-y cursor) color)
   (maxf (cursor-descent cursor) (- (img-height img) (img-y-offset img)))
   (incf (cursor-x cursor) (img-width img)))
@@ -433,7 +434,8 @@
   (:default-initargs :panel-height 168))
 
 (let (build-ships-label
-      set-defenses-label)
+      set-defenses-label
+      (hack-slider 25))
  (defmethod run-panel ((panel colony-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
   (with-slots (starmap colony name-label class-label owner-label stats-labels production-label) panel
@@ -442,8 +444,10 @@
            (planet (planet-of colony))
            (color1 (pstyle-label-color (style-of player)))
            (color2 (color-lighten color1))
+           (sp (spending-prefs-of colony))
            (*planet-panel-col1-baseline* (+ *planet-panel-col1-baseline* (if (not (eql player *player*)) 7 0)))
-           (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*))))
+           (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
+           (col2 (make-cursor :left *planet-panel-col2-left*)))
 
       (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
       (draw-panel-background uic bottom)     
@@ -458,10 +462,11 @@
         (cursor-draw-img col1 (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of player)))))
         (cursor-newline col1))
       (incf (cursor-y col1) 9)
+      (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
       (cursor-draw-lines col1 
        (orf stats-labels
             (mapcar (lambda (string) (render-label panel :sans 11 string))
-                    (list (format nil "Population: ~:D Million (max. ~:D)"
+                    (list (format nil "Population: ~:D million (max. ~:D)"
                                   (population-of colony) (compute-max-population colony))
                           (format nil "Industry: ~:D Factories (max. ~:D)"
                                   (factories-of colony) (max-factories colony))
@@ -472,10 +477,25 @@
                        (orf production-label 
                         (render-label panel :sans 11
                          (format nil "Available Production: ~:D of ~:D BC" 
-                                 (unallocated-production-of colony)
-                                 (production-of colony)))))
+                                 (round (unallocated-production-of colony))
+                                 (round (production-of colony))))))
 
       ;; Draw the hypothetical second column
+      (let ((left (+ 48 *planet-panel-col2-left*))
+            (idx 0)
+            (adjust -12))
+        (flet ((item (name id)
+                 (cursor-draw-img col2 (global-label :sans 11 name) color2)
+                 (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) (aref sp idx) 100)
+                       (cursor-x col2) (+ left 160 4))
+                 (cursor-draw-img col2 (global-label :sans 11 (format nil "~D%" (aref sp idx))))
+                 (incf idx)
+                 (cursor-newline col2) (incf (cursor-y col2) 7)))
+          (item "Growth"   :colony-gr-slider)
+          (item "Defense"  :colony-df-slider)
+          (item "Ships"    :colony-sh-slider)
+          (item "Tech" :colony-re-slider)))
+        
       
       ;; Draw the shipyard controls
       (run-labelled-button uic (player-label :shipyard-button :bold 14 "Shipyard") 710 (- bottom 40) :color color1)
@@ -549,6 +569,4 @@
     (free-img class-label)
     (free-img distance-label)
     (free-img blurb-label)))
-    
-  
-  
+

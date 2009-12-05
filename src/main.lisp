@@ -12,6 +12,7 @@
         *stars01* (load-texture-file (apath "stars01.png"))
         *stars02* (load-texture-file (apath "stars02.png"))
         *stars03* (load-texture-file (apath "stars03.png"))
+        *slider160* (load-texture-file (apath "slider-160.png"))
         *gamebar-fill* (load-texture-file (apath "gamebar-fill.png"))
         *panel-fill* (load-texture-file (apath "panel-fill.png"))
         *button-a* (make-button-style

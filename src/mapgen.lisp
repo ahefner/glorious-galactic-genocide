@@ -479,7 +479,7 @@
 (defun place-homeworld (uni player homeworld-name)
   (let* ((stars (stars uni))
          (race (race-of player))
-         (star (find-suitable-homeworld stars)))
+         (star (find-suitable-homeworld stars)))         
     (explore-star star player)
     (setf (name-of star) homeworld-name)
     (setf (slot-value star 'planet)
@@ -493,7 +493,8 @@
                          :owner player
                          :planet (slot-value star 'planet)
                          :population (homeworld-population-of race)
-                         :factories (homeworld-population-of race)))))
+                         :factories (homeworld-population-of race)))
+    (colony-turn-prep (colony-of star))))
 
 (defun assign-computer-colors (universe)
   (loop for player in (all-players universe)

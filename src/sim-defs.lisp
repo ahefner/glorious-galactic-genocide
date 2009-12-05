@@ -99,8 +99,17 @@
   (ships 0)                                 ; Ship construction 
   (research 0))                             ; Research spending
 
+(defstruct (spend% (:type vector))
+  (growth 100)
+  (defense 25)
+  (ships 65)
+  (research 85))
+
 (defclass colony (owned)   
   ((planet :reader planet-of :initarg :planet)
+
+   ;; Player-chosen spending preferences, in integer percentages (0...100)
+   (spendings-prefs :accessor spending-prefs-of :initform (make-spend%) :initarg :spending-prefss)
 
    ;; Total production available for spending this turn:
    (production :accessor production-of :initform 0)

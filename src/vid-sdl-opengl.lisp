@@ -49,25 +49,33 @@
                          :height (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))
       (call "SDL_FreeSurface" :pointer-void surface))))
 
+(defun set-color* (r g b a)
+  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a))
+
+(defun set-color (v)
+  (call "glColor4ub" 
+        :unsigned-byte (aref v 0)
+        :unsigned-byte (aref v 1)
+        :unsigned-byte (aref v 2)
+        :unsigned-byte (if (= 4 (length v)) (aref v 3) 255)))
+
 (defun do-draw-tile (x0 y0 x1 y1 tx ty)
   (let ((width (- x1 x0))
         (height (- y1 y0)))
-  (call "glTexCoord2i" :int tx :int ty)
-  (call "glVertex2i" :int x0 :int y0)
-  (call "glTexCoord2i" :int (+ tx width) :int ty)
-  (call "glVertex2i" :int x1 :int y0)
-  (call "glTexCoord2i" :int (+ tx width) :int (+ ty height))
-  (call "glVertex2i" :int x1 :int y1)
-  (call "glTexCoord2i" :int tx :int (+ ty height))
-  (call "glVertex2i" :int x0 :int y1)))
+    (call "glTexCoord2i" :int tx :int ty)
+    (call "glVertex2i" :int x0 :int y0)
+    (call "glTexCoord2i" :int (+ tx width) :int ty)
+    (call "glVertex2i" :int x1 :int y0)
+    (call "glTexCoord2i" :int (+ tx width) :int (+ ty height))
+    (call "glVertex2i" :int x1 :int y1)
+    (call "glTexCoord2i" :int tx :int (+ ty height))
+    (call "glVertex2i" :int x0 :int y1)))
 
-(defun draw-tile (x0 y0 x1 y1 tx ty)
+(defun draw-tile (x0 y0 x1 y1 tx ty &optional (color #(255 255 255 255)))
+  (set-color color)
   (c "glBegin(GL_QUADS)")
   (do-draw-tile x0 y0 x1 y1 tx ty)
   (c "glEnd()"))
-
-(defun set-tile-color (r g b a)
-  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a))
 
 (defun render-starfield (x y)
   (c "glEnable(GL_TEXTURE_2D)")
@@ -432,6 +440,5 @@
 
 (defun debug-show-packset ()
   (fill-rect 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)
-  (set-tile-color 255 255 255 255)
   (draw-tile 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
 

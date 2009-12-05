@@ -55,6 +55,9 @@
 (defmethod loc ((this colony)) (loc (star-of (planet-of this))))
 (defmethod loc ((this planet)) (loc (star-of this)))
 
+(defmethod colony-of ((star star))
+  (and.. (planet-of star) (colony-of $)))
+
 ;;;; Hello again.
 
 (defparameter *race-human*
@@ -132,9 +135,10 @@
           3)))
 
 (defun simulate-production (colony)
+  (assert (zerop (new-pollution-of colony))) ; New pollution should be tenured already
   (multiple-value-bind (new-prod new-pol) (compute-production colony)
-    (incf (production-of colony) new-prod)
-    (incf (new-pollution-of colony) new-pol))
+    (incf (production-of colony) new-prod)    ; Zeroed first by colony-turn-prep
+    (setf (new-pollution-of colony) new-pol)) ; Setf, not incf, so colony-turn-prep is idempotent
   (setf (unallocated-production-of colony) (production-of colony)))
 
 (defun dump-waste (colony)
@@ -281,6 +285,14 @@
                                          funds)
                               "housing"))))))
 
+(defun colony-turn-prep (colony)
+  ;; Now, prepare for the coming turn.
+  (setf (production-of colony) 0)
+  (simulate-production colony)          ; Generate production points and new pollution.  
+  (dump-waste colony)                   ; The planet may absorb some new (but not accumulated) pollution.
+  (incf (spend-housing (spending-vector-of colony)) ; Inherent population growth
+        (* *inherent-population-growth* (population-of colony))))  
+
 (defun simulate-colony (colony)  
   ;;(format t "~&Wasted ~D of ~D production units.~%" (unallocated-production-of colony) (production-of colony))
 
@@ -297,12 +309,8 @@
   (simulate-factory-construction colony)
   (simulate-population-growth colony)   ; Grow population according to housing production
 
-  ;; Now, prepare for the coming turn.
-  (setf (production-of colony) 0)
-  (simulate-production colony)          ; Generate production points and new pollution.  
-  (dump-waste colony)                   ; The planet may absorb some new (but not accumulated) pollution.
-  (incf (spend-housing (spending-vector-of colony)) ; Inherent population growth
-        (* *inherent-population-growth* (population-of colony)))
+  ;; Compute production and pollution for next turn.
+  (colony-turn-prep colony)
 
   ;; Shit that shouldn't be here.
 

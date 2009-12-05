@@ -45,8 +45,23 @@
 (defun gettime ()
   (call :unsigned-int "usectime"))
 
+;;;; Mouse grabbing semantics: Grabbing is only intended to last the
+;;;; duration that the left button is held. Once you've grabbed the
+;;;; mouse, the global UIC is deactivated until the grab (or the
+;;;; button) is released.
+(defun grab-mouse (grab-id)
+  (cond
+    (*grab-id* (format *trace-output* "Attempt to grab pointer by ~A, but already grabbed by ~A" grab-id *grab-id*))
+    (t (setf *grab-id* grab-id))))
+
+(defun release-mouse (grab-id)
+  (unless (eql *grab-id* grab-id)
+    (format *trace-output* "Release grab attempt by ~A, but *grab-id* is ~A~%" grab-id *grab-id*))
+  (setf *grab-id* nil))
+
 (defun uim-sdl-run ()
   (loop named runloop 
+        with *grab-id* = nil
         with please-set-video-mode = nil
         with last-uic = (make-uic :abx 0 :aby 0 
                                   :width (cx :int "window_width") :height (cx :int "window_height")
@@ -64,7 +79,7 @@
               (uic-buttons-pressed uic) 0
               (uic-buttons-released uic) 0
               (uic-buttons uic) (c :int "(int)SDL_GetMouseState(NULL, NULL)")
-              (uic-active uic) t
+              (uic-active uic) (not *grab-id*)
               (uic-time uic) (gettime)              
               ;; The clamp below implies that if your machine can't
               ;; maintain 10 fps, the game will start to slow down.  I
@@ -82,7 +97,7 @@
               do
               (cond
                 ((eql type (cx :int "SDL_QUIT"))
-                (return-from runloop))
+                 (return-from runloop))
 
                 ((eql type (cx :int "SDL_VIDEORESIZE"))
                  (c "window_width = cur_event.resize.w")
@@ -121,6 +136,7 @@
         (when please-set-video-mode
           (c "sys_setvideomode()")
           (setf please-set-video-mode nil))
+        (when (released? uic +left+) (setf *grab-id* nil))
         (repaint uic)
         (setf last-uic uic)))
 
@@ -147,7 +163,7 @@
         *presentation-stack*))
 
 
-;;;; Gadgetry
+;;;; Gadgetry - Buttons
 
 (defun run-img-button (uic img-up img-down x y)
   (let ((in (and (uic-active uic) (pointer-in-img-rect uic img-up x y))))
@@ -167,4 +183,18 @@
                    (labelled-button-rect style label x y :min-width min-width :center-x center-x)))))
     (draw-button style label (and in (held? uic +left+)) x y :min-width min-width :center-x center-x :color color)
     (and in (released? uic +left+))))
+
+;;;; Gadgetry - Sliders
+
+(defun run-slider (id uic x y value range)
+  (let ((fill (min 160 (round (* 160 (if (zerop range) 0 (/ value range))))))
+        (in (pointer-in-rect* uic x y (+ x 160) (+ y 17))))
+    (bind-texobj *slider160*)
+    (draw-tile x y (+ x fill) (+ y 17) 0 0)
+    (draw-tile (+ x fill) y (+ x 160) (+ y 17) fill 0 #(190 190 190))
+    (when (and id in (clicked? uic +left+)) (grab-mouse id))
+    (if (or (eq id *grab-id*)
+            (and (uic-active uic) in (held? uic +left+)))
+        (round (* range (/ (clamp (- (uic-mx uic) x) 0 160) 160)))
+        value)))
 
