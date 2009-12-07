@@ -72,7 +72,7 @@
       
       (cond
         (clicked-game (printl "You clicked the Game button!"))
-        (clicked-turn (printl "You clicked Next Turn!"))
+        (clicked-turn (next-turn))
         ((and pointer-in-gamebar (released? uic +left+)) (close-panels))))
       
       (values)))

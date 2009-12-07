@@ -59,17 +59,20 @@
     (format *trace-output* "Release grab attempt by ~A, but *grab-id* is ~A~%" grab-id *grab-id*))
   (setf *grab-id* nil))
 
+(defun initial-uic ()
+  (make-uic :abx 0 :aby 0 
+            :width (cx :int "window_width") :height (cx :int "window_height")
+            :amx 0 :amy 0 :mx 0 :my 0                                  
+            :buttons 0   :buttons-pressed 0   :buttons-released 0
+            :modifiers 0 :modifiers-pressed 0 :modifiers-released 0
+            :active t
+            :time (gettime) :delta-t 0.0))
+
 (defun uim-sdl-run ()
   (loop named runloop 
         with *grab-id* = nil
         with please-set-video-mode = nil
-        with last-uic = (make-uic :abx 0 :aby 0 
-                                  :width (cx :int "window_width") :height (cx :int "window_height")
-                                  :amx 0 :amy 0 :mx 0 :my 0                                  
-                                  :buttons 0   :buttons-pressed 0   :buttons-released 0
-                                  :modifiers 0 :modifiers-pressed 0 :modifiers-released 0
-                                  :active t
-                                  :time (gettime) :delta-t 0.0)
+        with last-uic = (initial-uic)
         as *presentation-stack* = nil
         as uic = (copy-uic last-uic)
         as gadget = *gadget-root*

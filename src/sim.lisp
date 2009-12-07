@@ -138,8 +138,8 @@
   (assert (zerop (new-pollution-of colony))) ; New pollution should be tenured already
   (multiple-value-bind (new-prod new-pol) (compute-production colony)
     (incf (production-of colony) new-prod)    ; Zeroed first by colony-turn-prep
-    (setf (new-pollution-of colony) new-pol)) ; Setf, not incf, so colony-turn-prep is idempotent
-  (setf (unallocated-production-of colony) (production-of colony)))
+    (incf (new-pollution-of colony) new-pol))
+  (setf (unallocated-production-of colony) (production-of colony))) ; XXX KILL THIS
 
 (defun dump-waste (colony)
   ;; Ocean and magma terrain have limited ability to absorb pollution as it is created.
@@ -231,7 +231,6 @@
             (max 0 (- (population-of colony) 
                       (ceiling (* *overpop-decay-rate* (- (population-of colony) maxpop)))))))))
 
-
 ;; Additional production per population unit that goes into housing
 ;; automatically, to simulate natural population growth.
 (defparameter *inherent-population-growth* 1.0)
@@ -257,44 +256,110 @@
 
 (defparameter *waste-cleanup-cost* 2)
 
+#+NIL
 (defun allocate-funds (colony amount &optional (reason "??"))
   (let ((real-amount (min (ceiling amount) (unallocated-production-of colony))))
-    ;;(format t "~&Allocated ~A BC for ~A~%" real-amount reason)
+    (format t "~&~A: Allocated ~A BC for ~A~%" (name-of colony) real-amount reason)
     (decf (unallocated-production-of colony) real-amount)
     real-amount))
 
-(defun auto-allot-cleanup (colony)
-  ;;(printl :need-to-cleanup (+ (pollution-of (planet-of colony)) (new-pollution-of colony)))
-  (incf (spend-cleanup (spending-vector-of colony))
-        (allocate-funds colony (* *waste-cleanup-cost* (+ (pollution-of (planet-of colony)) (new-pollution-of colony))) "ecology")))
+(defun budget-allocate (budget amount &optional (reason "??"))
+  (declare (ignorable reason))
+  (let ((real-amount (min (truncate amount) (budget-unspent budget))))
+    (decf (budget-unspent budget) real-amount)
+    real-amount))
 
-(defun auto-allot-development (colony)
-  ;; Really we want to take some percentage of the unallocated funds, chosen by the player.
-  (let ((funds (unallocated-production-of colony))
-        (needed-factories (max 0 (- (max-factories colony) (factories-of colony))))
+(defun budget-allot-cleanup (colony budget)
+  (incf (budget-cleanup budget)
+        (budget-allocate budget 
+                         (* *waste-cleanup-cost* (+ (pollution-of (planet-of colony)) 
+                                                    (new-pollution-of colony)))
+                         "ecology")))
+
+(defun budget-allot-development (colony budget funds)
+  (assert (<= funds (budget-unspent budget))) ; seems a little harsh..
+  (let ((needed-factories (max 0 (- (max-factories colony) (factories-of colony))))
         (needed-population (max 0 (- (compute-max-population colony) (population-of colony)))))
+    ;; Build factories first.
     (unless (zerop needed-factories)
-      (let ((spent (allocate-funds colony (* needed-factories *factory-base-cost*) "factories")))
-        (incf (spend-factories (spending-vector-of colony)) spent)
+      (let ((spent (budget-allocate budget (min funds (* needed-factories *factory-base-cost*)) "factories")))
+        (incf (spend-factories budget) spent)
         (decf funds spent)))
+    (assert (>= funds 0))
+    ;; Then grow population.
     (unless (zerop needed-population)
       (multiple-value-bind (growth remaining) (calculate-pop-growth colony funds)
-        (incf (spend-housing (spending-vector-of colony))
-              (allocate-funds colony (if (= growth needed-population)
-                                         (- funds remaining) 
-                                         funds)
-                              "housing"))))))
+        (incf (budget-housing budget)
+              (budget-allocate budget (min funds
+                                           (if (= growth needed-population)
+                                               (- funds remaining) 
+                                               funds))
+                               "housing"))))))
+
+(defun compute-base-construction (colony amount)
+  (declare (ignore colony))
+  (let* ((cost +missile-base-cost+)
+         (num-bases (truncate amount cost)))
+    (values num-bases (- amount (* num-bases cost)))))
+
+(defun simulate-base-construction (colony)
+  (multiple-value-bind (new-bases remaining-funds)
+      (compute-base-construction colony (spend-bases (spending-vector-of colony)))
+    (incf (num-bases-of colony) new-bases)
+    (setf (spend-bases (spending-vector-of colony)) remaining-funds)))
+
+(defun compute-ship-construction (colony amount)
+  (let* ((cost (cost-of (building-design-of colony)))
+         (num-ships (truncate amount cost)))
+    (values num-ships (- amount (* num-ships cost)))))
+
+(defun simulate-ship-construction (colony)
+  (when (building-design-of colony)
+    (multiple-value-bind (num-built remaining-funds)
+        (compute-ship-construction colony (spend-ships (spending-vector-of colony)))
+      (build-ships colony (building-design-of colony) num-built)
+      (setf (spend-ships (spending-vector-of colony)) remaining-funds))))
+
+(defun post-cleanup-budget (colony)
+  (let ((budget (make-budget)))
+    ;; Production and pollution should already be computed..
+    (setf (budget-unspent budget) (production-of colony))
+    ;; Ecology is mandatory (for now).
+    (budget-allot-cleanup colony budget)
+    budget))
+
+(defun colony-compute-budget (colony)
+  (let ((budget (post-cleanup-budget colony))
+        (prefs (spending-prefs-of colony)))
+    ;; For each item in the user's spending preferences, allocate funds.
+    (flet ((foo (reader) (truncate (* 1/100 (funcall reader prefs) (budget-unspent budget)))))
+      (budget-allot-development colony budget (foo #'spend%-growth))
+      (incf (budget-bases budget) (budget-allocate budget (foo #'spend%-defense) "Bases"))
+      (when (building-design-of colony)
+        (incf (budget-ships budget) (budget-allocate budget (foo #'spend%-ships) "Ships")))
+      (incf (budget-research budget) (budget-allocate budget (foo #'spend%-research) "Research")))
+
+    ;;(printl colony :fixme-wasted (budget-unspent budget))
+
+    budget))
 
 (defun colony-turn-prep (colony)
-  ;; Now, prepare for the coming turn.
+  ;; Now, prepare for the coming turn. Don't call this more than once per turn.
   (setf (production-of colony) 0)
   (simulate-production colony)          ; Generate production points and new pollution.  
   (dump-waste colony)                   ; The planet may absorb some new (but not accumulated) pollution.
   (incf (spend-housing (spending-vector-of colony)) ; Inherent population growth
-        (* *inherent-population-growth* (population-of colony))))  
+        (* *inherent-population-growth* (population-of colony))))
 
 (defun simulate-colony (colony)  
   ;;(format t "~&Wasted ~D of ~D production units.~%" (unallocated-production-of colony) (production-of colony))
+
+  ;; Apply budget to spending
+  (map-into (spending-vector-of colony) #'+ (spending-vector-of colony) (colony-compute-budget colony))
+
+;  (printl :prefs (spending-prefs-of colony))
+;  (printl :budget (colony-compute-budget colony))
+;  (printl :spending (spending-vector-of colony))
 
   ;; Tenure pollution
   (incf (pollution-of (planet-of colony)) (new-pollution-of colony))
@@ -306,17 +371,17 @@
   (setf (spend-cleanup (spending-vector-of colony)) 0)
 
   ;; Construction proceeds based on spending determined by the player during the previous turn
+;  (printl :final-spending (spending-vector-of colony))
   (simulate-factory-construction colony)
   (simulate-population-growth colony)   ; Grow population according to housing production
+  (simulate-base-construction colony)
+  (simulate-ship-construction colony)
 
   ;; Compute production and pollution for next turn.
   (colony-turn-prep colony)
 
-  ;; Shit that shouldn't be here.
+  colony)
 
-  (auto-allot-cleanup colony)
-  (auto-allot-development colony)
-)
 
 ;;; Debug shit
 
@@ -375,6 +440,13 @@
      (setf (speed-of fleet) (reduce #'min (stacks-of fleet)
                                     :key (lambda (stack) (speed-of (stack-design stack))))))))
 
-(defun build-ship (colony design)
-  (incf (stack-count (ensure-stack design (ensure-fleet (owner-of colony) colony)))))  
+(defun build-ships (colony design num)
+  (incf (stack-count (ensure-stack design (ensure-fleet (owner-of colony) colony))) num))
 
+
+
+;;;; Turn cycle
+
+(defun next-turn ()
+  (loop for star across (stars *universe*) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
+  (update-ui-for-new-turn))

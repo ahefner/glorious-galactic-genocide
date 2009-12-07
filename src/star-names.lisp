@@ -300,7 +300,6 @@
 (defun constellation-name-list ()
   (copy-list *constellations*))
 
-
 (defun planet-type-description (planet-type)
   (ecase planet-type
     (terran   "Terran Habitat")

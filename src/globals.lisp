@@ -34,8 +34,6 @@
 (defvar *player*)
 (defvar *universe*)
 
-(defconstant light-years/units 65.0)
-
 (defvar *button-a* nil)                     ; Standard button-style
 (defvar *slider160* nil)                    ; 160px slider texture with bevelled ends
 

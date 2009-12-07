@@ -25,23 +25,31 @@
                                               :fill  (load-texture-file (apath "button-a-released-fill.png"))))
  ))
 
+(defun diffvec (vector)
+  (let ((v (make-array (1- (length vector)))))
+    (loop for index from 0 below (1- (length vector))
+          do (setf (aref v index) (- (aref vector (1+ index)) (aref vector index))))
+    v))
+
 (let ((total-frames 0)
-      (times (make-array 300)))
+      (times (make-array 10000)))
  (defun repaint (uic)
-  (setf (aref times (mod total-frames 300)) (get-internal-real-time))
-  (when (>= total-frames 300)
-    (let* ((min (reduce #'min times))
-           (max (reduce #'max times))
-           (fps (/ 300.0 (/ (- max min) internal-time-units-per-second))))
-      (when (zerop (mod total-frames 300))
-        (format t "~&Frames per second: ~D~%" fps))))
-  (incf total-frames)
+   (when (and (>= total-frames (length times))
+              (zerop (mod total-frames (length times))))
+     (let* ((min (reduce #'min times))
+            (max (reduce #'max times))
+            (fps (/ (length times) 1.0 (/ (- max min) internal-time-units-per-second))))
+       ;;(print (diffvec times))
+       (format t "~&Frames per second: ~D~%" fps)
+       #+NIL (throw 'bailout :byebye)))
+   (setf (aref times (mod total-frames (length times))) (get-internal-real-time))
+   (incf total-frames)
 
-  (paint-begin)
-  (gadget-paint *gadget-root* uic)
-  (check-gl-error)
-
-  (paint-finish)))
+   (paint-begin)
+   (gadget-paint *gadget-root* uic)
+   (check-gl-error)
+   
+   (paint-finish)))
 
 (defun start-swank-server ()
   (require 'asdf)
@@ -82,12 +90,17 @@
   (setf *packset* (make-packset 512 512))
 
   (format t "~&Running test game.~%")
-
+ 
   (multiple-value-bind (*universe* *player*) (make-test-universe)
     (setf *gameui* (create-gameui *universe*)
           *gadget-root* *gameui*)
-    (uim-sdl-run))
-
+    
+    (time (uim-sdl-run))
+    #+NIL (repaint (initial-uic))
+    #+NIL
+    (time 
+        (catch 'bailout
+          (uim-sdl-run))))
   (format t "~&Shutting down.~%")
   (c "sys_shutdown()")
 

@@ -108,7 +108,7 @@
   (check-gl-error))
 
 (defun paint-finish ()
-  (call "glFlush")
+  (call "glFinish")
   (check-gl-error)
   (c "SDL_GL_SwapBuffers()"))
 

@@ -508,15 +508,16 @@
   (let ((player (make-instance 'player :race *race-human* :name name)))
     (update-player-stats player)))
 
-(defun add-initial-ships-and-designs (universe player)
+(defun add-initial-ships-and-designs (player)
   (let ((designs (ship-designs-of player))
         (homeworld (aref (colonies player) 0))
-        (scout (make-instance 'design :name "Scout"))
-        (colony-ship (make-instance 'design :name "Colony Ship")))
+        (scout (make-instance 'design :name "Scout" :cost 400))
+        (colony-ship (make-instance 'design :name "Colony Ship" :cost 6000)))
     (setf (aref designs 0) scout
-          (aref designs 1) colony-ship)
-    (loop repeat 2 do (build-ship homeworld scout))
-    (build-ship homeworld colony-ship)))
+          (aref designs 1) colony-ship
+          (building-design-of homeworld) scout)
+    (build-ships homeworld scout 2)
+    (build-ships homeworld colony-ship 1)))
 
 (defun make-test-universe ()
   (time
@@ -525,14 +526,14 @@
      (with-slots (stars min-bound max-bound) uni
        (generate-random-starmap uni 80 4)
        (place-homeworld uni player "Earth")
-       (place-homeworld uni (make-test-player "Fleebart") "Floobnitz")
+       (place-homeworld uni (make-test-player "Corwin") "Pattern")
        (place-homeworld uni (make-test-player "Nunu") "Phleyphen")
        (place-homeworld uni (make-test-player "Scuzbart") "Scumyard")
        (assign-computer-colors uni)
        (generate-planets uni)
        (update-player-planets uni)
        (loop for player in (all-players uni)
-             do (add-initial-ships-and-designs uni player))
+             do (add-initial-ships-and-designs player))
        (setf min-bound (reduce #'vmin stars :key #'loc)
              max-bound (reduce #'vmax stars :key #'loc))      
        #+NIL (format t "~&Universe bounds: ~A - ~A~%" min-bound max-bound))

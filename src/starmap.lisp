@@ -318,7 +318,7 @@
 (defparameter *planet-panel-col2-baseline* 121)
 
 (defclass planet-panel (panel)
-  ((planet :accessor :planet-of :initarg :planet)
+  ((planet :accessor planet-of :initarg :planet)
    (name-label :initform nil)
    (class-label :initform nil)
    (owner-label :initform nil)
@@ -430,12 +430,23 @@
    (class-label :initform nil)
    (owner-label :initform nil)
    (stats-labels :initform nil)
-   (production-label :initform nil))
+   (production-label :initform nil)
+   (amnt-labels :initform (make-array 4)))
   (:default-initargs :panel-height 168))
 
+(defun colpanel-cache-amnt (panel idx amount)
+  (with-slots (amnt-labels) panel
+    (let ((cell (aref amnt-labels idx)))
+      (cond
+        ((eql amount (car cell)) (cdr cell))
+        (t 
+         (when (cdr cell) (free-img (cdr cell)))
+         (cdr (setf (aref amnt-labels idx)
+                    (cons amount (render-label panel :sans 11 
+                                               (format nil "~:D BC" (round amount)))))))))))
+
 (let (build-ships-label
-      set-defenses-label
-      (hack-slider 25))
+      set-defenses-label)
  (defmethod run-panel ((panel colony-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
   (with-slots (starmap colony name-label class-label owner-label stats-labels production-label) panel
@@ -443,6 +454,7 @@
            (player (owner-of colony))
            (planet (planet-of colony))
            (color1 (pstyle-label-color (style-of player)))
+           (post-cleanup-budget (post-cleanup-budget colony))
            (color2 (color-lighten color1))
            (sp (spending-prefs-of colony))
            (*planet-panel-col1-baseline* (+ *planet-panel-col1-baseline* (if (not (eql player *player*)) 7 0)))
@@ -470,37 +482,38 @@
                                   (population-of colony) (compute-max-population colony))
                           (format nil "Industry: ~:D Factories (max. ~:D)"
                                   (factories-of colony) (max-factories colony))
-                          (format nil "Pollution: ~:D" (whenzero "None" (pollution-of planet)))
-                          (format nil "~A Missile Bases" (whenzero "No" 0))))))
+                          (format nil "Pollution: ~:D (spending ~:D BC/turn)" 
+                                  (whenzero "None" (pollution-of planet))
+                                  (budget-cleanup post-cleanup-budget))
+                          (format nil "~A Missile Bases" (whenzero "No" (num-bases-of colony)))))))
       (incf (cursor-y col1) 9)
-      (cursor-draw-img col1 
-                       (orf production-label 
+      (cursor-draw-img col1
+                       (orf production-label
                         (render-label panel :sans 11
-                         (format nil "Available Production: ~:D of ~:D BC" 
-                                 (round (unallocated-production-of colony))
+                         (format nil "Available Production: ~:D of ~:D BC"
+                                 (round (budget-unspent post-cleanup-budget))
                                  (round (production-of colony))))))
 
       ;; Draw the hypothetical second column
-      (let ((left (+ 48 *planet-panel-col2-left*))
+      (let ((b (colony-compute-budget colony))
+            (left (+ 48 *planet-panel-col2-left*))
             (idx 0)
             (adjust -12))
-        (flet ((item (name id)
+        (flet ((item (name idx id amnt)
                  (cursor-draw-img col2 (global-label :sans 11 name) color2)
                  (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) (aref sp idx) 100)
                        (cursor-x col2) (+ left 160 4))
-                 (cursor-draw-img col2 (global-label :sans 11 (format nil "~D%" (aref sp idx))))
+                 (cursor-draw-img col2 (colpanel-cache-amnt panel idx amnt))
                  (incf idx)
                  (cursor-newline col2) (incf (cursor-y col2) 7)))
-          (item "Growth"   :colony-gr-slider)
-          (item "Defense"  :colony-df-slider)
-          (item "Ships"    :colony-sh-slider)
-          (item "Tech" :colony-re-slider)))
-        
-      
+          (item "Growth"   0 :colony-gr-slider (+ (budget-housing b) (budget-terraform b) (budget-factories b)))
+          (item "Defense"  1 :colony-df-slider (+ (budget-bases b) (budget-shield b)))
+          (item "Ships"    2 :colony-sh-slider (budget-ships b))
+          (item "Tech"     3 :colony-re-slider (budget-research b))))
+
       ;; Draw the shipyard controls
       (run-labelled-button uic (player-label :shipyard-button :bold 14 "Shipyard") 710 (- bottom 40) :color color1)
       (run-labelled-button uic (player-label :defense-button  :bold 14 "Defenses") 710 (- bottom 70) :color color2)
-
 
       ;; Allow toggling between planet and star panel
       (when (and (uic-active uic) (pointer-in-radius* uic 71 *planet-panel-px* *planet-panel-py*))
@@ -510,14 +523,15 @@
 
 ))))
 
-
 (defmethod finalize-object ((panel colony-panel))
-  (with-slots (name-label class-label stats-labels production-label owner-label) panel
+  (with-slots (name-label class-label stats-labels production-label owner-label amnt-labels) panel
     (free-img name-label)
     (free-img class-label)
     (free-img production-label)
     (free-img owner-label)
-    (map nil #'free-img stats-labels)))
+    (map nil #'free-img stats-labels)
+    (loop for foo across amnt-labels when foo do (free-img (cdr foo))))
+  (values))
 
 ;;;; Star Panel
 
@@ -569,4 +583,17 @@
     (free-img class-label)
     (free-img distance-label)
     (free-img blurb-label)))
+
+
+;;;; 
+
+(defun update-ui-for-new-turn ()
+  ;;  If there are planels open, update them.
+  (with-slots (panel closing-panel starmap) *gameui*
+    (unless closing-panel
+      (cond
+        ((typep panel 'planet-panel) 
+         (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
+        ((typep panel 'colony-panel)
+         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel))))))))
 

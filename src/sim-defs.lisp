@@ -1,5 +1,10 @@
 (in-package :g1)
 
+;;;; "Constants of the Universe"
+
+(defconstant light-years/units 65.0)
+(defconstant +missile-base-cost+ 1000)
+
 ;;;; Game definitions
 
 (defclass named ()
@@ -85,7 +90,7 @@
    (production-modifier :accessor production-modifier-of :initform 1.0 :initarg :production-modifier)
    (growth-modifier     :accessor growth-modifier-of     :initform 1.0 :initarg :growth-modifier)
 
-   ;; Pollution is a planetary property, so that it persists after a colony is destroyed
+   ;; Pollution is a planetary property, so it persists after a colony is destroyed
    (pollution  :accessor pollution-of  :initform 0 :initarg :pollution)
    (colony :accessor colony-of :initform nil :initarg :colony)))
 
@@ -99,8 +104,11 @@
   (ships 0)                                 ; Ship construction 
   (research 0))                             ; Research spending
 
+(defstruct (budget (:type vector) (:include spend))
+  (unspent 0))
+
 (defstruct (spend% (:type vector))
-  (growth 100)
+  (growth 25)
   (defense 25)
   (ships 65)
   (research 85))
@@ -109,7 +117,7 @@
   ((planet :reader planet-of :initarg :planet)
 
    ;; Player-chosen spending preferences, in integer percentages (0...100)
-   (spendings-prefs :accessor spending-prefs-of :initform (make-spend%) :initarg :spending-prefss)
+   (spendings-prefs :accessor spending-prefs-of :initform (make-spend%) :initarg :spending-prefs)
 
    ;; Total production available for spending this turn:
    (production :accessor production-of :initform 0)
@@ -119,6 +127,12 @@
 
    ;; Accumulated spending by category:
    (spending :accessor spending-vector-of :initform (make-spend))
+
+   ;; Current ship design under contrstruction
+   (building-design :accessor building-design-of :initform nil)
+   
+   ;; Number of missile bases
+   (num-bases :accessor num-bases-of :initform 0 :initarg :num-bases)
 
    ;; Terrain units are counted in a 4 element vector: Land, Sea, Ice, Magma.   
    (population :accessor population-of :initform 0 :initarg :population)
@@ -142,7 +156,11 @@
 
 (defstruct stack design count fleet)
 
+(defparameter *size-list* #("Corvette" "Destroyer" "Cruiser" "Dreadnought"))
+
 (defclass design (named)
-  ((speed :accessor speed-of :initform 1 :initarg :speed)))
+  ((speed :accessor speed-of :initform 1 :initarg :speed)
+   (size  :accessor size-of  :initform 0 :initarg :size)
+   (cost  :accessor cost-of  :initarg :cost)))
 
 
