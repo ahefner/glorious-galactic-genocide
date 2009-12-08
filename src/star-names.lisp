@@ -1,3 +1,7 @@
+;;;; -*- Coding: latin-1 -*-
+
+;;;; Star names and assorted fluff.
+
 (in-package :g1)
 
 (defvar *constellations*
@@ -319,15 +323,15 @@
 (defun planet-type-blurb (planet-type)
   (ecase planet-type
     (terran   "Bolstered by moderate temperatures, liquid water, and average levels of atmospheric oxygen, life flourishes on this planet. Clean drinking water and arable land abound, permitting high population density and rapid growth. This world is an ideal choice for colonization by humanoid life.")
-    (oceanic  "Most of this planet's surface is covered in vast oceans. Photosynthetic biomass, concentrated in the oceans, sustains a breathable, oxygen-rich atmosphere. Its limited land areas are excellent candidates for colonization by humanoid life.")
-    (jungle   "A warm climate and plentiful water have allowed an explosion of native lifeforms on this world. It is similar to our own homeworld in many respects and an excellent candidate for colonization, with the potential for sustaining a large population. Colonists here may face unique challenges posed by the abundant flora and fauna.")
+    (oceanic  "Most of this planet's surface is covered in vast oceans. Photosynthetic biomass, concentrated in the sea, sustains a breathable, oxygen-rich atmosphere. Its limited land areas are excellent candidates for colonization by humanoid life.")
+    (jungle   "A warm climate and plentiful water have permitted an explosion of native lifeforms on this world. It is similar to our own homeworld in many respects and an excellent candidate for colonization, with the potential for sustaining a large population. Colonists here may face unique challenges posed by the abundant flora and fauna.")
     (arid     "This planet possesses a breathable atmosphere and modest amounts of surface water. Although the available land area is vast, high temperatures and limited water make agriculture difficult outside of the coastal regions, limiting the sustainable population density. Despite this, a substantial population of colonists could make their home here.")
-    (desert   "Hot and dusty, life would be difficult for colonists on this world. Scarcity of water makes agriculture very difficult. High temperatures render much of the planet uninhabitable, and the sand and dust would wreak havok with equipment.")
+    (desert   "Hot and dusty, life would be difficult for colonists on this world. Scarcity of water makes agriculture very difficult. High temperatures render much of the planet uninhabitable, and the sand and dust wreak havok with equipment.")
     (tundra   "Much of this frigid world is buried beneath tremendous glaciers. Temperatures seldom rise above freezing on much of the planet, but a few hardy lifeforms manage to sustain a breathable level of oxygen in the atmosphere. This planet can support colonists, but will grow slowly.")
     (minimal  "Existing on the threshold of habitability by humanoid life, the limited surface water here cannot host sufficient microbial life to sustain more than a fraction of standard oxygen levels. Land-based lifeforms are extremely rare. This planet could support only a small number of colonists, and then only through great effort.")
-    (barren   "Your ad here.")
-    (volcanic "Volcanic World")
-    (dead     "Dead World")
-    (inferno  "Inferno World")
-    (toxic    "Toxic World")
-    (radiated "Radiated World")))
+    (barren   "This planet's thin atmosphere consists primarily of nitrogen, argon, and carbon dioxide. Surveys have located neither liquid water nor any indication of life. Surface temperatures across much of the planet are below freezing year-round. Aside from signs of vulcanism, this rocky, dust-enveloped world is devoid of notable features. Given sufficient technology, small enclosed settlements may be sustained in proximity to ice deposits.")
+    (volcanic "The surface of this volatile young world is continually reshaped by volcanic plumes and lava flows. A partially molten silicate crust and mantle encases a core of iron-sulfide. Via radioactive decay, a high density of isotopes act to maintain core temperature, augmented by tidal interaction with its satellites. Intense volcanic activity renders much of the surface unsafe for habitation. The absence of water or a breathable atmosphere compound the barriers to colonization.")
+    (dead     "A silent stone coasting peacefully through the void, this lifeless world lacks any appreciable atmosphere. Pockmarked by impact craters, there is no indication of volcanic activity or other noteworthy geology. Micrometeorite impacts have ground much of the surface rock into an ionized, abrasive microparticulate dust known to rapidly degrate equipment. Combined with the absence of water, this world presents extreme challenges to the potential colonist.")
+    (inferno  "This rocky world receives above-average solar radiation from its star. Coupled with a thick atmosphere dominated by carbon dioxide, a runaway greenhouse effect heats the planet's surface to extreme temperatures. This and crushing atmospheric pressures threaten any structures or machinery on the surface. Colonization of such a hostile world would require immense resources.")
+    (toxic    "This unusual planet has an atmosphere containing high concentrations of carbon monoxide, sulfuric acid, ammonia, chlorine, and fluorine, replentished from sources below the surface. A dust of ammonium salts rains upon the surface. The noxious chemistry of this planet makes the prospect of colonization by humanoid life a daunting one.")
+    (radiated "In a tight orbit, this planet basks in extreme solar radiation. Any atmosphere boiled away long ago, leaving a scalding, cratered rock to race around the sun. Peak daytime temperatures are hot enough to melt metals, while at night the temperature may fall below -180°C. Solar flare activity threatens to periodically scorch the surface of the planet. Establishing any permanent structure in such an environment poses extreme technological challenges.")))

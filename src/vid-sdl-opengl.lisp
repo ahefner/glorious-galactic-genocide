@@ -174,8 +174,7 @@
 
   ;;; FIXME: Check whether the damn thing is on screen before we consider uploading a texture.
   (bind-texobj *packset*)
-  (unless (img-resident-p img)
-    (packset-ensure *packset* img))
+  (packset-ensure *packset* img)
   (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
   ;; TODO: Clamp and set border color. 
   ;;(c "glTexParameter(GL_TEXTURE_2D, TEXTURE_BORDER_COLOR, whatever))
@@ -342,6 +341,10 @@
                                            :parent nil)))
 
 (defun packset-fit (packset object)
+
+  (unless (not (img-resident-p object))
+    (format t "~&Odd. ~A is already resident... about to die.." object))
+
   (assert (not (img-resident-p object)))
   (tagbody insert
      (let ((stack (packset-stack packset))
@@ -371,6 +374,7 @@
 
 (defun packset-ensure (packset object)
   (cond
+    ((img-resident-p object) (values))
     ;; Upload if the object fits..
     ((packset-fit packset object)
      (vector-push-extend object (packset-images packset))
@@ -417,6 +421,7 @@
   (format t "~&Repacking for ~A..~%" object)
   ;; First, try sorting by height and reinserting the images.
   (packset-reset ps)  
+  (printl :survived-reset)
   ;; Technically, SORT isn't required to give us an vector that has a
   ;; fill pointer when the input vector has one, but as it happens ECL
   ;; does, so I'll rely on that.. because any Lisp that doesn't is
@@ -433,10 +438,22 @@
     (t
      ;; Reset previous attempt at allocation.
      (packset-reset ps)
-     (format t "~&FAILURE! Packset contents:~%"
+     
+     (format t "~&-- Fuck! Packset contents: --~%")
      (loop for item across (packset-images ps)
-           do (format t "~&   ~A~%" item))
-     (error "I'm one lazy fucker, right? Still need to allocate ~A" object)))))
+           do (format t "~& -  ~A~%" item))
+     (setf (fill-pointer (packset-images ps)) 0)
+
+     ;; Quick hack, although perfectly reasonable:
+     (format t "~&Fitting ~A~%" object)
+     (assert (packset-fit ps object))   ; XXX
+     (vector-push-extend object (packset-images ps))
+     (format t "~&Upload ~A~%" object)
+     (packset-upload-object object)
+     
+
+     #+NIL
+     (error "I'm one lazy fucker, right? Still need to allocate ~A" object))))
 
 (defun debug-show-packset ()
   (fill-rect 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)

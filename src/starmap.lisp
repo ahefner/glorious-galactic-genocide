@@ -339,9 +339,8 @@
            (color1 (pstyle-label-color style))
            (color2 (color-lighten color1))
            (terrains (terrains-of planet))
-           base-y
-           (*planet-panel-col1-baseline* (+ *planet-panel-col1-baseline* (if (and owner (not (eql owner *player*))) 7 0)))
-           (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
+           (col1-baseline (+ *planet-panel-col1-baseline* (if (and owner (not (eql owner *player*))) 7 0)))
+           (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom col1-baseline)))
            (col2 (make-cursor :left *planet-panel-col2-left* :y (- bottom *planet-panel-col2-baseline*)))
            (units-to-mm 6)
            (area (reduce #'+ terrains)))
@@ -362,8 +361,8 @@
         (cursor-newline col1))
 
       (incf (cursor-y col1) 9)
-      (setf (cursor-y col2) (cursor-y col1) ; Align columns at this point
-            base-y (cursor-y col1))
+      (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
+            
       
       (cursor-draw-lines col1
         (orf col1-labels
@@ -406,9 +405,13 @@
                       ))))))
 
       (let ((x0 534))
-        (orf description-typesetting (time (typeset-text *word-map* (min 400 (- (uic-width uic) 15 x0))
-                                                         (planet-type-blurb (planet-type-of planet)) :justify t)))
-        (draw-typeset-text description-typesetting x0 (- bottom base-y) color1))
+        (orf description-typesetting 
+             (nreverse (typeset-text *word-map* (min 400 (- (uic-width uic) 15 x0))
+                                     (planet-type-blurb (planet-type-of planet)) :justify t)))
+        (draw-typeset-text description-typesetting 
+                           x0 
+                           (- bottom 84 (ash (typeset-word-y (first description-typesetting)) -1))
+                           color1))
         
       ;; Allow the user to switch the colony control panel.
       (when (and (uic-active uic) 
