@@ -189,12 +189,12 @@
 
 ;;;; Gadgetry - Sliders
 
-(defun run-slider (id uic x y value range)
+(defun run-slider (id uic x y value range &optional disable)
   (let ((fill (min 160 (round (* 160 (if (zerop range) 0 (/ value range))))))
         (in (pointer-in-rect* uic x y (+ x 160) (+ y 17))))
     (bind-texobj *slider160*)
-    (draw-tile x y (+ x fill) (+ y 17) 0 0)
-    (draw-tile (+ x fill) y (+ x 160) (+ y 17) fill 0 #(190 190 190))
+    (draw-tile x y (+ x fill) (+ y 17) 0 0 (if disable #(150 150 150) #(255 255 255)))
+    (draw-tile (+ x fill) y (+ x 160) (+ y 17) fill 0 (if disable #(100 100 100) #(190 190 190)))
     (when (and id in (clicked? uic +left+)) (grab-mouse id))
     (if (or (eq id *grab-id*)
             (and (uic-active uic) in (held? uic +left+)))

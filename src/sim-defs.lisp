@@ -161,6 +161,9 @@
 (defclass design (named)
   ((speed :accessor speed-of :initform 1 :initarg :speed)
    (size  :accessor size-of  :initform 0 :initarg :size)
-   (cost  :accessor cost-of  :initarg :cost)))
+   (cost  :accessor cost-of  :initarg :cost)
+
+   (thumbnail :initform nil :initarg :thumbnail)
+   (name-label :accessor name-label-of :initform nil)))
 
 

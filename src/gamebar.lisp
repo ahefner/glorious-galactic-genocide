@@ -63,12 +63,14 @@
   
     (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
 
-    (let* ((game-label (player-label :game-button :bold 14 "Game"))
-           (turn-label (player-label :turn-button :bold 14 "Next Turn"))
+    (let* ((game-label (player-label :gb-game-button :bold 14 "Game"))
+           (turn-label (player-label :gb-turn-button :bold 14 "Next Turn"))
+           (research-label (player-label :gb-research-button :bold 14 "Research"))
            (color (pstyle-label-color (style-of *player*)))
            ;; Button states:
            (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
-           (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color)))
+           (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color))
+           (clicked-research (run-labelled-button uic research-label (- (uic-width uic) 68 110) 3 :color color)))
       
       (cond
         (clicked-game (printl "You clicked the Game button!"))

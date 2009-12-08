@@ -443,10 +443,10 @@
 (defun build-ships (colony design num)
   (incf (stack-count (ensure-stack design (ensure-fleet (owner-of colony) colony))) num))
 
-
-
 ;;;; Turn cycle
 
 (defun next-turn ()
   (loop for star across (stars *universe*) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
   (update-ui-for-new-turn))
+
+

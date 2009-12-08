@@ -324,13 +324,14 @@
    (owner-label :initform nil)
    (col1-labels :initform nil)
    (col2-labels :initform nil)
-   (area-label :initform nil))
+   (area-label :initform nil)
+   (description-typesetting :initform nil))
   (:default-initargs :panel-height 168))
 
 (defmethod run-panel ((panel planet-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
-  (with-slots (starmap planet name-label class-label owner-label col1-labels col2-labels area-label) panel
-    (let* ((*selected-object* (star-of planet))           
+  (with-slots (starmap planet name-label class-label owner-label col1-labels col2-labels area-label description-typesetting) panel
+    (let* ((*selected-object* (star-of planet))
            (owner (and.. (colony-of planet) (owner-of $)))
            (maxpop-owner (and owner (planet-max-population planet owner)))
            (maxpop-us (planet-max-population planet *player*))
@@ -338,6 +339,7 @@
            (color1 (pstyle-label-color style))
            (color2 (color-lighten color1))
            (terrains (terrains-of planet))
+           base-y
            (*planet-panel-col1-baseline* (+ *planet-panel-col1-baseline* (if (and owner (not (eql owner *player*))) 7 0)))
            (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
            (col2 (make-cursor :left *planet-panel-col2-left* :y (- bottom *planet-panel-col2-baseline*)))
@@ -360,7 +362,8 @@
         (cursor-newline col1))
 
       (incf (cursor-y col1) 9)
-      (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
+      (setf (cursor-y col2) (cursor-y col1) ; Align columns at this point
+            base-y (cursor-y col1))
       
       (cursor-draw-lines col1
         (orf col1-labels
@@ -402,6 +405,11 @@
                         (format nil "Pollution: ~:D" (pollution-of planet)))
                       ))))))
 
+      (let ((x0 534))
+        (orf description-typesetting (time (typeset-text *word-map* (min 400 (- (uic-width uic) 15 x0))
+                                                         (planet-type-blurb (planet-type-of planet)) :justify t)))
+        (draw-typeset-text description-typesetting x0 (- bottom base-y) color1))
+        
       ;; Allow the user to switch the colony control panel.
       (when (and (uic-active uic) 
                  (colony-of planet)
@@ -480,12 +488,12 @@
             (mapcar (lambda (string) (render-label panel :sans 11 string))
                     (list (format nil "Population: ~:D million (max. ~:D)"
                                   (population-of colony) (compute-max-population colony))
-                          (format nil "Industry: ~:D Factories (max. ~:D)"
+                          (format nil "Industry: ~:D Factor~:@p (max. ~:D)"
                                   (factories-of colony) (max-factories colony))
                           (format nil "Pollution: ~:D (spending ~:D BC/turn)" 
                                   (whenzero "None" (pollution-of planet))
                                   (budget-cleanup post-cleanup-budget))
-                          (format nil "~A Missile Bases" (whenzero "No" (num-bases-of colony)))))))
+                          (format nil "~A Missile Base~:P" (whenzero "No" (num-bases-of colony)))))))
       (incf (cursor-y col1) 9)
       (cursor-draw-img col1
                        (orf production-label
@@ -501,7 +509,7 @@
             (adjust -12))
         (flet ((item (name idx id amnt)
                  (cursor-draw-img col2 (global-label :sans 11 name) color2)
-                 (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) (aref sp idx) 100)
+                 (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) (aref sp idx) 100 (zerop amnt))
                        (cursor-x col2) (+ left 160 4))
                  (cursor-draw-img col2 (colpanel-cache-amnt panel idx amnt))
                  (incf idx)
@@ -512,8 +520,15 @@
           (item "Tech"     3 :colony-re-slider (budget-research b))))
 
       ;; Draw the shipyard controls
-      (run-labelled-button uic (player-label :shipyard-button :bold 14 "Shipyard") 710 (- bottom 40) :color color1)
-      (run-labelled-button uic (player-label :defense-button  :bold 14 "Defenses") 710 (- bottom 70) :color color2)
+      (let* ((cx 710)
+             (design (building-design-of colony))
+             (thumb (and design (design-thumbnail design)))
+             (label (and design (name-label-of design))))
+        (run-labelled-button uic (player-label :shipyard-button :bold 14 "Shipyard") cx (- bottom 70) :color color1)
+        (run-labelled-button uic (player-label :defense-button  :bold 14 "Defenses") cx (- bottom 40) :color color1)
+        (when design
+          (draw-img-deluxe thumb cx (- bottom 125) color2)
+          (draw-img label (- cx (ash (img-width label) -1)) (- bottom 125 -16 (- (ash (img-height thumb) -1))) #+NIL (- bottom 76))))
 
       ;; Allow toggling between planet and star panel
       (when (and (uic-active uic) (pointer-in-radius* uic 71 *planet-panel-px* *planet-panel-py*))
@@ -584,7 +599,19 @@
     (free-img distance-label)
     (free-img blurb-label)))
 
+;;;; Stuffs
 
+(defun design-thumbnail (design)
+  (or (slot-value design 'thumbnail) (img :showfleet-sq-default)))
+
+(defmethod name-label-of :around ((this design))
+  (or (call-next-method)
+      (setf (name-label-of this) (render-label this :sans 11 (name-of this)))))
+
+(defmethod finalize-object ((this design))
+  (with-slots (name-label) this
+    (free-img name-label)))
+ 
 ;;;; 
 
 (defun update-ui-for-new-turn ()
@@ -596,4 +623,5 @@
          (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
         ((typep panel 'colony-panel)
          (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel))))))))
+
 

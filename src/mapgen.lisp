@@ -511,7 +511,7 @@
 (defun add-initial-ships-and-designs (player)
   (let ((designs (ship-designs-of player))
         (homeworld (aref (colonies player) 0))
-        (scout (make-instance 'design :name "Scout" :cost 400))
+        (scout (make-instance 'design :name "Scout" :cost 400 :thumbnail (img :showfleet-lame)))
         (colony-ship (make-instance 'design :name "Colony Ship" :cost 6000)))
     (setf (aref designs 0) scout
           (aref designs 1) colony-ship
