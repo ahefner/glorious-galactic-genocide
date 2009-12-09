@@ -409,7 +409,7 @@
              (nreverse (typeset-text *word-map* (min 400 (- (uic-width uic) 15 x0))
                                      (planet-type-blurb (planet-type-of planet)) :justify t)))
         (draw-typeset-text description-typesetting 
-                           x0 
+                           x0
                            (- bottom 84 (ash (typeset-word-y (first description-typesetting)) -1))
                            color1))
         
@@ -442,7 +442,9 @@
    (owner-label :initform nil)
    (stats-labels :initform nil)
    (production-label :initform nil)
-   (amnt-labels :initform (make-array 4)))
+   (eta-label :initform nil)
+   (shipyard-color :initform nil)
+   (amnt-labels :initform (make-array 4)))  
   (:default-initargs :panel-height 168))
 
 (defun colpanel-cache-amnt (panel idx amount)
@@ -456,14 +458,35 @@
                     (cons amount (render-label panel :sans 11 
                                                (format nil "~:D BC" (round amount)))))))))))
 
+;;; Compute production for a good given its cost, accumulated funds,
+;;; and rate of additional funds. Returns two values - the number
+;;; which will be produced per turn, and (if that number is zero) the
+;;; number of turns until completion of one unit. If only one is
+;;; produced, report it as one turn remaining rather than 1 built,
+;;; because that's better for the UI (I think).
+(defun estimate-construction (cost accum rate)
+  (let* ((cash (+ accum rate))
+         (num-built (if (zerop cash) 0 (floor cash cost))))
+    (cond
+      ((= num-built 1) (values 0 1))
+      ((not (zerop num-built)) (values num-built 0))
+      ((and (zerop num-built) (zerop rate)) (values 0 0))
+      (t (values 0 (ceiling (/ (- cost accum) rate)))))))
+
+(defun estimate-ship-construction (colony rate)
+  (estimate-construction (cost-of (building-design-of colony)) 
+                         (spend-ships (spending-vector-of colony))
+                         rate))
+
 (let (build-ships-label
       set-defenses-label)
  (defmethod run-panel ((panel colony-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
-  (with-slots (starmap colony name-label class-label owner-label stats-labels production-label) panel
+  (with-slots (starmap colony name-label class-label owner-label stats-labels eta-label production-label shipyard-color) panel
     (let* ((*selected-object* (star-of colony))
            (player (owner-of colony))
            (planet (planet-of colony))
+           (design (building-design-of colony))
            (color1 (pstyle-label-color (style-of player)))
            (post-cleanup-budget (post-cleanup-budget colony))
            (color2 (color-lighten color1))
@@ -512,25 +535,44 @@
             (adjust -12))
         (flet ((item (name idx id amnt)
                  (cursor-draw-img col2 (global-label :sans 11 name) color2)
-                 (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) (aref sp idx) 100 (zerop amnt))
-                       (cursor-x col2) (+ left 160 4))
+                 (let ((old (aref sp idx)))
+                   (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) old 100 (zerop amnt))
+                         (cursor-x col2) (+ left 160 4))
+                   (unless (= old (aref sp idx)) ; Invalidate ETA label
+                     (free-img eta-label)
+                     (setf eta-label nil)))
                  (cursor-draw-img col2 (colpanel-cache-amnt panel idx amnt))
                  (incf idx)
                  (cursor-newline col2) (incf (cursor-y col2) 7)))
           (item "Growth"   0 :colony-gr-slider (+ (budget-housing b) (budget-terraform b) (budget-factories b)))
           (item "Defense"  1 :colony-df-slider (+ (budget-bases b) (budget-shield b)))
           (item "Ships"    2 :colony-sh-slider (budget-ships b))
-          (item "Tech"     3 :colony-re-slider (budget-research b))))
+          (item "Tech"     3 :colony-re-slider (budget-research b))
+
+          (when design
+            (orf eta-label
+                 (progn
+                   (setf b (colony-compute-budget colony)) ; Recompute with new slider positions..
+                   (multiple-value-bind (built eta) (estimate-ship-construction colony (budget-ships b))
+                     (render-label panel :sans 11 
+                                   (cond
+                                     ((and (zerop built) (zerop eta))
+                                      (setf shipyard-color #(150 150 150))
+                                      (format nil "~A (idle)" (name-of design)))
+                                     ((zerop built) 
+                                      (setf shipyard-color color1)                                    
+                                      (format nil "~A (~:D turn~:P)" (name-of design) eta))
+                                     (t (setf shipyard-color color2)
+                                        (format nil "~A (~:Dx)" (name-of design) built))))))))))
 
       ;; Draw the shipyard controls
-      (let* ((cx 710)
-             (design (building-design-of colony))
+      (let* ((cx 710)             
              (thumb (and design (design-thumbnail design)))
-             (label (and design (name-label-of design))))
+             (label eta-label #+nil (and design (name-label-of design))))
         (run-labelled-button uic (player-label :shipyard-button :bold 14 "Shipyard") cx (- bottom 70) :color color1)
         (run-labelled-button uic (player-label :defense-button  :bold 14 "Defenses") cx (- bottom 40) :color color1)
         (when design
-          (draw-img-deluxe thumb cx (- bottom 125) color2)
+          (draw-img-deluxe thumb cx (- bottom 125) shipyard-color)
           (draw-img label (- cx (ash (img-width label) -1)) (- bottom 125 -16 (- (ash (img-height thumb) -1))) #+NIL (- bottom 76))))
 
       ;; Allow toggling between planet and star panel
@@ -542,11 +584,12 @@
 ))))
 
 (defmethod finalize-object ((panel colony-panel))
-  (with-slots (name-label class-label stats-labels production-label owner-label amnt-labels) panel
+  (with-slots (name-label class-label stats-labels production-label owner-label eta-label amnt-labels) panel
     (free-img name-label)
     (free-img class-label)
     (free-img production-label)
     (free-img owner-label)
+    (free-img eta-label)
     (map nil #'free-img stats-labels)
     (loop for foo across amnt-labels when foo do (free-img (cdr foo))))
   (values))
