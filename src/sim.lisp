@@ -416,6 +416,7 @@
     (or (find player (fleets-orbiting star) :key #'owner-of)
         (let ((fleet (make-instance 'fleet
                                     :owner player
+                                    :star star
                                     :universe (universe-of star)
                                     :orbital (find-free-orbital star))))
           (setf (loc fleet) (orbital-loc star (orbital-of fleet)))

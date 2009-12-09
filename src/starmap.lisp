@@ -37,6 +37,32 @@
   (declare (ignore starmap uic))
   (print (list :release keysym)))
 
+(defun query-starmap (starmap uic &key 
+                      (query-fn (constantly :accept))
+                      (background-click (lambda (coordinate) (scroll-to starmap coordinate)))                      
+                      (object-clicked (constantly nil)))
+  (query-presentations query-fn
+    (present-starmap starmap uic)
+    (when (uic-active uic)
+      (let* ((coordinate (find :empty-space *presentation-stack* :key #'presentation-type))
+             (objects (mapcar #'presentation-object (remove coordinate *presentation-stack*))))
+        (when (clicked? uic +left+)          
+          (cond
+            ;; If there's precisely one object under the cursor, and
+            ;; it isn't already selected, select it.
+            ((and objects (null (rest objects)))
+             (funcall object-clicked (first objects)))
+            ;; Otherwise report the map location where the user clicked.
+            (coordinate (funcall background-click (presentation-object coordinate)))))))))
+
+(defmethod gadget-paint ((gadget starmap) uic)
+  (query-starmap gadget uic
+   :object-clicked
+   (lambda (object)
+     (unless (eql object *selected-object*) ; Ignore if already selected.
+       (starmap-select gadget object)))))
+
+#+NIL
 (defmethod gadget-paint ((gadget starmap) uic)
   (query-presentations 
       (lambda (object type) :accept)
@@ -44,7 +70,7 @@
     (when (uic-active uic)
       (let* ((coordinate (find :empty-space *presentation-stack* :key #'presentation-type))
              (objects (mapcar #'presentation-object (remove coordinate *presentation-stack*))))
-        (when (clicked? uic +left+)
+        (when (clicked? uic +left+)          
           (cond
             ;; If there's precisely one object under the cursor, and
             ;; it isn't already selected, select it.
@@ -219,7 +245,8 @@
               (presenting (uic fleet :type :orbiting-fleet)
                 (:hit (circle ox oy 8))
                 (:display
-                 (draw-img (img :circle-16) ox oy)
+                 (when (eq fleet *selected-object*) (draw-img (img :fleet-selected-glow) ox oy))
+                 (draw-img (img :circle-16) ox oy)                 
                  (draw-img-deluxe (img :inner-16) ox oy color)
                  (draw-img (fleet-count-image num-ships) ox oy)))))
 
@@ -240,6 +267,7 @@
 
 (defun starmap-select (starmap object)
   (typecase object
+    (fleet (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet object)))
     (star
      (let* ((star (and (typep object 'star) object))
             (explored (explored? *player* star)) ; XXX
@@ -528,7 +556,7 @@
                                  (round (budget-unspent post-cleanup-budget))
                                  (round (production-of colony))))))
 
-      ;; Draw the hypothetical second column
+      ;; Draw the (no longer) hypothetical second column
       (let ((b (colony-compute-budget colony))
             (left (+ 48 *planet-panel-col2-left*))
             (idx 0)
@@ -657,6 +685,72 @@
 (defmethod finalize-object ((this design))
   (with-slots (name-label) this
     (free-img name-label)))
+
+;;;; Fleet panel
+
+(defclass fleet-panel (panel)
+  ((fleet :initarg :fleet)
+   (label-table :initform (make-hash-table)))
+  (:default-initargs :panel-height 140))
+
+(defun propose-direct-fleet (panel fleet star)
+  (printl panel :send fleet :to star :dai-mai?)
+  )
+
+(defmethod run-panel ((panel fleet-panel) uic bottom)
+  (when (and (uic-active uic) (released? uic +right+)) (close-panels))
+  (with-slots (starmap fleet label-table) panel
+    (macrolet ((label (key) `(gethash ,key label-table))
+               (invalidate-label (key) `(progn (free-img (label ,key))
+                                               (setf (label ,key) nil)))
+               (deflabel (key (&key (face :sans) (size 11) (align-x :left)) fmt &rest args)
+                 `(orf (label ,key) (render-label panel ,face ,size (format nil ,fmt ,@args) :align-x ,align-x))))
+      (let* ((*selected-object* fleet)
+             (owner (owner-of fleet))
+             (movable (eq owner *player*)) ; TODO: ..AND not in transit..
+             (color1 (pstyle-label-color (style-of owner)))
+             (color2 (color-lighten color1)))
+        
+        ;; Run the starmap first. We have to do our own presentation
+        ;; query here to handle the ship movement, otherwise we'd just
+        ;; call gadget-paint like the other panels do.
+        ;; (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+        (query-starmap starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom))
+         :object-clicked (lambda (object)
+                           (if (and movable (typep object 'star))
+                               (propose-direct-fleet panel fleet object)
+                               (starmap-select starmap object))))
+                               
+
+          
+        
+
+        (draw-panel-background uic bottom)     
+
+        ;; Now, the fleet controls.
+        (deflabel :title (:face :gothic :size 20) "~A fleet ~A ~A"
+                  (name-of (race-of owner)) ; FIXME for multiple players per races
+                  (if (destination-of fleet) "en route to" "orbiting")
+                  (name-of (or (destination-of fleet) (star-of fleet))))
+        (draw-img-deluxe (label :title) 17 (- bottom 114) color1)
+        (loop with y = (- bottom 44 28)
+              for stack in (stacks-of fleet)
+              for x from (+ 5 42) by 84 do
+              (draw-img-deluxe (design-thumbnail (stack-design stack)) x y color2)
+              (deflabel stack (:align-x :center) "~A~[~;~:; (~:*~:D)~]" (name-of (stack-design stack)) (stack-count stack))
+              (draw-img (label stack) x (+ y 50)))
+        
+        ;; Buttons
+        (when (run-labelled-button uic (deflabel :close (:face :bold :size 14) "Close") (- (uic-width uic) 50) (- bottom 40))
+          (close-panels))
+))))
+
+
+(defmethod finalize-object ((panel fleet-panel))
+  (with-slots (label-table) panel
+    (maphash (lambda (key img) (declare (ignore key)) (free-img img)) label-table)))
+
+
  
 ;;;; 
 
@@ -669,5 +763,4 @@
          (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
         ((typep panel 'colony-panel)
          (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel))))))))
-
 

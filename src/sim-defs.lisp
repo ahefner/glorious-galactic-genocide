@@ -150,6 +150,7 @@
 
 (defclass fleet (owned ent in-universe)
   ((star :accessor star-of :initform nil :initarg :star)
+   (destination :accessor destination-of :initform nil :initarg :destination)
    (orbital :accessor orbital-of :initarg :orbital)
    (stacks :accessor stacks-of :initform nil :initarg :stacks)
    (speed :accessor speed-of :initform 1 :initarg :speed)))
