@@ -23,13 +23,13 @@
   (let* ((gameui (make-instance 'gameui :universe universe))
          (homeworld (aref (colonies *player*) 0))
          (loc (loc homeworld))
-         (camera (v2 (round (v.x loc)) (round (v.y loc)))))
+         (camera (vec (v.x loc) (v.y loc) 0.0f0)))
 
     (prog1 gameui
       (with-slots (starmap next-gadget) gameui
         (setf starmap (make-instance 'debug-starmap :universe universe
-                                     :scroll-coord camera
-                                     :scroll-target camera)
+                                     :camera camera
+                                     :camera-target (vscale camera 1.0)) ; Copy.. don't ask..
               (parent-gadget starmap) gameui
               next-gadget starmap)))))
 

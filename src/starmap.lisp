@@ -15,10 +15,8 @@
 
 (defclass starmap (gadget)
   ((universe :reader universe-of :initarg :universe)
-   (zoom-target :accessor zoom-target-of :initform 0.0)
-   (zoom :accessor zoom-of :initform 0.0)
-   (scroll-coord  :initform (v2 0 0) :initarg :scroll-coord)
-   (scroll-target :accessor scroll-target-of :initform (v2 0 0) :initarg :scroll-target)))
+   (camera :accessor camera-vector-of :initform (vec 0 0 0) :initarg :camera)
+   (camera-target :accessor camera-target-of :initform (vec 0 0 0) :initarg :camera-target)))
 
 (defclass debug-starmap (starmap) ())
 
@@ -63,12 +61,14 @@
        (starmap-select gadget object)))))
 
 (defun scroll-to (starmap v2)
-  (with-slots (universe scroll-target) starmap
-    (let ((u-cam-border 400)
+  (with-slots (universe camera-target) starmap
+    (let ((u-cam-border 400.0)
           (u-min (min-bound-of universe))
           (u-max (max-bound-of universe)))
-      (setf scroll-target (v2 (round (clamp (v2.x v2) (- (v.x u-min) u-cam-border) (+ u-cam-border (v.x u-max))))
-                              (round (clamp (v2.y v2) (- (v.y u-min) u-cam-border) (+ u-cam-border (v.y u-max)))))))))
+      (setf camera-target 
+            (vec (clamp (single (v2.x v2)) (- (v.x u-min) u-cam-border) (+ u-cam-border (v.x u-max)))
+                 (clamp (single (v2.y v2)) (- (v.y u-min) u-cam-border) (+ u-cam-border (v.y u-max)))
+                 (v.z camera-target))))))
 
 (defun test-line-drawing ()
   (let ((worlds (map 'list (lambda (p) (star-of (aref (colonies p) 0))) (all-players *universe*))))
@@ -76,56 +76,58 @@
           (loop for 2nd in (rest foo) as 1st = (first foo) do
                 (draw-line (screen-coord-of 1st) (screen-coord-of 2nd))))))
 
-(defun camera-vector-of (starmap)       ; FIXME, roll into class!
-  (with-slots (scroll-coord zoom) starmap
-    (vec (v2.x scroll-coord) (v2.y scroll-coord) zoom)))
-
 (defun present-starmap (gadget uic)
-  (with-slots (universe scroll-coord scroll-target zoom zoom-target) gadget
-    ;;(setf scroll-coord (v2 (uic-mx uic) (uic-my uic)))
+  (with-slots (universe camera-target camera) gadget
     (let* ((stars (stars universe))
            (zoom-step 180)
-           (min-zoom (* zoom-step (round -2600 zoom-step)))
-           (max-zoom (* zoom-step (round 560 zoom-step)))           
+           (min-zoom (single (* zoom-step (round -2600 zoom-step))))
+           (max-zoom (single (* zoom-step (round 560 zoom-step))))
            ;; I'm concerned that this actually amplifies the effect of framerate jitter..
-           (interp (expt 0.1 (uic-delta-t uic)))
-           (camera (camera-vector-of gadget)))
-      ;; Transform the star positions first, because we need them in several places.
-      (loop for star across stars do (setf (screen-coord-of star) (perspective-transform (v- (loc star) camera))))
+           (interp (expt 0.1 (uic-delta-t uic))))
 
-      ;; Draw the stars and do pointer vs. objects checks..
-      (multiple-value-bind (pointer-x pointer-y)
-          (inverse-perspective-transform camera (uic-mx uic) (uic-my uic) (ash *starfield-depth* -1))
+      ;; Update camera position:
+      ;;   (Vectors are supposed to be immutable, but I can get away with this..)
+      (unless (zerop (logand (ash 1 4) (uic-buttons-pressed uic)))
+        (decf (aref camera-target 2) (single zoom-step)))
+      
+      (unless (zerop (logand (ash 1 3) (uic-buttons-pressed uic)))
+        (incf (aref camera-target 2) (single zoom-step)))
+      
+      (setf (aref camera-target 2) (clamp (aref camera-target 2) min-zoom max-zoom))
+      
+      (with-vectors (camera camera-target)
+        (let ((z (if (< (abs (- camera-target.z camera.z)) 25.0)
+                     camera.z
+                     (lerp interp camera-target.z camera.z))))
 
-        (presenting (uic (v2 pointer-x pointer-y) :type :empty-space)
-          (:display )
-          (:hit (constantly t)))
+          (setf (camera-vector-of gadget)
+                (vec (lerp interp camera-target.x camera.x)
+                     (lerp interp camera-target.y camera.y)
+                     z))))
 
-        (unless (zerop (logand (ash 1 4) (uic-buttons-pressed uic)))
-          (decf zoom-target zoom-step))
+      (with-vectors (camera)
+        ;; Transform the star positions before drawing. The hook may need them!
+        (loop for star across stars do (setf (screen-coord-of star) (perspective-transform (v- (loc star) camera))))
 
-        (unless (zerop (logand (ash 1 3) (uic-buttons-pressed uic)))
-          (incf zoom-target zoom-step))
+        ;; Draw the stars and do pointer vs. objects checks..
+        (multiple-value-bind (pointer-x pointer-y)
+            (inverse-perspective-transform camera (uic-mx uic) (uic-my uic) (ash *starfield-depth* -1))
 
-        (unless (< (abs (- zoom-target zoom)) 25.0)
-          (setf zoom-target (clamp zoom-target min-zoom max-zoom)
-                zoom (lerp interp zoom-target zoom)))
+          (presenting (uic (v2 pointer-x pointer-y) :type :empty-space)
+           (:display)
+           (:hit (constantly t)))
 
-        (setf scroll-coord (v2 (round (lerp interp (v2.x scroll-target) (v2.x scroll-coord)))
-                               (round (lerp interp (v2.y scroll-target) (v2.y scroll-coord)))))
+          (render-starfield (round camera.x) (round camera.y))
 
-        (render-starfield (v2.x scroll-coord) (v2.y scroll-coord))
+          (funcall *starmap-display-under-hook*)
 
-        (funcall *starmap-display-under-hook*)
-        ;;(test-line-drawing)        
-
-        (loop for star across stars
-              as v = (screen-coord-of star)
-              as x = (round (v.x v)) as y = (round (v.y v))
-              do
-              (when (eql star *selected-object*)
-                (draw-img (img :halo-0) x y))
-              (present-star uic star x y)
+          (loop for star across stars
+                as v = (screen-coord-of star)
+                as x = (round (v.x v)) as y = (round (v.y v)) ; STUPIDO!
+                do
+                (when (eql star *selected-object*)
+                  (draw-img (img :halo-0) x y))
+                (present-star uic star x y))
  )))))
 
 (defconstant +perspective-foo+ 0.0014f0)  ; ~ 1/714
