@@ -99,7 +99,9 @@
         (let ((z (if (< (abs (- camera-target.z camera.z)) 25.0)
                      camera.z
                      (lerp interp camera-target.z camera.z))))
-
+          
+          (when (vdist<= camera-target camera 30.0) (setf interp 1.0))
+          
           (setf (camera-vector-of gadget)
                 (vec (lerp interp camera-target.x camera.x)
                      (lerp interp camera-target.y camera.y)

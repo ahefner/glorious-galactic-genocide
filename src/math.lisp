@@ -180,7 +180,7 @@
          (+ p.z (* l pq.z)))))
 
 (defun vdist (a b)
-  (vlen (v- a b)))
+  (len (v- a b)))
 
 (defun vdist<= (a b dist)
   (<= (vnormsq (v- a b)) (square dist)))
