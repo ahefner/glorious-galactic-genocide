@@ -35,7 +35,15 @@
 
 (declaim (inline coord coord.x coord.y coord- square normsq vlen))
 
+;; Debug version:
+#+NIL
+(defun v2 (x y) 
+  (assert (integerp x))
+  (assert (integerp y))
+  (cons x y))
+
 (defun v2 (x y) (cons x y))
+(defun v2round (x y) (cons (round x) (round y)))
 (defun v2.x (coord) (car coord))
 (defun v2.y (coord) (cdr coord))
 (defun v2+ (a b)
@@ -54,12 +62,13 @@
 
 
 (defmacro with-elts ((sequence &rest elt-names) &body body)
-  `(flet ((body ,elt-names 
-            (declare (ignorable ,@elt-names))
-            ,@body))
-     (let ((seq ,sequence))
-       (body ,@(loop for i from 0 below (length elt-names) 
-                     collect `(elt seq ,i))))))
+  (let ((seq (gensym "SEQ")))
+    `(let* ((,seq ,sequence)
+            ,@(loop for i upfrom 0
+                    for elt-name in elt-names
+                    collect `(,elt-name (elt ,seq ,i))))
+       (declare (ignorable ,@elt-names))
+       ,@body)))
 
 
 (defmacro with-vector ((name &optional expression) &body body)

@@ -34,7 +34,7 @@
    (planet :reader planet-of :initform nil)
    (spectral-class :reader spectral-class :initarg :spectral-class)
    ;; Grungy bits:
-   (screen-coord :initform nil :accessor screen-coord-of)
+   (screen-coord :initform nil :accessor screen-coord-of) ; v2
    (label-img :initform nil)))
 
 (defclass race (named)

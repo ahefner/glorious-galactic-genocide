@@ -216,10 +216,10 @@
     (bind-texobj texture)
     (set-color color)
     (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
-    (ffi:c-inline ((v.x u) (v.y u) (v.x v) (v.y v) 
+    (ffi:c-inline ((v2.x u) (v2.y u) (v2.x v) (v2.y v)
                    (texture-width texture) (texture-height texture)
                    pattern-offset)
-                  (:float :float :float :float :int :int :int)
+                  (:int :int :int :int :int :int :int)
                   (values)
 ;; Sure, I could do this in lisp, and it'd be less code, but ECL's
 ;; compiler is a joke, and I bitterly resent avoidable runtime

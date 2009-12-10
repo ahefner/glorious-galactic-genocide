@@ -125,7 +125,7 @@
 
           (loop for star across stars
                 as v = (screen-coord-of star)
-                as x = (round (v.x v)) as y = (round (v.y v)) ; STUPIDO!
+                as x = (v2.x v) as y = (v2.y v)
                 do
                 (when (eql star *selected-object*)
                   (draw-img (img :halo-0) x y))
@@ -137,20 +137,19 @@
 (defun perspective-transform (v)
   (declare (type v3 v)
            (optimize (speed 3) (safety 0) (debug 0) (space 0)))
-  (with-vector (ortho v)
+  (with-vector (ortho v)                ; Why don't I do this in C?
     (let ((z (+ 1.0 (* ortho.z +perspective-foo+)))
-          (w/2 (cx :float "window_width/2.0"))
-          (h/2 (cx :float "window_height/2.0")))
-      (vec (+ w/2 (/ ortho.x z))
-           (+ h/2 (/ ortho.y z))
-           ortho.z))))
+          (w/2 (cx :int "window_width/2"))
+          (h/2 (cx :int "window_height/2")))
+      (v2round (+ w/2 (/ ortho.x z))
+               (+ h/2 (/ ortho.y z)) ))))
 
 (defun inverse-perspective-transform (camera sx sy z)
   (let ((w/2 (cx :float "window_width/2.0"))
         (h/2 (cx :float "window_height/2.0"))
         (p (+ 1.0 (* (- z (v.z camera)) +perspective-foo+))))
-    (values (+ (* (- sx w/2) p) (v.x camera))
-            (+ (* (- sy h/2) p) (v.y camera)))))
+    (values (round (+ (* (- sx w/2) p) (v.x camera)))
+            (round (+ (* (- sy h/2) p) (v.y camera))))))
 
 (defun star->image (star)
   (with-slots (style spectral-class) star
@@ -200,7 +199,7 @@
   (defun relative-orbital-vectors ()
     (or orbital-vectors
         (setf orbital-vectors 
-              (coerce (loop for i from 0 below 6 as v = (orbital-vector i) collect (v2 (round (v.x v)) (round (v.y v)))) 'vector)))))
+              (coerce (loop for i from 0 below 6 as v = (orbital-vector i) collect (v2round (v.x v) (v.y v))) 'vector)))))
 
 (let (fleet-count-images)
   (defun fleet-count-image (n)
@@ -719,7 +718,7 @@
     ((star-of fleet)                    ; Case 1, orbiting fleet: Offset by orbit position.
      (let ((sc (screen-coord-of (star-of fleet)))
            (rel (aref (relative-orbital-vectors) (orbital-of fleet))))
-       (vec (+ (v2.x rel) (v.x sc)) (+ (v2.y rel) (v.y sc)) 0.0f0)))
+       (v2 (+ (v2.x rel) (v2.x sc)) (+ (v2.y rel) (v2.y sc)))))
     (t                                  ; Case 2, fleet in interstellar space.
      (perspective-transform (v- (loc fleet) (camera-vector-of starmap))))))
 
@@ -757,7 +756,7 @@
                               (declare (ignore foo))
                               ;; Why the hell am I using a 3D vector for a screen coordinate?
                               (let ((c (screen-coord-of star)))
-                                (draw-img (img :halo-in-range) (round (v.x c)) (round (v.y c)))))
+                                (draw-img (img :halo-in-range) (v2.x c) (v2.y c))))
                             highlighted-stars))
                  (when (and target (not closing))                   
                    (draw-line (fleet-screen-vector starmap fleet) (screen-coord-of target)
