@@ -107,8 +107,9 @@
         (unless (zerop (logand (ash 1 3) (uic-buttons-pressed uic)))
           (incf zoom-target zoom-step))
 
-        (setf zoom-target (clamp zoom-target min-zoom max-zoom)
-              zoom (lerp interp zoom-target zoom))
+        (unless (< (abs (- zoom-target zoom)) 25.0)
+          (setf zoom-target (clamp zoom-target min-zoom max-zoom)
+                zoom (lerp interp zoom-target zoom)))
 
         (setf scroll-coord (v2 (round (lerp interp (v2.x scroll-target) (v2.x scroll-coord)))
                                (round (lerp interp (v2.y scroll-target) (v2.y scroll-coord)))))
