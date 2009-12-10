@@ -51,8 +51,14 @@ int sys_init (char *title)
     if (!(vid_fullscreen)) {
 //        window_width = vinf->current_w - 64;
 //        window_height = vinf->current_h - 90;
-        window_width = 800;
-        window_height = 480;
+        
+        // Minimum supported resolution:
+        // window_width = 800;
+        // window_height = 480;
+
+        // Expected typical resolution:
+        window_width = 1280;
+        window_height = 800;
     }
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);

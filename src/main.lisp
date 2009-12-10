@@ -96,12 +96,9 @@
     (setf *gameui* (create-gameui *universe*)
           *gadget-root* *gameui*)
     
-    (time (uim-sdl-run))
+;;    (time (uim-sdl-run))
     #+NIL (repaint (initial-uic))
-    #+NIL
-    (time 
-        (catch 'bailout
-          (uim-sdl-run))))
+    (time (catch 'bailout (uim-sdl-run))))
   (format t "~&Shutting down.~%")
   (c "sys_shutdown()")
 

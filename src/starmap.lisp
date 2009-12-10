@@ -705,6 +705,8 @@
 (defun star-in-range-of-fleet (star fleet)
   (<= (distance-from-player (owner-of fleet) star) (fleet-range-units fleet)))
 
+
+#+NIL
 (defun propose-direct-fleet (panel fleet star)
   (printl panel :send fleet :to star :dai-mai?)
   (with-slots (target too-far) panel
@@ -764,16 +766,29 @@
                               :pattern-offset (logand (ash (uic-time uic) -15) 31))))))
           (query-starmap starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom))
                          :object-clicked (lambda (object)
-                                           (if (and movable (typep object 'star))
-                                               (propose-direct-fleet panel fleet object)
-                                               (starmap-select starmap object)))))
+                                           (cond
+                                             ((and movable (typep object 'star) (not (eql object (star-of fleet))))
+                                              (setf target object
+                                                    too-far (not (star-in-range-of-fleet object fleet)))
+                                              ;;(propose-direct-fleet panel fleet object) 
+                                              (unless too-far 
+                                                (setf (destination-of fleet) object)
+                                                (invalidate-label :title)))
+                                             (t (starmap-select starmap object))))))
 
         (draw-panel-background uic bottom)     
 
+        ;; Fleets can be in three states: en route, departing, or
+        ;; orbiting. "Departing" fleets have both their destination
+        ;; and star slots set, and their orders can still be changed.
+
         ;; Now, the fleet controls.
         (deflabel :title (:face :gothic :size 20) "~A fleet ~A ~A"
-                  (name-of (race-of owner)) ; FIXME for multiple players per races
-                  (if (destination-of fleet) "en route to" "orbiting")
+                  (name-of (race-of owner)) ; FIXME multiplayer
+                  (cond
+                    ((not (destination-of fleet)) "orbiting")
+                    ((not (star-of fleet)) "en route to" )
+                    (t "departing for"))
                   (name-of (or (destination-of fleet) (star-of fleet))))
         (draw-img-deluxe (label :title) 17 (- bottom 114) color1)
         (loop with y = (- bottom 44 28)
@@ -782,10 +797,19 @@
               (draw-img-deluxe (design-thumbnail (stack-design stack)) x y color2)
               (deflabel stack (:align-x :center) "~A~[~;~:; (~:*~:D)~]" (name-of (stack-design stack)) (stack-count stack))
               (draw-img (label stack) x (+ y 50)))
-        
+
         ;; Buttons
-        (when (run-labelled-button uic (deflabel :close (:face :bold :size 14) "Close") (- (uic-width uic) 50) (- bottom 40))
-          (close-panels))
+        (deflabel :close (:face :bold :size 14) "Close")
+        (deflabel :cancel (:face :bold :size 14) "Cancel")
+        ;;(deflabel :send (:face :bold :size 14) "Send")
+        (let ((y (- bottom 40)))
+          (when (run-labelled-button uic (label :close) (- (uic-width uic) 50) y)
+            (close-panels))
+          #+NIL
+          (when target
+            (when (run-labelled-button uic (label :send) (- (uic-width uic) 140) y)
+              ;; Really send them here.
+              (close-panels))))
 ))))
 
 
