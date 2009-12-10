@@ -34,8 +34,10 @@
               next-gadget starmap)))))
 
 (defun close-panels ()
-  (with-slots (closing-panel) *gameui*
-    (setf closing-panel t)))
+  (with-slots (panel closing-panel) *gameui*
+    (when panel 
+      (dismiss-panel panel)
+      (setf closing-panel t))))
 
 (defmethod gadget-paint ((gadget gameui) uic)
   ;; Run inferior UI elements first, because we have to draw on top of them.

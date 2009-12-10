@@ -62,27 +62,6 @@
      (unless (eql object *selected-object*) ; Ignore if already selected.
        (starmap-select gadget object)))))
 
-#+NIL
-(defmethod gadget-paint ((gadget starmap) uic)
-  (query-presentations 
-      (lambda (object type) :accept)
-    (present-starmap gadget uic)
-    (when (uic-active uic)
-      (let* ((coordinate (find :empty-space *presentation-stack* :key #'presentation-type))
-             (objects (mapcar #'presentation-object (remove coordinate *presentation-stack*))))
-        (when (clicked? uic +left+)          
-          (cond
-            ;; If there's precisely one object under the cursor, and
-            ;; it isn't already selected, select it.
-            ((and objects (not (second objects)) 
-                  (not (eql (first objects) *selected-object*)))
-             (starmap-select gadget (first objects)))
-            ;; Otherwise scroll to the pointer coordinate. Note that
-            ;; this allows double-clicking to select and scroll to an
-            ;; object.
-            (coordinate
-             (scroll-to gadget (presentation-object coordinate)))))))))
-
 (defun scroll-to (starmap v2)
   (with-slots (universe scroll-target) starmap
     (let ((u-cam-border 400)
@@ -90,6 +69,16 @@
           (u-max (max-bound-of universe)))
       (setf scroll-target (v2 (round (clamp (v2.x v2) (- (v.x u-min) u-cam-border) (+ u-cam-border (v.x u-max))))
                               (round (clamp (v2.y v2) (- (v.y u-min) u-cam-border) (+ u-cam-border (v.y u-max)))))))))
+
+(defun test-line-drawing ()
+  (let ((worlds (map 'list (lambda (p) (star-of (aref (colonies p) 0))) (all-players *universe*))))
+    (loop for foo on worlds do
+          (loop for 2nd in (rest foo) as 1st = (first foo) do
+                (draw-line (screen-coord-of 1st) (screen-coord-of 2nd))))))
+
+(defun camera-vector-of (starmap)       ; FIXME, roll into class!
+  (with-slots (scroll-coord zoom) starmap
+    (vec (v2.x scroll-coord) (v2.y scroll-coord) zoom)))
 
 (defun present-starmap (gadget uic)
   (with-slots (universe scroll-coord scroll-target zoom zoom-target) gadget
@@ -100,7 +89,11 @@
            (max-zoom (* zoom-step (round 560 zoom-step)))           
            ;; I'm concerned that this actually amplifies the effect of framerate jitter..
            (interp (expt 0.1 (uic-delta-t uic)))
-           (camera (vec (v2.x scroll-coord) (v2.y scroll-coord) zoom)))
+           (camera (camera-vector-of gadget)))
+      ;; Transform the star positions first, because we need them in several places.
+      (loop for star across stars do (setf (screen-coord-of star) (perspective-transform (v- (loc star) camera))))
+
+      ;; Draw the stars and do pointer vs. objects checks..
       (multiple-value-bind (pointer-x pointer-y)
           (inverse-perspective-transform camera (uic-mx uic) (uic-my uic) (ash *starfield-depth* -1))
 
@@ -115,14 +108,18 @@
           (incf zoom-target zoom-step))
 
         (setf zoom-target (clamp zoom-target min-zoom max-zoom)
-              zoom (lerp interp zoom-target zoom)
-              scroll-coord (v2 (round (lerp interp (v2.x scroll-target) (v2.x scroll-coord)))
+              zoom (lerp interp zoom-target zoom))
+
+        (setf scroll-coord (v2 (round (lerp interp (v2.x scroll-target) (v2.x scroll-coord)))
                                (round (lerp interp (v2.y scroll-target) (v2.y scroll-coord)))))
 
         (render-starfield (v2.x scroll-coord) (v2.y scroll-coord))
 
+        (funcall *starmap-display-under-hook*)
+        ;;(test-line-drawing)        
+
         (loop for star across stars
-              as v = (perspective-transform (v- (loc star) camera))
+              as v = (screen-coord-of star)
               as x = (round (v.x v)) as y = (round (v.y v))
               do
               (when (eql star *selected-object*)
@@ -317,7 +314,12 @@
 
 (defclass panel (dynamic-object) 
   ((panel-height :accessor panel-height :initarg :panel-height)
-   (starmap :initarg :starmap)))
+   (starmap :initarg :starmap)
+   (closing :accessor closing-p :initform nil)))
+
+(defgeneric dismiss-panel (panel)
+  (:method :before (panel) (setf (closing-p panel) t))
+  (:method (panel) (declare (ignore panel)) (values)))
 
 (defun draw-panel-background (uic bottom)
   (let* ((left (img :panel-left))
@@ -414,7 +416,7 @@
             (mapcar (lambda (string) (render-label panel :sans 11 string))
                     (remove nil
                      (list
-                      (and (not (eql owner *player*)) (format nil "Distance: ~:D LY" (distance-from-player *player* planet)))
+                      (and (not (eql owner *player*)) (format nil "Distance: ~:D LY" (distance-from-player-ly *player* planet)))
                       (and (or (not maxpop-owner) (= maxpop-owner maxpop-us))
                            (format nil "Max Population: ~:D million" maxpop-us))
                       (and maxpop-owner (/= maxpop-owner maxpop-us) (format nil "Max Population (owner): ~:D million" maxpop-owner))
@@ -634,7 +636,7 @@
 
 (defmethod run-panel ((panel star-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
-  (with-slots (starmap star name-label distance-label class-label blurb-label) panel
+  (with-slots (starmap star closing name-label distance-label class-label blurb-label) panel
     (let* ((*selected-object* star)
            (color1 (pstyle-label-color (style-of *player*)))
            (color2 (color-lighten color1))
@@ -654,8 +656,8 @@
       (cursor-newline column)
       (incf (cursor-y column) 9)
       (cursor-draw-img column
-                       (orf distance-label (render-label panel :sans 11
-                                            (format nil "Distance: ~:D LY" (distance-from-player *player* star)))))      
+       (orf distance-label (render-label panel :sans 11
+                            (format nil "Distance: ~:D LY" (distance-from-player-ly *player* star)))))      
       (cursor-newline column)
       (cursor-draw-img column
        (orf blurb-label
@@ -690,24 +692,52 @@
 
 (defclass fleet-panel (panel)
   ((fleet :initarg :fleet)
+   (target :accessor target-of :initform nil)
+   (highlighted-stars :initform nil)
+   (too-far)
    (label-table :initform (make-hash-table)))
   (:default-initargs :panel-height 140))
 
+(defun star-in-range-of-fleet (star fleet)
+  (<= (distance-from-player (owner-of fleet) star) (fleet-range-units fleet)))
+
 (defun propose-direct-fleet (panel fleet star)
   (printl panel :send fleet :to star :dai-mai?)
-  )
+  (with-slots (target too-far) panel
+    (setf target star
+          too-far (not (star-in-range-of-fleet star fleet)))))  
+
+(defun fleet-screen-vector (starmap fleet)
+  ;; Assumption: We're far enough into rendering that the star
+  ;; positions are established for the current frame.
+  (cond
+    ((star-of fleet)                    ; Case 1, orbiting fleet: Offset by orbit position.
+     (let ((sc (screen-coord-of (star-of fleet)))
+           (rel (aref (relative-orbital-vectors) (orbital-of fleet))))
+       (vec (+ (v2.x rel) (v.x sc)) (+ (v2.y rel) (v.y sc)) 0.0f0)))
+    (t                                  ; Case 2, fleet in interstellar space.
+     (perspective-transform (v- (loc fleet) (camera-vector-of starmap))))))
 
 (defmethod run-panel ((panel fleet-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
-  (with-slots (starmap fleet label-table) panel
+  (with-slots (starmap fleet label-table target closing highlighted-stars too-far) panel    
+
+    (orf highlighted-stars
+         (loop with table = (make-hash-table) ; FIXME, quadratic, cache the distances.
+               for star across (stars *universe*)
+               when (and (star-in-range-of-fleet star fleet)
+                         (not (eql star (star-of fleet))))
+               do (setf (gethash star table) t)
+               finally (return table)))
+
     (macrolet ((label (key) `(gethash ,key label-table))
                (invalidate-label (key) `(progn (free-img (label ,key))
                                                (setf (label ,key) nil)))
                (deflabel (key (&key (face :sans) (size 11) (align-x :left)) fmt &rest args)
                  `(orf (label ,key) (render-label panel ,face ,size (format nil ,fmt ,@args) :align-x ,align-x))))
-      (let* ((*selected-object* fleet)
+      (let* ((*selected-object* (unless closing fleet))
              (owner (owner-of fleet))
-             (movable (eq owner *player*)) ; TODO: ..AND not in transit..
+             (movable (and (eq owner *player*) (star-of fleet)))
              (color1 (pstyle-label-color (style-of owner)))
              (color2 (color-lighten color1)))
         
@@ -715,15 +745,24 @@
         ;; query here to handle the ship movement, otherwise we'd just
         ;; call gadget-paint like the other panels do.
         ;; (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
-        (query-starmap starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom))
-         :object-clicked (lambda (object)
-                           (if (and movable (typep object 'star))
-                               (propose-direct-fleet panel fleet object)
-                               (starmap-select starmap object))))
-                               
-
-          
-        
+        (let ((*starmap-display-under-hook* 
+               (lambda ()
+                 (unless closing
+                   (maphash (lambda (star foo)
+                              (declare (ignore foo))
+                              ;; Why the hell am I using a 3D vector for a screen coordinate?
+                              (let ((c (screen-coord-of star)))
+                                (draw-img (img :halo-in-range) (round (v.x c)) (round (v.y c)))))
+                            highlighted-stars))
+                 (when (and target (not closing))                   
+                   (draw-line (fleet-screen-vector starmap fleet) (screen-coord-of target)
+                              :color (if too-far #(120 120 120 255) #(255 255 255 255))
+                              :pattern-offset (logand (ash (uic-time uic) -15) 31))))))
+          (query-starmap starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom))
+                         :object-clicked (lambda (object)
+                                           (if (and movable (typep object 'star))
+                                               (propose-direct-fleet panel fleet object)
+                                               (starmap-select starmap object)))))
 
         (draw-panel-background uic bottom)     
 

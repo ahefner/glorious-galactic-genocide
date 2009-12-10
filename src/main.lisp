@@ -15,6 +15,7 @@
         *slider160* (load-texture-file (apath "slider-160.png"))
         *gamebar-fill* (load-texture-file (apath "gamebar-fill.png"))
         *panel-fill* (load-texture-file (apath "panel-fill.png"))
+
         *button-a* (make-button-style
                     :baseline 16
                     :pressed (make-bar-style :left  (img :button-a-pressed-left)

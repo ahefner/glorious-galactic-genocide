@@ -99,8 +99,11 @@
   (remove nil (map 'list #'planet-of (stars universe))))
 
 (defun distance-from-player (player staroid)
-  (round (reduce #'min (colonies player) :key (lambda (col) (len (v- (loc col) (loc staroid)))))
-         light-years/units))
+  (reduce #'min (colonies player) :key (lambda (col) (len (v- (loc col) (loc staroid))))))
+
+(defun distance-from-player-ly (player staroid)
+  (ceiling (distance-from-player player staroid) units/light-years))
+         
 
 ;;;;
 
@@ -398,6 +401,15 @@
 
 ;;;; Fleets, stacks, ships, etc.
 
+(defun fleet-range-ly (fleet)
+  (declare (ignore fleet))
+  3)
+
+(defun fleet-range-units (fleet)
+  (* (fleet-range-ly fleet) units/light-years))
+
+  
+
 (defun find-free-orbitals (star)
   (sort (copy-list (set-difference '(0 1 2 3 4 5) (mapcar #'orbital-of (fleets-orbiting star)))) #'<))
 
@@ -417,6 +429,7 @@
         (let ((fleet (make-instance 'fleet
                                     :owner player
                                     :star star
+                                    :loc (loc star)
                                     :universe (universe-of star)
                                     :orbital (find-free-orbital star))))
           (setf (loc fleet) (orbital-loc star (orbital-of fleet)))

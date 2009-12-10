@@ -38,6 +38,9 @@
 (defun v2 (x y) (cons x y))
 (defun v2.x (coord) (car coord))
 (defun v2.y (coord) (cdr coord))
+(defun v2+ (a b)
+  (v2 (+ (v2.x a) (v2.x b))
+      (+ (v2.y a) (v2.y b))))
 (defun v2- (a b)
   (v2 (- (v2.x a) (v2.x b))
       (- (v2.y a) (v2.y b))))
@@ -175,3 +178,9 @@
     (vec (+ p.x (* l pq.x))
          (+ p.y (* l pq.y))
          (+ p.z (* l pq.z)))))
+
+(defun vdist (a b)
+  (vlen (v- a b)))
+
+(defun vdist<= (a b dist)
+  (<= (vnormsq (v- a b)) (square dist)))

@@ -37,5 +37,5 @@
 (defvar *button-a* nil)                     ; Standard button-style
 (defvar *slider160* nil)                    ; 160px slider texture with bevelled ends
 
-
-
+;; Stupid hack for drawing a layer below the stars (but above the space background).
+(defvar *starmap-display-under-hook* (constantly nil))

@@ -26,7 +26,7 @@
   (ffi:c-inline () () :unsigned-int
    " { GLuint id; glGenTextures(1, &id); @(return 0)=id; }"))
 
-(defun upload-sdl-surface (surface)
+(defun upload-sdl-surface (surface &key filter)
   (let ((id (alloc-texid)))
     (c "glBindTexture(GL_TEXTURE_2D, #0)" :unsigned-int id)
     (ffi:c-inline (surface) (:pointer-void) (values)
@@ -35,16 +35,16 @@
         glTexImage2D(GL_TEXTURE_2D, 0, mode, surf->w, surf->h, 0, mode, GL_UNSIGNED_BYTE, surf->pixels); 
       }")
     (check-gl-error)
-    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST)")
-    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST)")
+    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,#0?GL_LINEAR:GL_NEAREST)" :int (if filter 1 0))
+    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,#0?GL_LINEAR:GL_NEAREST)" :int (if filter 1 0))
     (check-gl-error)
     id))
 
 (defstruct (texture (:include gltexobj)))
 
-(defun load-texture-file (filename)
+(defun load-texture-file (filename &key filter)
   (let ((surface (call :pointer-void "IMG_Load" :cstring filename)))
-    (prog1 (make-texture :texid (upload-sdl-surface surface)
+    (prog1 (make-texture :texid (upload-sdl-surface surface :filter filter)
                          :width  (c :int "((SDL_Surface *)#0)->w" :pointer-void surface)
                          :height (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))
       (call "SDL_FreeSurface" :pointer-void surface))))
@@ -155,6 +155,15 @@
                 (gethash name img-hash) img                
                 (gethash name img-lookaside) img)))))
 
+(let ((tex-lookaside (make-hash-table))           ; More Absurdly premature optimization
+      (tex-hash (make-hash-table :test 'equal)))
+  (defun texture (name &key filter)
+    (or (gethash name tex-lookaside)
+        (let ((tex (or (gethash name tex-hash)
+                       (load-texture-file (apath name) :filter filter))))
+          (setf (gethash name tex-hash) tex
+                (gethash name tex-lookaside) tex)))))
+
 (defun imgblock (name)
   (let ((img (img name)))
     (prog1 img
@@ -201,6 +210,57 @@
 
 (defun draw-img-deluxe (img x y color)
   (draw-img-deluxe* img x y (aref color 0) (aref color 1) (aref color 2) (if (= 4 (length color)) (aref color 3) 255)))
+
+(defun draw-line (u v &key (pattern-offset 0) (color #(255 255 255 255)))
+  (let ((texture (texture :line-dashed :filter t)))
+    (bind-texobj texture)
+    (set-color color)
+    (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
+    (ffi:c-inline ((v.x u) (v.y u) (v.x v) (v.y v) 
+                   (texture-width texture) (texture-height texture)
+                   pattern-offset)
+                  (:float :float :float :float :int :int :int)
+                  (values)
+;; Sure, I could do this in lisp, and it'd be less code, but ECL's
+;; compiler is a joke, and I bitterly resent avoidable runtime
+;; dispatch and float consing, even when performance is completely
+;; irrelevant.
+"
+{
+   int texwidth = #4, texheight = #5, pattern_offset = #6;
+   float x0 = #0, y0 = #1, x1 = #2, y1 = #3;
+   float dx = x1-x0, dy = y1-y0;
+   float nx = dy, ny = -dx;
+   float len = sqrtf(nx*nx + ny*ny);
+   float thickness = 8.0;
+   float b = -pattern_offset - fmodf(len*0.5, texwidth);
+   if (len >= 1.0) {
+     nx = nx * thickness / (2.0 * len);
+     ny = ny * thickness / (2.0 * len);
+     glBegin(GL_QUADS);
+     glTexCoord2f(b, 0.0);
+     glVertex2f(x0-nx, y0-ny);
+     glTexCoord2f(b+len, 0.0);
+     glVertex2f(x1-nx, y1-ny);
+     glTexCoord2f(b+len, texheight);
+     glVertex2f(x1+nx, y1+ny);
+     glTexCoord2f(b, texheight);
+     glVertex2f(x0+nx, y0+ny);
+     glEnd();
+   }
+}
+")))
+
+#+NIL
+(defun draw-line (u v)
+  (c "glDisable(GL_TEXTURE_2D)")
+  (c "glBegin(GL_LINES)")
+  (c "glColor4ub(255,0,0,255)")
+  (call "glVertex2f" :float (v.x u) :float (v.y u))
+  (call "glVertex2f" :float (v.x v) :float (v.y v))
+  (c "glEnd()")
+  (c "glEnable(GL_TEXTURE_2D)")
+  (check-gl-error))
 
 ;;;; Text renderer
 

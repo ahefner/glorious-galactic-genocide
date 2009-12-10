@@ -2,7 +2,7 @@
 
 ;;;; "Constants of the Universe"
 
-(defconstant light-years/units 65.0)
+(defconstant units/light-years 65.0)
 (defconstant +missile-base-cost+ 1000)
 
 ;;;; Game definitions
@@ -34,6 +34,7 @@
    (planet :reader planet-of :initform nil)
    (spectral-class :reader spectral-class :initarg :spectral-class)
    ;; Grungy bits:
+   (screen-coord :initform nil :accessor screen-coord-of)
    (label-img :initform nil)))
 
 (defclass race (named)
