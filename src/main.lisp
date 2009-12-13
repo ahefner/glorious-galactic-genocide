@@ -87,8 +87,11 @@
     (ext:quit))
   
   (load-assets)
-  
-  (setf *packset* (make-packset 512 512))
+
+  ;; 512 isn't quite wide enough for certain title labels that appear
+  ;; in the fleet display (with race, destination, and ETA, in title
+  ;; face, it can get wide).
+  (setf *packset* (make-packset 1024 512))
 
   (format t "~&Running test game.~%")
  

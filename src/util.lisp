@@ -34,7 +34,11 @@ error if SEQUENCE is not a proper sequence."
 ;;; unless you put util.lisp in the compile-time deps of the relevant
 ;;; source module.
 
-(declaim (inline clamp lerp))
+(declaim (inline clamp lerp nonnull))
+
+(defun nonnull (foo)
+  (assert foo)
+  foo)
 
 (defun clamp (x min max)
   (max min (min max x)))

@@ -69,7 +69,7 @@
         as planet = (planet-of star)
         as owner = (owner-of star)
         when owner do (vector-push-extend (colony-of (planet-of star)) (colonies owner)))
-  (loop for player in (all-players universe) 
+  (loop for player in (all-players universe)
         do (sort (colonies player) #'string<= :key #'name-of)))
 
 ;;; Compute player adaptations and growth rates based on racial traits
@@ -103,17 +103,16 @@
 
 (defun distance-from-player-ly (player staroid)
   (ceiling (distance-from-player player staroid) units/light-years))
-         
 
 ;;;;
 
 (defun get-player-styles ()
-  (list (make-pstyle :label-color (vector 255  90  90) :fill-color (vector 180 0 0))
-        (make-pstyle :label-color (vector 255 134   0) :fill-color (vector 167 106 0))
-        (make-pstyle :label-color (vector 255 255  90) :fill-color (vector 131 127 55))
-        (make-pstyle :label-color (vector 170 224 108) :fill-color (vector 86 140 22))
-        (make-pstyle :label-color (vector  40 160 255) :fill-color (vector 0 64 128))
-        (make-pstyle :label-color (vector 190 116 255) :fill-color (vector 64 64 128))))
+  (list (make-pstyle :label-color #(255  90  90) :fill-color #(180   0   0) :primary-color #(255   0   0))
+        (make-pstyle :label-color #(255 134   0) :fill-color #(167 106   0) :primary-color #(255 160   0))
+        (make-pstyle :label-color #(255 255  90) :fill-color #(131 127  55) :primary-color #(255 255   0))
+        (make-pstyle :label-color #(170 224 108) :fill-color #( 86 140  22) :primary-color #(  0 255   0))
+        (make-pstyle :label-color #( 40 160 255) :fill-color #(  0  64 128) :primary-color #(  0 200 255))
+        (make-pstyle :label-color #(190 116 255) :fill-color #( 64  64 128) :primary-color #(255   0 255))))
 
 ;;;; Planetary economy
 
@@ -320,8 +319,9 @@
   (when (building-design-of colony)
     (multiple-value-bind (num-built remaining-funds)
         (compute-ship-construction colony (spend-ships (spending-vector-of colony)))
-      (build-ships colony (building-design-of colony) num-built)
-      (setf (spend-ships (spending-vector-of colony)) remaining-funds))))
+      (unless (zerop num-built)
+        (build-ships colony (building-design-of colony) num-built)
+        (setf (spend-ships (spending-vector-of colony)) remaining-funds)))))
 
 (defun post-cleanup-budget (colony)
   (let ((budget (make-budget)))
@@ -403,12 +403,15 @@
 
 (defun fleet-range-ly (fleet)
   (declare (ignore fleet))
-  3)
+  20)
 
 (defun fleet-range-units (fleet)
   (* (fleet-range-ly fleet) units/light-years))
 
-  
+(defun fleet-state (fleet)
+  (if (destination-of fleet)
+      (if (star-of fleet) :departing :enroute)
+      :orbiting))
 
 (defun find-free-orbitals (star)
   (sort (copy-list (set-difference '(0 1 2 3 4 5) (mapcar #'orbital-of (fleets-orbiting star)))) #'<))
@@ -430,9 +433,10 @@
                                     :owner player
                                     :star star
                                     :loc (loc star)
-                                    :universe (universe-of star)
+                                    :vloc (loc star) ; XXX ??? Hmm.
+                                    :universe (nonnull (universe-of star))
                                     :orbital (find-free-orbital star))))
-          (setf (loc fleet) (orbital-loc star (orbital-of fleet)))
+          ;;(setf (loc fleet) (orbital-loc star (orbital-of fleet)))
           (push fleet (fleets-orbiting star))
           fleet))))
 
@@ -454,13 +458,80 @@
      (setf (speed-of fleet) (reduce #'min (stacks-of fleet)
                                     :key (lambda (stack) (speed-of (stack-design stack))))))))
 
-(defun build-ships (colony design num)
-  (incf (stack-count (ensure-stack design (ensure-fleet (owner-of colony) colony))) num))
+(defun star-in-range-of-fleet (star fleet)
+  (<= (distance-from-player (owner-of fleet) star) (fleet-range-units fleet)))
+
+(defun add-ships (player star design num)
+  (let ((fleet (ensure-fleet player star)))
+    (incf (stack-count (ensure-stack design fleet)) num)
+    (update-fleet fleet)))
+
+(defun build-ships (colony design num) (add-ships (owner-of colony) colony design num))
+
+(defun fleet-successor (fleet)
+  (or (and.. (successor-of fleet) (fleet-successor $)) fleet))
+
+;;; ** IMPORTANT ** 
+
+;;; Identity of fleet objects isn't preserved: fleets are merged at
+;;; stars.  join-fleet-to-star returns the new fleet object which must
+;;; be used in place of the one passed as an argument. When this
+;;; occurs, the fleet's successor slot is set, and you should find the
+;;; end of this chain using fleet-successor.
+
+(defun join-fleet-to-star (fleet star)
+  (assert (not (successor-of fleet)))
+  (unless (find fleet (fleets-orbiting star))
+    (dolist (stack (stacks-of fleet))
+      (add-ships (owner-of fleet) star (stack-design stack) (stack-count stack)))
+    (setf (loc fleet) (loc star)
+          (vloc fleet) (loc star)       ; ??
+          (successor-of fleet) (ensure-fleet (owner-of fleet) star)
+          (destination-of fleet) nil)
+    (deletef (fleets-in-transit (universe-of fleet)) fleet))
+  ;; A given owner can only have one fleet..
+  (ensure-fleet (owner-of fleet) star))
+
+;;; If fleets are merged e.g. a departing fleet is recalled, note that
+;;; this function returns the new fleet object. Assume the original
+;;; object is always destroyed. Second value indicates if the order
+;;; was successful (nil if out of range).
+(defun send-fleet (fleet star)
+  (assert (not (successor-of fleet)))
+  (cond
+    ((eql star (star-of fleet)) (values (join-fleet-to-star fleet star) t))
+    ((not (star-in-range-of-fleet star fleet)) (values fleet nil))
+    (t (unless (destination-of fleet)
+         (push fleet (fleets-in-transit *universe*)))
+       (deletef (fleets-orbiting (star-of fleet)) fleet)
+       (setf (destination-of fleet) star)
+       (values fleet t))))
+
+(defun simulate-fleet (fleet)
+  (when (destination-of fleet)
+    (let* ((speed-units (* units/light-years (speed-of fleet)))
+           (dest (destination-of fleet))
+           (distance (vdist (loc fleet) (loc dest))))
+      (printl :speed (speed-of fleet) :in-units speed-units :distance-remaining distance)
+      (cond 
+        ((<= distance speed-units)
+         (setf (initiative-of fleet) (- speed-units distance))
+         (join-fleet-to-star fleet dest))
+        (t (setf (loc fleet) (v+ (loc fleet) (vscaleto (v- (loc dest) (loc fleet)) speed-units))
+                 (star-of fleet) nil))))))
+
+(defun fleet-compute-eta (fleet)
+  (if (not (destination-of fleet)) 
+      0                                 ; Feh.
+      (ceiling (vdist (loc fleet) (loc (destination-of fleet)))
+               (* units/light-years (speed-of fleet)))))
 
 ;;;; Turn cycle
 
-(defun next-turn ()
-  (loop for star across (stars *universe*) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
+(defun next-turn (universe)
+  (loop for star across (stars universe) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
+  (loop for fleet in (fleets-in-transit *universe*) do (simulate-fleet fleet))
+  (loop for star across (stars universe) do (dolist (fleet (fleets-orbiting star)) (explore-star star (owner-of fleet))))
   (update-ui-for-new-turn))
 
 

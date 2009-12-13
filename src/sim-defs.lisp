@@ -2,7 +2,7 @@
 
 ;;;; "Constants of the Universe"
 
-(defconstant units/light-years 65.0)
+(defconstant units/light-years 80.0)
 (defconstant +missile-base-cost+ 1000)
 
 ;;;; Game definitions
@@ -35,7 +35,15 @@
    (spectral-class :reader spectral-class :initarg :spectral-class)
    ;; Grungy bits:
    (screen-coord :initform nil :accessor screen-coord-of) ; v2
+   (highlight-level :initform 0 :accessor highlight-level-of)
+   (highlight-target :initform 0 :accessor highlight-target-of)
    (label-img :initform nil)))
+
+;; Regarding stars and fleets: the relationship between (member
+;; .. (fleets-orbiting star)) and (star-of fleet) isn't reflexive. When a
+;; fleet is in the :departing state, its star-of still points to the
+;; star it's departing from, but the fleet has been removed from the
+;; list of fleets orbiting the star.
 
 (defclass race (named)
   ((traits :accessor traits-of :initform '(tellurian) :initarg :traits)
@@ -66,7 +74,7 @@
 
    (owned-images :accessor owned-images-of :initform (make-hash-table))
 
-   ;;; All the slots below are cached values:
+   ;;; All the slots below are cached values, updated at the beginning of each turn:
 
    ;; Number of population units current technology permits to inhabit per square of each terrain type:
    (adaptation-vector :accessor adaptation-vector-of :initarg :adaptation-vector)
@@ -76,11 +84,11 @@
    (automation-level :accessor automation-level-of :initform 2 :initarg :automation-level)
 
    ;; Vector of stars colonized by this player. This is updated by
-   ;; <mumble> in one sweep across the universe rather than modified
-   ;; incrementally, so it's sort of a cache for convenience.
+   ;; update-player-planets in one sweep across the universe.
+   ;; convenience.
    (colonies :reader colonies :initform (make-array 0 :adjustable t :fill-pointer 0))))
 
-(defstruct pstyle label-color fill-color)
+(defstruct pstyle label-color fill-color primary-color)
 
 (defclass planet (named)
   ((star :reader star-of :initarg :star)
@@ -109,12 +117,12 @@
   (unspent 0))
 
 (defstruct (spend% (:type vector))
-  (growth 25)
+  (growth 90)
   (defense 25)
   (ships 65)
   (research 85))
 
-(defclass colony (owned)   
+(defclass colony (owned)
   ((planet :reader planet-of :initarg :planet)
 
    ;; Player-chosen spending preferences, in integer percentages (0...100)
@@ -137,12 +145,12 @@
 
    ;; Terrain units are counted in a 4 element vector: Land, Sea, Ice, Magma.   
    (population :accessor population-of :initform 0 :initarg :population)
-   (factories  :accessor factories-of  :initform 0 :initarg :factories)   
+   (factories  :accessor factories-of  :initform 0 :initarg :factories)
    (new-pollution :accessor new-pollution-of :initform 0)))
 
 (declaim (inline land# ocean# ice# magma#))
 
-(defun land#  (planet) (aref (terrains-of planet) 0))  
+(defun land#  (planet) (aref (terrains-of planet) 0))
 (defun ocean# (planet) (aref (terrains-of planet) 1))
 (defun ice#   (planet) (aref (terrains-of planet) 2))
 (defun magma# (planet) (aref (terrains-of planet) 3))
@@ -150,15 +158,18 @@
 ;;;; Ships and fleets
 
 (defclass fleet (owned ent in-universe)
-  ((star :accessor star-of :initform nil :initarg :star)
+  ((successor :accessor successor-of :initform nil) ; If merged, points to merged fleet. May form a chain.
+   (star :accessor star-of :initform nil :initarg :star)
    (destination :accessor destination-of :initform nil :initarg :destination)
    (orbital :accessor orbital-of :initarg :orbital)
    (stacks :accessor stacks-of :initform nil :initarg :stacks)
-   (speed :accessor speed-of :initform 1 :initarg :speed)))
+   (speed :accessor speed-of :initform 1 :initarg :speed)   
+   (initiative :accessor initiative-of :initform 0)
+   (vloc :accessor vloc :initarg :vloc)))
 
 (defstruct stack design count fleet)
 
-(defparameter *size-list* #("Corvette" "Destroyer" "Cruiser" "Dreadnought"))
+(defparameter *size-list* #("Shuttle" "Destroyer" "Cruiser" "Dreadnought"))
 
 (defclass design (named)
   ((speed :accessor speed-of :initform 1 :initarg :speed)

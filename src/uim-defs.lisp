@@ -65,27 +65,16 @@
 
 (defstruct presentation object type children)
 
-(defmacro presenting ((uic object &key (type nil typep)) &body body-clauses)
-  (let ((hit-sym (gensym "HIT"))
-        display-clause hit-clause)
-    (dolist (clause body-clauses)
-      (unless (listp clause) (error "Malformed clause ~A in PRESENTING" clause))
-      (case (first clause)
-        (:display
-         (when display-clause (error "Duplicate :display clause"))
-         (setf display-clause (rest clause)))
-        (:hit
-         (when hit-clause (error "Duplicate :hit clause"))
-         (setf hit-clause (rest clause)))
-        (t (error "Unknown clause type ~A" (first clause)))))
+(defmacro presenting ((uic object &key (type nil typep)) &key hit display)
+  (let ((hit-sym (gensym "HIT")))            
     `(let (,hit-sym)
        (let ((object ,object)
              (type ,type)
              (presentation-children
               (let ((*presentation-stack* nil))
-                ,@display-clause
-                ,(when hit-clause
-                  `(let ((region (progn ,@hit-clause))
+                ,display
+                ,(when hit
+                  `(let ((region ,hit)
                          (uic ,uic))
                      (setf ,hit-sym (funcall region (uic-mx uic) (uic-my uic)))))
                 *presentation-stack*)))

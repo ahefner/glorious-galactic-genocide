@@ -15,6 +15,7 @@
 
 (defclass starmap (gadget)
   ((universe :reader universe-of :initarg :universe)
+   (windup-factor :accessor windup-factor-of :initform 0.0)
    (camera :accessor camera-vector-of :initform (vec 0 0 0) :initarg :camera)
    (camera-target :accessor camera-target-of :initform (vec 0 0 0) :initarg :camera-target)))
 
@@ -70,20 +71,34 @@
                  (clamp (single (v2.y v2)) (- (v.y u-min) u-cam-border) (+ u-cam-border (v.y u-max)))
                  (v.z camera-target))))))
 
-(defun test-line-drawing ()
-  (let ((worlds (map 'list (lambda (p) (star-of (aref (colonies p) 0))) (all-players *universe*))))
-    (loop for foo on worlds do
-          (loop for 2nd in (rest foo) as 1st = (first foo) do
-                (draw-line (screen-coord-of 1st) (screen-coord-of 2nd))))))
+(defun draw-travel-arrows (camera uic universe)
+  (loop for fleet in (fleets-in-transit universe)
+        as dest = (destination-of fleet) do
+        (assert dest)
+        (draw-line (fleet-screen-vector camera fleet) (screen-coord-of dest)
+                   :color (pstyle-primary-color (style-of (owner-of fleet)))
+                   :pattern-offset (logand (ash (uic-time uic) -15) 31))))
+
+(defun move-travelling-fleet (delta-t fleet)
+  (let* ((moverate 64.0)                  ; units per second
+         (delta (v- (loc fleet) (vloc fleet)))
+         (maxmove (len delta)))
+    (when (> maxmove 0.1)              ; 1/10th of a pixel is certainly close enough..
+      (setf (vloc fleet) (v+ (vloc fleet) (vscale delta (min 1.0 (/ (* delta-t moverate) maxmove))))))))
 
 (defun present-starmap (gadget uic)
-  (with-slots (universe camera-target camera) gadget
+  (with-slots (universe camera-target camera windup-factor) gadget
     (let* ((stars (stars universe))
            (zoom-step 180)
+           windup
            (min-zoom (single (* zoom-step (round -2600 zoom-step))))
            (max-zoom (single (* zoom-step (round 560 zoom-step))))
            ;; I'm concerned that this actually amplifies the effect of framerate jitter..
            (interp (expt 0.1 (uic-delta-t uic))))
+
+      (setf windup-factor (* windup-factor (expt 0.2 (uic-delta-t uic)))
+            windup (* 1.4 (max 1.0 (- windup-factor 0.5)))) ; So first button click doesn't contribute.
+      (when (< windup-factor 0.001) (setf windup-factor 0.0))
 
       ;; Update camera position:
       ;;   (Vectors are supposed to be immutable, but I can get away with this..)
@@ -116,10 +131,11 @@
             (inverse-perspective-transform camera (uic-mx uic) (uic-my uic) (ash *starfield-depth* -1))
 
           (presenting (uic (v2 pointer-x pointer-y) :type :empty-space)
-           (:display)
-           (:hit (constantly t)))
+           :hit (constantly t))
 
           (render-starfield (round camera.x) (round camera.y))
+          
+          (draw-travel-arrows camera uic universe)
 
           (funcall *starmap-display-under-hook*)
 
@@ -130,7 +146,10 @@
                 (when (eql star *selected-object*)
                   (draw-img (img :halo-0) x y))
                 (present-star uic star x y))
- )))))
+
+          (dolist (fleet (fleets-in-transit universe))
+            (move-travelling-fleet (* windup (uic-delta-t uic)) fleet)
+            (present-travelling-fleet uic fleet camera)))))))
 
 (defconstant +perspective-foo+ 0.0014f0)  ; ~ 1/714
 
@@ -211,6 +230,21 @@
       ((<= 1 n 9) (aref fleet-count-images (1- n)))
       (t (aref fleet-count-images 9)))))
 
+(defun draw-fleet-icon (fleet sx sy)
+  (when (eq fleet *selected-object*) 
+    (draw-img (img :fleet-selected-glow) sx sy))
+  (draw-img (img :circle-16) sx sy)
+  (draw-img-deluxe (img :inner-16) sx sy (pstyle-fill-color (style-of (owner-of fleet))))
+  (draw-img (fleet-count-image (reduce #'+ (stacks-of fleet) :key #'stack-count)) sx sy))
+
+(defun present-travelling-fleet (uic fleet camera)
+  ;; XXX magic fudge factors
+  ;; XXX in sensor range?!?!?
+  (let ((coord (fleet-screen-vector camera fleet)))
+    (presenting (uic fleet)
+      :hit (circle (v2.x coord) (v2.y coord) 9)
+      :display (draw-fleet-icon fleet (v2.x coord) (v2.y coord)))))
+
 (defun present-star (uic star x y)
   (let* ((planet-offset 14)
          (planet (planet-of star))
@@ -228,9 +262,21 @@
     (with-slots (label-img) star
       (unless label-img
         (setf label-img (render-label *universe* :sans label-height (name-of star) :align-x :center)))
+
+      (if (< (highlight-level-of star) 5)
+          (setf (highlight-level-of star) 0)
+          (draw-img-deluxe (img :halo-in-range) x y (vector 255 255 255 (truncate (highlight-level-of star)))))
+
+      (setf (highlight-level-of star)
+            (lerp (expt 0.1 (uic-delta-t uic))
+                  (highlight-target-of star)
+                  (highlight-level-of star)))
+
+      (setf (highlight-target-of star) 0) ; Should be restored every frame before we reach here..
+
       (presenting (uic star)
-        (:hit (circle x y 23))
-        (:display (draw-img img x y)))
+        :hit (circle x y 23)
+        :display (draw-img img x y))
 
       (when (and in-sensor-range fleets)
         ;; This is dumb, only draw the swoosh if there's a fleet in orbital 0.
@@ -240,16 +286,10 @@
         (loop for fleet in fleets as rel = (aref orbital-vectors (orbital-of fleet))
               ;for orbital from 0 below 6 as rel = (aref orbital-vectors orbital) 
               as ox = (+ x (v2.x rel)) as oy = (+ y (v2.y rel))
-              as color = (pstyle-fill-color (style-of (owner-of fleet)))
-              as num-ships = (reduce #'+ (stacks-of fleet) :key #'stack-count) 
               do
               (presenting (uic fleet :type :orbiting-fleet)
-                (:hit (circle ox oy 8))
-                (:display
-                 (when (eq fleet *selected-object*) (draw-img (img :fleet-selected-glow) ox oy))
-                 (draw-img (img :circle-16) ox oy)                 
-                 (draw-img-deluxe (img :inner-16) ox oy color)
-                 (draw-img (fleet-count-image num-ships) ox oy)))))
+                :hit (circle ox oy 8)
+                :display (draw-fleet-icon fleet ox oy))))
 
       (when (and planet explored)
         (draw-planet planet (+ x planet-offset) (+ y planet-offset)))
@@ -696,107 +736,147 @@
 
 (defclass fleet-panel (panel)
   ((fleet :initarg :fleet)
-   (target :accessor target-of :initform nil)
+;;   (target :accessor target-of :initform nil)
+   (first-click :initform t)
+   (counts :initform (make-hash-table))
    (highlighted-stars :initform nil)
    (too-far)
    (label-table :initform (make-hash-table)))
-  (:default-initargs :panel-height 140))
+  (:default-initargs :panel-height 160))
 
-(defun star-in-range-of-fleet (star fleet)
-  (<= (distance-from-player (owner-of fleet) star) (fleet-range-units fleet)))
-
-
-#+NIL
-(defun propose-direct-fleet (panel fleet star)
-  (printl panel :send fleet :to star :dai-mai?)
-  (with-slots (target too-far) panel
-    (setf target star
-          too-far (not (star-in-range-of-fleet star fleet)))))  
-
-(defun fleet-screen-vector (starmap fleet)
+(defun fleet-screen-vector (camera fleet)
   ;; Assumption: We're far enough into rendering that the star
   ;; positions are established for the current frame.
-  (cond
-    ((star-of fleet)                    ; Case 1, orbiting fleet: Offset by orbit position.
+  (case (fleet-state fleet)
+    (:orbiting
      (let ((sc (screen-coord-of (star-of fleet)))
            (rel (aref (relative-orbital-vectors) (orbital-of fleet))))
        (v2 (+ (v2.x rel) (v2.x sc)) (+ (v2.y rel) (v2.y sc)))))
-    (t                                  ; Case 2, fleet in interstellar space.
-     (perspective-transform (v- (loc fleet) (camera-vector-of starmap))))))
+    (:enroute
+     (perspective-transform (v- (vloc fleet) camera)))
+    (:departing                         ; FIXME !!
+     (perspective-transform (v- (vloc fleet) camera)))))
+
+(defun draw-adjust-buttons (uic x y num max)
+  (if (= num max)
+      (draw-img (img :tiny-plus-pressed) (+ x 23) y)
+      (when (run-img-button uic (img :tiny-plus-released) (img :tiny-plus-pressed) (+ x 23) y)
+        (incf num)))  
+  (if (zerop num)
+      (draw-img (img :tiny-minus-pressed) (- x 23) y)
+      (when (run-img-button uic (img :tiny-minus-released) (img :tiny-minus-pressed) (- x 23) y)
+        (decf num)))
+  (cond
+    ((= max 1) (draw-img (img :tiny-half-pressed) x y))
+    (t (if (run-img-button uic (img :tiny-half-released) (img :tiny-half-pressed) x y)
+           (setf num (floor max 2))
+           num)))
+
+  num)
+
 
 (defmethod run-panel ((panel fleet-panel) uic bottom)
   (when (and (uic-active uic) (released? uic +right+)) (close-panels))
-  (with-slots (starmap fleet label-table target closing highlighted-stars too-far) panel    
-
-    (orf highlighted-stars
-         (loop with table = (make-hash-table) ; FIXME, quadratic, cache the distances.
-               for star across (stars *universe*)
-               when (and (star-in-range-of-fleet star fleet)
-                         (not (eql star (star-of fleet))))
-               do (setf (gethash star table) t)
-               finally (return table)))
+  (with-slots (starmap fleet label-table closing highlighted-stars too-far first-click counts) panel
+    (setf fleet (fleet-successor fleet))  
 
     (macrolet ((label (key) `(gethash ,key label-table))
                (invalidate-label (key) `(progn (free-img (label ,key))
                                                (setf (label ,key) nil)))
                (deflabel (key (&key (face :sans) (size 11) (align-x :left)) fmt &rest args)
                  `(orf (label ,key) (render-label panel ,face ,size (format nil ,fmt ,@args) :align-x ,align-x))))
+
       (let* ((*selected-object* (unless closing fleet))
+             (top (- bottom (panel-height panel) -26))
              (owner (owner-of fleet))
-             (movable (and (eq owner *player*) (star-of fleet)))
+             (movable (and (eq owner *player*) (star-of fleet))) ; FIXME for hyperspace communication
              (color1 (pstyle-label-color (style-of owner)))
              (color2 (color-lighten color1)))
+
+        (when movable
+          (orf highlighted-stars
+               (loop with table = (make-hash-table) ; FIXME, quadratic, cache the distances.
+                     for star across (stars *universe*)
+                     when (and (star-in-range-of-fleet star fleet)
+                               (not (eql star (star-of fleet))))
+                     do (setf (gethash star table) t)
+                     finally (return table))))
         
         ;; Run the starmap first. We have to do our own presentation
         ;; query here to handle the ship movement, otherwise we'd just
         ;; call gadget-paint like the other panels do.
         ;; (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+
         (let ((*starmap-display-under-hook* 
                (lambda ()
-                 (unless closing
+                 (when (and movable (not closing))
                    (maphash (lambda (star foo)
                               (declare (ignore foo))
-                              ;; Why the hell am I using a 3D vector for a screen coordinate?
+                              (setf (highlight-target-of star) 255)
+                              #+NIL
                               (let ((c (screen-coord-of star)))
                                 (draw-img (img :halo-in-range) (v2.x c) (v2.y c))))
                             highlighted-stars))
-                 (when (and target (not closing))                   
-                   (draw-line (fleet-screen-vector starmap fleet) (screen-coord-of target)
+                 #+NIL
+                 (when (and target (not closing))
+                   (draw-line (fleet-screen-vector (camera-vector-of starmap) fleet) (screen-coord-of target)
                               :color (if too-far #(120 120 120 255) #(255 255 255 255))
                               :pattern-offset (logand (ash (uic-time uic) -15) 31))))))
           (query-starmap starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom))
-                         :object-clicked (lambda (object)
-                                           (cond
-                                             ((and movable (typep object 'star) (not (eql object (star-of fleet))))
-                                              (setf target object
-                                                    too-far (not (star-in-range-of-fleet object fleet)))
-                                              ;;(propose-direct-fleet panel fleet object) 
-                                              (unless too-far 
-                                                (setf (destination-of fleet) object)
-                                                (invalidate-label :title)))
-                                             (t (starmap-select starmap object))))))
+                         :object-clicked (lambda (star)
+                                           (cond ((and movable (typep star 'star))
+                                                  (setf fleet (send-fleet fleet star))
+                                                  (clrhash label-table))
+                                                 (t (starmap-select starmap star))))))
 
-        (draw-panel-background uic bottom)     
-
+        (draw-panel-background uic bottom)
+        
         ;; Fleets can be in three states: en route, departing, or
         ;; orbiting. "Departing" fleets have both their destination
         ;; and star slots set, and their orders can still be changed.
 
         ;; Now, the fleet controls.
-        (deflabel :title (:face :gothic :size 20) "~A fleet ~A ~A"
+        (deflabel :title (:face :gothic :size 20) "~A fleet ~A ~A~A"
                   (name-of (race-of owner)) ; FIXME multiplayer
                   (cond
                     ((not (destination-of fleet)) "orbiting")
                     ((not (star-of fleet)) "en route to" )
                     (t "departing for"))
-                  (name-of (or (destination-of fleet) (star-of fleet))))
-        (draw-img-deluxe (label :title) 17 (- bottom 114) color1)
-        (loop with y = (- bottom 44 28)
+                  (name-of (or (destination-of fleet) (star-of fleet)))                      
+                  (if (null (destination-of fleet))
+                      ""
+                      (format nil " (ETA ~:D turns)" (fleet-compute-eta fleet))))
+        
+        (draw-img-deluxe (label :title) 17 top color1)
+
+        (loop with y = (+ top 2 44)
               for stack in (stacks-of fleet)
-              for x from (+ 5 42) by 84 do
-              (draw-img-deluxe (design-thumbnail (stack-design stack)) x y color2)
-              (deflabel stack (:align-x :center) "~A~[~;~:; (~:*~:D)~]" (name-of (stack-design stack)) (stack-count stack))
-              (draw-img (label stack) x (+ y 50)))
+              for x from (+ 5 42) by 84 
+              as thumb = (design-thumbnail (stack-design stack))
+              as num-sending = (gethash stack counts (stack-count stack))
+              as num-total = (stack-count stack)
+              as stack-color = (if (zerop num-sending) #(110 110 110 255) color2)
+              do
+              (flet ((setnum (n) 
+                       (unless (= n (or (gethash stack counts) (stack-count stack)))
+                         (invalidate-label stack))
+                       (if (= n num-total)
+                           (remhash stack counts)
+                           (setf (gethash stack counts) n))))
+                (draw-img-deluxe thumb x y stack-color)
+                ;; FIXME fractional
+                (deflabel stack (:align-x :center :face (if (zerop num-sending) :italic :sans))
+                  "~A~[~;~:; (~:*~:D)~]" (name-of (stack-design stack)) num-sending)
+                (draw-img (label stack) x (+ y 50))
+                (when movable
+                  (setnum (draw-adjust-buttons uic x (+ y 67) num-sending num-total)))
+                (when (and (clicked? uic +left+) (pointer-in-img-rect uic thumb x y))
+                  (invalidate-label stack)
+                  (cond
+                    ((zerop (hash-table-count counts))
+                     (loop for s in (stacks-of fleet) unless (eq stack s) do (invalidate-label s) (setf (gethash s counts) 0)))
+                    ((zerop (gethash stack counts 1)) (remhash stack counts))
+                    (t (setnum 0))))))
 
         ;; Buttons
         (deflabel :close (:face :bold :size 14) "Close")
@@ -822,12 +902,14 @@
 ;;;; 
 
 (defun update-ui-for-new-turn ()
-  ;;  If there are planels open, update them.
+  ;; If there are planels open, update them.
   (with-slots (panel closing-panel starmap) *gameui*
     (unless closing-panel
       (cond
         ((typep panel 'planet-panel) 
          (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
         ((typep panel 'colony-panel)
-         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel))))))))
+         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel))))
+        ((typep panel 'fleet-panel)
+         (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (slot-value panel 'fleet))))))))
 

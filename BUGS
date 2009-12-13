@@ -2,20 +2,21 @@ Serious issues:
 
 
 Minor issues:
-* Starmap scrolling feels gritty
-* Fix quantization of scroll coordinates when zoomed beyond 100%
-* Slow convergence when scrolling/zooming (clamp, or add small linear component)
+
 
 Resolved serious issues:
 * Starmap floating point underflow
 
 Resolved minor issues:
+* Starmap scrolling feels gritty
+* Fix quantization of scroll coordinates when zoomed beyond 100%
+* Slow convergence when scrolling/zooming (clamp, or add small linear component)
 
 
 
 
 Important but unimplemented:
 * Free per-game (nonglobal) resources at end of a game
-** Player images
-** Star labels
+
+
 

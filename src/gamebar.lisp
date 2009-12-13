@@ -45,7 +45,7 @@
          (pointer-in-gamebar (< (uic-my uic) gb-height))
          ;;(pointer-in-panel (and panel (not pointer-in-gamebar) (< (uic-my uic) panel-y)))
          (child-uic (child-uic uic 0 0 :active (not pointer-in-gamebar))))
-    (with-slots (panel panel-y closing-panel) gadget
+    (with-slots (panel panel-y closing-panel starmap) gadget
       (cond 
         (panel
          (let* ((target (if closing-panel 0 (+ gb-height (panel-height panel))))
@@ -61,25 +61,28 @@
              (setf panel nil
                    panel-y 0
                    closing-panel nil))))
-        (t (gadget-paint (next-gadget gadget) child-uic))))
+        (t (gadget-paint (next-gadget gadget) child-uic)))
   
-    (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
+      (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
+      (draw-img (imgblock :status-bar) 99 0)
 
-    (let* ((game-label (player-label :gb-game-button :bold 14 "Game"))
-           (turn-label (player-label :gb-turn-button :bold 14 "Next Turn"))
-           (research-label (player-label :gb-research-button :bold 14 "Research"))
-           (color (pstyle-label-color (style-of *player*)))
-           ;; Button states:
-           (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
-           (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color))
-           (clicked-research (run-labelled-button uic research-label (- (uic-width uic) 68 110) 3 :color color)))
+      (let* ((game-label (player-label :gb-game-button :bold 14 "Game"))
+             (turn-label (player-label :gb-turn-button :bold 14 "Next Turn"))
+             (research-label (player-label :gb-research-button :bold 14 "Research"))
+             (color (pstyle-label-color (style-of *player*)))
+             ;; Button states:
+             (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
+             (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color))
+             (clicked-research (run-labelled-button uic research-label (- (uic-width uic) 68 110) 3 :color color)))
+        
+        (cond
+          (clicked-game (printl "You clicked the Game button!"))
+          (clicked-turn 
+           (next-turn (universe-of gadget))
+           (incf (windup-factor-of starmap) 1.5))
+          ((and pointer-in-gamebar (released? uic +left+)) (close-panels))))
       
-      (cond
-        (clicked-game (printl "You clicked the Game button!"))
-        (clicked-turn (next-turn))
-        ((and pointer-in-gamebar (released? uic +left+)) (close-panels))))
-      
-      (values)))
+      (values))))
 
 
 

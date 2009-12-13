@@ -13,8 +13,8 @@
     (desert   . 0.27)
     (minimal  . 0.2)
     (barren   . 0.17)
-    (volcanic . 0.15)
-    (dead     . 0.15)
+    (volcanic . 0.12)
+    (dead     . 0.12)
     (inferno  . 0.1)
     (toxic    . 0.1)
     (radiated . 0.1)))
@@ -323,12 +323,11 @@
 (defun inset-random (range border)
   (+ border (random (- range border border))))
 
-(defun random-star (&key x y z &aux universe)
-  (declare (special universe))
+(defun random-star (&key x y z)
   (let ((border 80)
         (size 2000))
     (make-instance 'star
-                   :universe universe
+                   :universe (nonnull *universe*)
                    :loc (vec (or x (inset-random size border))
                              (or y (inset-random size border))
                              (or z (random *starfield-depth*)))
@@ -390,9 +389,7 @@
   (let* ((name (choose-new-constellation-name universe))
          (prefixes *constellation-prefixes*)
          (root (create-star-safely (stars universe)))
-         (constellation (list root))
-         (universe universe))
-    (declare (special universe))
+         (constellation (list root)))
     ;;(format t "~&Creating constellation ~A~%" name)
     (setf (name-of root) (format nil "Alpha ~A" name))
     (pop prefixes)
@@ -521,8 +518,9 @@
 
 (defun make-test-universe ()
   (time
-   (let ((uni (make-instance 'universe))
-         (player (make-test-player "Goldfinch")))
+   (let* ((uni (make-instance 'universe))         
+          (*universe* uni)
+          (player (make-test-player "Goldfinch")))
      (with-slots (stars min-bound max-bound) uni
        (generate-random-starmap uni 80 4)
        (place-homeworld uni player "Earth")

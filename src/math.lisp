@@ -33,7 +33,7 @@
 
 ;;;; 2D Vector Functions
 
-(declaim (inline coord coord.x coord.y coord- square normsq vlen))
+(declaim (inline coord coord.x coord.y coord- square normsq len))
 
 ;; Debug version:
 #+NIL

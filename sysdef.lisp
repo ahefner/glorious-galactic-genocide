@@ -29,7 +29,7 @@
         '("src/sim.lisp" "src/sim-defs.lisp" "src/math.lisp")
         '("src/mapgen.lisp" "src/sim-defs.lisp" "src/math.lisp")
         '("src/starmap.lisp" "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
-        '("src/gamebar.lisp" "src/uim-defs.lisp")
+        '("src/gamebar.lisp" "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
         "src/main.lisp"))
 
 (defun shared-libraries ()
