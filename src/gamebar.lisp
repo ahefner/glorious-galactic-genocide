@@ -11,8 +11,11 @@
 
 (defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
   (with-slots (starmap panel closing-panel) gadget
-    (cond ((and panel (not closing-panel)) (gadget-key-pressed panel uic keysym char))
-          (t (gadget-key-pressed starmap uic keysym char)))))
+    (cond 
+      ((eql char #\Space)
+       (client-do-next-turn gadget))
+      ((and panel (not closing-panel)) (gadget-key-pressed panel uic keysym char))
+      (t (gadget-key-pressed starmap uic keysym char)))))
 
 (defmethod gadget-key-released ((gadget gameui) uic keysym)
   (with-slots (starmap panel closing-panel) gadget
@@ -38,6 +41,13 @@
     (when panel 
       (dismiss-panel panel)
       (setf closing-panel t))))
+
+(defun client-do-next-turn (gamebar)
+  (with-slots (universe starmap) gamebar
+    (ui-finish-turn)
+    (next-turn universe)
+    (update-ui-for-new-turn)
+    (incf (windup-factor-of starmap) 1.5)))
 
 (defmethod gadget-paint ((gadget gameui) uic)
   ;; Run inferior UI elements first, because we have to draw on top of them.
@@ -66,9 +76,9 @@
       (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
       (draw-img (imgblock :status-bar) 99 0)
 
-      (let* ((game-label (player-label :gb-game-button :bold 14 "Game"))
-             (turn-label (player-label :gb-turn-button :bold 14 "Next Turn"))
-             (research-label (player-label :gb-research-button :bold 14 "Research"))
+      (let* ((game-label (global-label :bold 14 "Game"))
+             (turn-label (global-label :bold 14 "Next Turn"))
+             (research-label (global-label :bold 14 "Research"))
              (color (pstyle-label-color (style-of *player*)))
              ;; Button states:
              (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
@@ -77,9 +87,7 @@
         
         (cond
           (clicked-game (printl "You clicked the Game button!"))
-          (clicked-turn 
-           (next-turn (universe-of gadget))
-           (incf (windup-factor-of starmap) 1.5))
+          (clicked-turn (client-do-next-turn gadget))
           ((and pointer-in-gamebar (released? uic +left+)) (close-panels))))
       
       (values))))

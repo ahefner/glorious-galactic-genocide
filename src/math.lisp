@@ -42,6 +42,8 @@
   (assert (integerp y))
   (cons x y))
 
+(deftype v2 () '(cons fixnum fixnum))
+
 (defun v2 (x y) (cons x y))
 (defun v2round (x y) (cons (round x) (round y)))
 (defun v2.x (coord) (car coord))

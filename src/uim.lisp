@@ -166,12 +166,14 @@
         *presentation-stack*))
 
 
-;;;; Gadgetry - Buttons
+;;;; Gadgetry - Image Button
 
 (defun run-img-button (uic img-up img-down x y)
   (let ((in (and (uic-active uic) (pointer-in-img-rect uic img-up x y))))
     (draw-img (if (and in (held? uic +left+)) img-down img-up) x y)
     (and in (released? uic +left+))))
+
+;;;; Gadgetry - Labelled Button
 
 (defun labelled-button-rect (button-style label x y &key min-width (center-x t))
   (let* ((style (button-style-released button-style))
@@ -187,7 +189,7 @@
     (draw-button style label (and in (held? uic +left+)) x y :min-width min-width :center-x center-x :color color)
     (and in (released? uic +left+))))
 
-;;;; Gadgetry - Sliders
+;;;; Gadgetry - Slider
 
 (defun run-slider (id uic x y value range &optional disable)
   (let ((fill (min 160 (round (* 160 (if (zerop range) 0 (/ value range))))))

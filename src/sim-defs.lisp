@@ -24,6 +24,9 @@
    (namelist :initform (shuffle (constellation-name-list)))
    (styles-list :initform (shuffle (get-player-styles)))))
 
+(defclass perishable ()
+  ((alive :accessor alive? :initform t)))
+
 (defclass ent ()
   ((loc :accessor loc :initarg :loc)))
 
@@ -65,7 +68,7 @@
    (base-growth-costs   :reader base-growth-costs-of
                         :initform (vector 5 50 20 100))))
 
-(defclass player (named)
+(defclass player (named perishable)
   ((explored-stars :reader explored-stars-of :initform (make-hash-table :test 'eq))
    (race :reader race-of :initarg :race)
    (technologies :reader technologies-of :initform (make-hash-table :test 'eq))
@@ -122,7 +125,7 @@
   (ships 65)
   (research 85))
 
-(defclass colony (owned)
+(defclass colony (owned perishable)
   ((planet :reader planet-of :initarg :planet)
 
    ;; Player-chosen spending preferences, in integer percentages (0...100)
@@ -157,11 +160,11 @@
 
 ;;;; Ships and fleets
 
-(defclass fleet (owned ent in-universe)
-  ((successor :accessor successor-of :initform nil) ; If merged, points to merged fleet. May form a chain.
+(defclass fleet (owned ent in-universe perishable)
+  ((successor :accessor successor-of :initform nil) ; If merged, points to merged fleet. Forms a chain.
    (star :accessor star-of :initform nil :initarg :star)
    (destination :accessor destination-of :initform nil :initarg :destination)
-   (orbital :accessor orbital-of :initarg :orbital)
+   (orbital :accessor orbital-of :initform nil :initarg :orbital)
    (stacks :accessor stacks-of :initform nil :initarg :stacks)
    (speed :accessor speed-of :initform 1 :initarg :speed)   
    (initiative :accessor initiative-of :initform 0)
@@ -171,12 +174,63 @@
 
 (defparameter *size-list* #("Shuttle" "Destroyer" "Cruiser" "Dreadnought"))
 
+(defparameter *design-slot-names*
+  #(#("Port Mount"
+      "Starboard Mount"
+      "Accessory Compartment")
+
+    #("Central Mount"
+      "Port Mount"
+      "Starboard Mount"
+      "Port Compartment"
+      "Starboard Compartment")
+  
+    #("First Foreward Battery"
+      "Second Foreward Battery"
+      "Stern Battery"
+      "Port Battery"
+      "Starboard Battery"
+      "Cargo Bay"
+      "Port Accessory Bay"
+      "Starboard Accessory Bay")
+
+    #("First Foreward Battery"
+      "Second Foreward Battery"
+      "Stern Battery"
+      "Port Battery"
+      "Starboard Battery"
+      "Sensor Bay"
+      "Cargo Bay"
+      "Port Accessory Bay"
+      "Starboard Accessory Bay")))
+
 (defclass design (named)
   ((speed :accessor speed-of :initform 1 :initarg :speed)
    (size  :accessor size-of  :initform 0 :initarg :size)
-   (cost  :accessor cost-of  :initarg :cost)
-
+   (techs :accessor design-techs :initarg :techs)
+   (cost  :accessor cost-of  :initarg :cost) ; Derived from the above, but fixed at design time.
+   
    (thumbnail :initform nil :initarg :thumbnail)
+   (serial :reader design-serial :initform (get-new-design-serial))
    (name-label :accessor name-label-of :initform nil)))
 
+;;;; Technologies
 
+(defclass tech (named)
+  ((description :accessor description-of :initform nil :initarg :description)
+   
+   (colonizable :initform nil :initarg :colonizable)
+
+   (name-label :accessor name-label-of :initform nil)))
+
+(defclass ship-tech (tech) ())
+
+(defclass special-tech (ship-tech) ())
+
+(defvar *name->tech* (make-hash-table))
+(defun find-tech (name) (gethash name *name->tech*))
+
+(defmacro deftech ((class name-sym &rest initargs) description)
+    `(progn
+       (setf (gethash ',name-sym *name->tech*)
+             (make-instance ',class :description ,description ,@initargs :name (pretty-sym ',name-sym)))))

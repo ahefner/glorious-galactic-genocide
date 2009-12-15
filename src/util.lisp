@@ -71,3 +71,6 @@ error if SEQUENCE is not a proper sequence."
         finally
         (setf (fill-pointer v) n)
         (return v)))
+
+(defun pretty-sym (symbol)
+  (string-capitalize (substitute #\Space #\- (symbol-name symbol))))

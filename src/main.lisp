@@ -15,7 +15,7 @@
         *slider160* (load-texture-file (apath "slider-160.png"))
         *gamebar-fill* (load-texture-file (apath "gamebar-fill.png"))
         *panel-fill* (load-texture-file (apath "panel-fill.png"))
-
+ 
         *button-a* (make-button-style
                     :baseline 16
                     :pressed (make-bar-style :left  (img :button-a-pressed-left)
@@ -33,7 +33,7 @@
     v))
 
 (let ((total-frames 0)
-      (times (make-array 10000)))
+      (times (make-array 500)))
  (defun repaint (uic)
    (when (and (>= total-frames (length times))
               (zerop (mod total-frames (length times))))

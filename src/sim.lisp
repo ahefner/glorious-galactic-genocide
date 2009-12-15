@@ -1,5 +1,7 @@
 (in-package :g1)
 
+(defmethod alive? (object) (declare (ignore object)) t)
+
 ;;;; Printers
 
 (defmethod print-object ((planet planet) stream)
@@ -126,9 +128,10 @@
 (defun compute-production (colony)
   (values
    ;; Production
-   (* (production-modifier-of (race-of (owner-of colony)))
-      (production-modifier-of (planet-of colony))
-      (+ (population-of colony) (active-factories colony)))
+   (+ (* 4 (expt (production-modifier-of (planet-of colony)) 2))
+    (* (production-modifier-of (race-of (owner-of colony)))
+       (production-modifier-of (planet-of colony))
+       (+ (population-of colony) (active-factories colony))))
    ;; Pollution - each active factory produces a base of one third
    ;; unit of pollution per turn, modified by player technology,
    ;; rounded down.
@@ -267,7 +270,7 @@
 
 (defun budget-allocate (budget amount &optional (reason "??"))
   (declare (ignorable reason))
-  (let ((real-amount (min (truncate amount) (budget-unspent budget))))
+  (let ((real-amount (min (round amount) (budget-unspent budget))))
     (decf (budget-unspent budget) real-amount)
     real-amount))
 
@@ -401,6 +404,11 @@
 
 ;;;; Fleets, stacks, ships, etc.
 
+;;; Each design gets a serial number for the silly reason of having something unique to sort stacks with.
+(let ((n 0)) (defun get-new-design-serial () (incf n)))
+
+(defun fleet-num-ships (fleet) (reduce #'+ (stacks-of fleet) :key #'stack-count))
+
 (defun fleet-range-ly (fleet)
   (declare (ignore fleet))
   20)
@@ -426,6 +434,21 @@
 (defun orbital-loc (star orbital)
   (v+ (loc star) (orbital-vector orbital)))
 
+(defun split-fleet (fleet count-map &key loc star destination)
+  (let ((new-fleet (make-instance 'fleet 
+                                  :owner (owner-of fleet)
+                                  :destination destination
+                                  :star star
+                                  :loc loc :vloc loc
+                                  :universe (universe-of fleet))))
+    (loop for stack in (stacks-of fleet)
+          as n = (gethash stack count-map (stack-count stack)) do
+          (decf (stack-count stack) n)
+          (incf (stack-count (ensure-stack (stack-design stack) new-fleet)) n))
+    (update-fleet fleet)
+    (update-fleet new-fleet)
+    new-fleet))
+
 (defun ensure-fleet (player starable)
   (let ((star (star-of starable)))
     (or (find player (fleets-orbiting star) :key #'owner-of)
@@ -448,15 +471,22 @@
 
 (defun update-fleet (fleet)
   (setf (stacks-of fleet) (delete-if #'zerop (stacks-of fleet) :key #'stack-count))
+  (when (null (stacks-of fleet)) (setf (alive? fleet) nil))
   (cond
-    ((and (null (stacks-of fleet)) (star-of fleet))           ; Orbiting fleet is empty, remove from star.
+    ((and (not (alive? fleet)) (star-of fleet))           ; Orbiting/Departing fleet is empty, remove from star.
+     (deletef (fleets-in-transit (universe-of fleet)) fleet)  ; For departing fleets
      (deletef (fleets-orbiting (star-of fleet)) fleet))
-    ((null (stacks-of fleet))           ; Fleet in transit empty (should only occur if ship type scrapped)
-     (break "FIXME, fleet evaporated in transit")
-     #+NIL (deletef fleet foo))
+    ((not (alive? fleet))           ; Fleet in transit empty (should only occur if ship type scrapped)
+     (break "FIXME, fleet evaporated in transit"))
     (t ; Fleet still exists, update properties
      (setf (speed-of fleet) (reduce #'min (stacks-of fleet)
-                                    :key (lambda (stack) (speed-of (stack-design stack))))))))
+                                    :key (lambda (stack) (speed-of (stack-design stack)))))))
+  (setf (stacks-of fleet)
+        (sort (stacks-of fleet)
+              (lambda (a b)
+                (flet ((height (stack) (img-height (design-thumbnail (stack-design stack)))))
+                  (or (> (height a) (height b))
+                      (> (design-serial (stack-design a)) (design-serial (stack-design b)))))))))
 
 (defun star-in-range-of-fleet (star fleet)
   (<= (distance-from-player (owner-of fleet) star) (fleet-range-units fleet)))
@@ -473,11 +503,18 @@
 
 ;;; ** IMPORTANT ** 
 
-;;; Identity of fleet objects isn't preserved: fleets are merged at
-;;; stars.  join-fleet-to-star returns the new fleet object which must
-;;; be used in place of the one passed as an argument. When this
-;;; occurs, the fleet's successor slot is set, and you should find the
-;;; end of this chain using fleet-successor.
+(defun merge-fleets (fleet-1 #|into|# fleet-2)  
+  (prog1 fleet-2
+    (dolist (stack (stacks-of fleet-1))
+      (incf (stack-count (ensure-stack (stack-design stack) fleet-2)) (stack-count stack))
+      (setf (stack-count stack) 0))
+    (update-fleet fleet-2)))
+
+;;; Identity of fleet objects isn't always preserved: fleets are
+;;; merged at stars.  join-fleet-to-star returns the new fleet object
+;;; which must be used in place of the one passed as an argument. When
+;;; this occurs, the fleet's successor slot is set, and you should
+;;; find the end of this chain using fleet-successor.
 
 (defun join-fleet-to-star (fleet star)
   (assert (not (successor-of fleet)))
@@ -490,7 +527,9 @@
           (destination-of fleet) nil)
     (deletef (fleets-in-transit (universe-of fleet)) fleet))
   ;; A given owner can only have one fleet..
-  (ensure-fleet (owner-of fleet) star))
+  (let ((newfleet (ensure-fleet (owner-of fleet) star)))
+    (prog1 newfleet 
+      (update-fleet newfleet))))
 
 ;;; If fleets are merged e.g. a departing fleet is recalled, note that
 ;;; this function returns the new fleet object. Assume the original
@@ -520,18 +559,41 @@
         (t (setf (loc fleet) (v+ (loc fleet) (vscaleto (v- (loc dest) (loc fleet)) speed-units))
                  (star-of fleet) nil))))))
 
-(defun fleet-compute-eta (fleet)
-  (if (not (destination-of fleet)) 
+(defun fleet-compute-eta-to (fleet destination)
+  (if (not destination)
       0                                 ; Feh.
-      (ceiling (vdist (loc fleet) (loc (destination-of fleet)))
+      (ceiling (vdist (loc fleet) (loc destination))
                (* units/light-years (speed-of fleet)))))
+
+(defun fleet-compute-eta (fleet) (fleet-compute-eta-to fleet (destination-of fleet)))
+
+(defun fleet-find-colony-ship-for (fleet planet)
+  (find-if (lambda (stack) (some (lambda (x) (can-colonize? x (planet-type-of planet))) (design-techs (stack-design stack))))
+           (stacks-of fleet)))
+
+(defun establish-colony (player stack)
+  (decf (stack-count stack))
+  (update-fleet (stack-fleet stack))
+  (let* ((star   (star-of (stack-fleet stack)))
+         (planet (planet-of star)))
+    (assert (null (colony-of planet)))
+    (setf (colony-of planet) (make-instance 'colony
+                                            :owner player
+                                            :planet planet
+                                            :population 1
+                                            :factories 1))
+    (colony-turn-prep (colony-of star))
+    (update-player-planets (universe-of star))))
 
 ;;;; Turn cycle
 
 (defun next-turn (universe)
   (loop for star across (stars universe) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
   (loop for fleet in (fleets-in-transit *universe*) do (simulate-fleet fleet))
-  (loop for star across (stars universe) do (dolist (fleet (fleets-orbiting star)) (explore-star star (owner-of fleet))))
-  (update-ui-for-new-turn))
+  (loop for star across (stars universe) do (dolist (fleet (fleets-orbiting star)) (explore-star star (owner-of fleet)))))
 
+;;;; Designs
 
+(defun make-design (name size cost &key thumbnail)
+  (make-instance 'design :name name :size size :cost cost :thumbnail thumbnail 
+                 :techs (map 'vector (constantly nil) (elt *design-slot-names* size))))

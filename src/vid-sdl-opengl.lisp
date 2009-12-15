@@ -252,7 +252,7 @@
 ")))
 
 #+NIL
-(defun draw-line (u v)
+(defun simple-draw-line (u v)
   (c "glDisable(GL_TEXTURE_2D)")
   (c "glBegin(GL_LINES)")
   (c "glColor4ub(255,0,0,255)")
@@ -403,7 +403,7 @@
 (defun packset-fit (packset object)
 
   (unless (not (img-resident-p object))
-    (format t "~&Odd. ~A is already resident... about to die.." object))
+    (format t "~&Odd. ~A is already resident, death imminent.." object))
 
   (assert (not (img-resident-p object)))
   (tagbody insert

@@ -488,7 +488,7 @@
     (setf (colony-of (slot-value star 'planet))
           (make-instance 'colony
                          :owner player
-                         :planet (slot-value star 'planet)
+                         :planet (planet-of star)
                          :population (homeworld-population-of race)
                          :factories (homeworld-population-of race)))
     (colony-turn-prep (colony-of star))))
@@ -508,8 +508,12 @@
 (defun add-initial-ships-and-designs (player)
   (let ((designs (ship-designs-of player))
         (homeworld (aref (colonies player) 0))
-        (scout (make-instance 'design :name "Scout" :cost 100 :thumbnail (img :showfleet-lame)))
-        (colony-ship (make-instance 'design :name "Colony Ship" :cost 6000)))
+        (scout (make-design "Scout" 0 100 :thumbnail (img :showfleet-lame)))
+        (colony-ship (make-design "Colony Ship" 2 6000)))
+
+    (setf (aref (design-techs scout) 2) (find-tech 'reserve-tanks))
+    (setf (aref (design-techs colony-ship) 5) (find-tech 'colony-base))
+
     (setf (aref designs 0) scout
           (aref designs 1) colony-ship
           (building-design-of homeworld) scout)
