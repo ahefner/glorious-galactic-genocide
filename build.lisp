@@ -1,5 +1,7 @@
 (require 'asdf)
 
+(pushnew :with-gui *features*)
+
 ;;(declaim (optimize (debug 0) (speed 3) (safety 2)))
 (declaim (optimize (debug 3) (speed 2) (safety 2)))
 

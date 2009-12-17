@@ -8,11 +8,6 @@
 
 ;;;; Starmap UI
 
-#+NIL
-(defclass panel-host-mixin ()
-  ((panel :initform nil)
-   (panel-y :initform nil)))
-
 (defclass starmap (gadget)
   ((universe :reader universe-of :initarg :universe)
    (windup-factor :accessor windup-factor-of :initform 0.0)
@@ -28,6 +23,7 @@
     ((eql keysym (keysym :G))
      (setf (values *universe* *player*) (make-test-universe)
            (slot-value starmap 'universe) *universe*))
+    ((eql char #\P) (setf *debug-show-packset* (not *debug-show-packset*)))
     ((eql keysym (keysym :E))
      (print "Exploring the universe!")
      (loop for star across (stars *universe*) do (explore-star star *player*)))))
@@ -354,31 +350,15 @@
 
 ;;;; Starmap panels
 
-(defgeneric run-panel (panel uic bottom))
-
 ;;; A UI panel is essentially a gadget. It probably should be a
 ;;; gadget, and the only serious distinction is some stupidity with
 ;;; the way panels overlap and allocate space bottom-up that foils my
 ;;; notion of how child gadget should behave.
 
-(defclass panel (dynamic-object) 
-  ((panel-height :accessor panel-height :initarg :panel-height)
-   (starmap :initarg :starmap)
-   (closing :accessor closing-p :initform nil)))
-
 (defgeneric finish-for-turn (object)
   (:method (foo) (declare (ignore foo))))
 
-(defgeneric dismiss-panel (panel)
-  (:method :before (panel) (setf (closing-p panel) t))
-  (:method (panel) (declare (ignore panel)) (values)))
 
-(defun draw-panel-background (uic bottom)
-  (let* ((left (img :panel-left))
-         (right (img :panel-right))
-         (edge-top (- bottom (img-height left))))
-    (draw-bar* left right *panel-fill* 0 edge-top (uic-width uic))
-    (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
 
 ;;; Common panel labels
 
@@ -816,7 +796,7 @@
 
       (let* ((*selected-object* (unless closing fleet))
              (top (- bottom (panel-height panel) -26))
-             (owner (owner-of fleet))             
+             (owner (owner-of fleet))
              (do-switch nil)
              (movable (and (eq owner *player*) (star-of fleet))) ; FIXME for hyperspace communication
              (color1 (pstyle-label-color (style-of owner)))
@@ -827,7 +807,7 @@
           (orf highlighted-stars
                (loop with table = (make-hash-table) ; FIXME, quadratic, cache the distances.
                      for star across (stars *universe*)
-                     when (and (star-in-range-of-fleet star fleet)
+                     when (and (star-in-range-of-fleet star fleet counts)
                                (not (eql star (star-of fleet))))
                      do (setf (gethash star table) t)
                      finally (return table))))
@@ -855,7 +835,7 @@
                          :object-clicked (lambda (star)
                                            (cond ((and movable (typep star 'star))
                                                   (setf target (if (eql star (star-of fleet)) nil star)
-                                                        too-far (not (star-in-range-of-fleet star fleet)))
+                                                        too-far (not (star-in-range-of-fleet star fleet counts)))
                                                   (flush-labels label-table)
                                                   (when (and (clicked? uic +middle+)
                                                              (fleet-panel-ready-to-send panel))
@@ -902,6 +882,8 @@
               as stack-color = (if (zerop num-sending) #(110 110 110 255) color2)
               do
               (flet ((setnum (n)
+                       (when (or (zerop n) (and (not (zerop n)) (eql 0 (gethash stack counts))))
+                         (setf highlighted-stars nil))
                        (unless (= n (gethash stack counts (stack-count stack)))
                          (invalidate-label stack))
                        (if (= n num-total)
@@ -918,6 +900,7 @@
                   (setnum (draw-adjust-buttons uic x (+ y 67) num-sending num-total)))
                 (when (and (clicked? uic +left+) (pointer-in-img-rect uic thumb x y))
                   (invalidate-label stack)
+                  (setf highlighted-stars nil)
                   (cond
                     ((zerop (hash-table-count counts))
                      (loop for s in (stacks-of fleet) unless (eq stack s) do (invalidate-label s) (setf (gethash s counts) 0)))
@@ -970,13 +953,14 @@
 
 (defun fleet-panel-commit (panel)
   ;; Returns new fleet!!
-  (with-slots (fleet target counts too-far) panel
+  (with-slots (fleet target counts too-far highlighted-stars) panel
     ;; Split the fleet and link into universe.
-    (when (and target (not too-far))      
+    (when (and target (not too-far))
       (let ((new (split-fleet fleet counts :star (star-of fleet) :loc (loc fleet))))
         (unless (zerop (fleet-num-ships new)) (send-fleet new target))
         (clrhash counts)
-        (setf target nil)))))
+        (setf highlighted-stars nil
+              target nil)))))
 
 (defmethod finish-for-turn ((panel fleet-panel))
   (fleet-panel-commit panel))
@@ -1009,5 +993,9 @@
          (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel))))
         ((typep panel 'fleet-panel)
          (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel))))))))
+
+;;;; AUGH
+
+
 
 ;;;; Fuck me, I'm out of duct tape!

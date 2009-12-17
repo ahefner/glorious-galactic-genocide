@@ -18,6 +18,7 @@
 
 (defclass universe ()
   ((stars :accessor stars :initarg :stars)
+   (year :accessor year-of :initform 2200)
    (min-bound :accessor min-bound-of)
    (max-bound :accessor max-bound-of)
    (fleets :accessor fleets-in-transit :initform nil)
@@ -79,6 +80,7 @@
 
    ;;; All the slots below are cached values, updated at the beginning of each turn:
 
+   (travel-range :accessor range-of :initform 4)
    ;; Number of population units current technology permits to inhabit per square of each terrain type:
    (adaptation-vector :accessor adaptation-vector-of :initarg :adaptation-vector)
    (growth-costs        :accessor growth-costs-of)
@@ -205,20 +207,33 @@
       "Starboard Accessory Bay")))
 
 (defclass design (named)
-  ((speed :accessor speed-of :initform 1 :initarg :speed)
-   (size  :accessor size-of  :initform 0 :initarg :size)
-   (techs :accessor design-techs :initarg :techs)
+  ((size  :accessor size-of  :initform 0 :initarg :size)
+   (techs :accessor design-tech-slots :initarg :techs)
+   (engine :accessor engine-of :initform nil :initarg :engine)
+   (range-bonus :accessor range-bonus-of :initform 0)
+   ;; Derived attributes:
+   (speed :accessor speed-of :initform 1 :initarg :speed)
    (cost  :accessor cost-of  :initarg :cost) ; Derived from the above, but fixed at design time.
-   
+   ;; Runtime bullshit:
    (thumbnail :initform nil :initarg :thumbnail)
-   (serial :reader design-serial :initform (get-new-design-serial))
+   #+NIL (serial :reader design-serial :initform (get-new-design-serial))
+   (slot-num :accessor design-slot-num :initform 0 :initarg :slot-num)
    (name-label :accessor name-label-of :initform nil)))
 
 ;;;; Technologies
 
 (defclass tech (named)
-  ((description :accessor description-of :initform nil :initarg :description)
-   
+  ((description :reader description-of :initform nil :initarg :description)
+
+   ;; Engine speed of this tech (only engines should have nonzero speeds)
+   (engine-speed :reader engine-speed :initform 0 :initarg :engine-speed)
+
+   ;; Speed bonus of this tech (for specials that improve travel speed):
+   (speed-bonus :reader speed-bonus :initform 0 :initarg :speed-bonus)
+   ;; Range bonus (for reserve tanks)
+   (range-bonus :reader range-bonus :initform 0 :initarg :range-bonus)
+
+   ;; List of planet types this tech allows colonization of
    (colonizable :initform nil :initarg :colonizable)
 
    (name-label :accessor name-label-of :initform nil)))
@@ -226,6 +241,9 @@
 (defclass ship-tech (tech) ())
 
 (defclass special-tech (ship-tech) ())
+(defclass engine (ship-tech) ())
+
+(defclass nulltech (tech) ())
 
 (defvar *name->tech* (make-hash-table))
 (defun find-tech (name) (gethash name *name->tech*))

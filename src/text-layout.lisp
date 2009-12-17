@@ -26,9 +26,6 @@
                    (return-from paragraph-split-words (values (nreverse words) nil)))
                  (setf start next)))))))
 
-;; Really, you need one of these per text style. This will be for the "default" text style (:sans 11)
-(defvar *word-map* (make-hash-table :test 'equal))
-
 (defun ensure-word (wordmap string)
   (orf (gethash string wordmap) (global-label :sans 11 string)))
 

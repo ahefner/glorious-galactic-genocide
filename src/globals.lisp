@@ -39,3 +39,8 @@
 
 ;; Stupid hack for drawing a layer below the stars (but above the space background).
 (defvar *starmap-display-under-hook* (constantly nil))
+
+;; Really, you need one of these per text style. This will be for the "default" text style (:sans 11)
+(defvar *word-map* (make-hash-table :test 'equal))
+
+(defvar *debug-show-packset* nil)

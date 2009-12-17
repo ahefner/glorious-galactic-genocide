@@ -2,12 +2,9 @@
 
 (in-package :g1)
 
-(defclass gameui (gadget)
+(defclass gameui (gadget panel-host-mixin)
   ((universe :reader universe-of :initarg :universe)
-   (starmap)
-   (closing-panel :initform nil)
-   (panel :initform nil)
-   (panel-y :initform 0)))
+   (starmap)))
 
 (defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
   (with-slots (starmap panel closing-panel) gadget
@@ -83,12 +80,14 @@
              ;; Button states:
              (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
              (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color))
-             (clicked-research (run-labelled-button uic research-label (- (uic-width uic) 68 110) 3 :color color)))
+             #+NIL (clicked-research (run-labelled-button uic research-label (- (uic-width uic) 68 110) 3 :color color)))
         
         (cond
           (clicked-game (printl "You clicked the Game button!"))
           (clicked-turn (client-do-next-turn gadget))
           ((and pointer-in-gamebar (released? uic +left+)) (close-panels))))
+
+      (when *debug-show-packset* (debug-show-packset))
       
       (values))))
 

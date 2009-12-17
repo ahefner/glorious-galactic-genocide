@@ -112,3 +112,18 @@
 (defstruct bar-style left right fill)
 (defstruct button-style pressed released baseline)
 
+;;;; Panels
+
+(defclass panel-host-mixin ()
+  ((closing-panel :initform nil)
+   (panel :initform nil)
+   (panel-y :initform 0)))
+
+(defclass panel (dynamic-object) 
+  ((panel-height :accessor panel-height :initarg :panel-height)
+   (starmap :initarg :starmap)
+   (closing :accessor closing-p :initform nil)))
+
+(defgeneric run-panel (panel uic bottom))
+
+

@@ -203,3 +203,16 @@
         (round (* range (/ (clamp (- (uic-mx uic) x) 0 160) 160)))
         value)))
 
+;;;; Panels
+
+(defgeneric dismiss-panel (panel)
+  (:method :before (panel) (setf (closing-p panel) t))
+  (:method (panel) (declare (ignore panel)) (values)))
+
+(defun draw-panel-background (uic bottom)
+  (let* ((left (img :panel-left))
+         (right (img :panel-right))
+         (edge-top (- bottom (img-height left))))
+    (draw-bar* left right *panel-fill* 0 edge-top (uic-width uic))
+    (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
+

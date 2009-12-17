@@ -281,7 +281,7 @@
                         :pixels (cx :pointer-void "((image_t)#0)->pixels" :pointer-void cimage)
                         :x-offset (cx :int "((image_t)#0)->x_origin" :pointer-void cimage)
                         :y-offset (cx :int "((image_t)#0)->y_origin" :pointer-void cimage))))
-
+    #+NIL
     (format t "~&Rendered label ~W: ~Dx~D~%"
             string
             (cx :int "((image_t)#0)->w" :pointer-void cimage)
@@ -382,13 +382,22 @@
 ;;; either isn't called upon repack or fails to clear the image as
 ;;; expected. Strange.
 (defun packset-clear (ps)
+  (check-gl-error)
+
   (ffi:c-inline ((packset-texid ps) (packset-width ps) (packset-height ps)) (:int :int :int) (values)
                 "{ void *tmp = calloc(#1*#2, 4);
+                   static int blub = 1;
+                   unsigned px = 0xFF000000 | ((blub&1)? 0xFF : 0x00) | ((blub&2)? 0xFF00 : 0x00) | ((blub&4)? 0xFF0000 : 0x00);
+                   for (int i=0; i<(#1*#2); i++) ((unsigned *)tmp)[i] = px;
+                   blub++;
                    glBindTexture(GL_TEXTURE_2D, #0);
                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, #1, #2, 0, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
                    free(tmp);
-                 } ")
+                 }")
   (check-gl-error)
+  ;; We need to do this to get pixel-accurate rendering, at least on
+  ;; the R300 DRI driver on my laptop, otherwise some filtering might
+  ;; sneak in and smear lines or fuck up the edges of rectangles.
   (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST)")
   (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST)")
   (packset-reset ps))
@@ -480,7 +489,8 @@
   (bind-texobj ps)
   (format t "~&Repacking for ~A..~%" object)
   ;; First, try sorting by height and reinserting the images.
-  (packset-reset ps)  
+  ;;(packset-reset ps)  
+  (packset-clear ps)
   (printl :survived-reset)
   ;; Technically, SORT isn't required to give us an vector that has a
   ;; fill pointer when the input vector has one, but as it happens ECL
@@ -497,7 +507,7 @@
     ;; If not, we need to throw some things out.
     (t
      ;; Reset previous attempt at allocation.
-     (packset-reset ps)
+     (packset-clear ps)
      
      (format t "~&-- Fuck! Packset contents: --~%")
      (loop for item across (packset-images ps)

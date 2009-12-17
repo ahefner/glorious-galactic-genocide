@@ -38,6 +38,10 @@
   (print-unreadable-object (player stream :identity nil :type t)
     (format stream "~A, a ~A" (name-of player) (name-of (race-of player)))))
 
+(defmethod print-object ((object named) stream)
+  (print-unreadable-object (object stream :identity nil :type t)
+    (format stream "~W" (name-of object))))
+
 ;;;; Duct tape methods
 
 (defmethod owner-of ((star star))
@@ -409,12 +413,20 @@
 
 (defun fleet-num-ships (fleet) (reduce #'+ (stacks-of fleet) :key #'stack-count))
 
-(defun fleet-range-ly (fleet)
-  (declare (ignore fleet))
-  20)
+(defun minz (x y) (if (and x y) (min x y) (or x y)))
 
-(defun fleet-range-units (fleet)
-  (* (fleet-range-ly fleet) units/light-years))
+(defun fleet-range-ly (fleet &optional counts)
+  (+ (range-of (owner-of fleet))
+     (or 
+      (reduce #'minz (stacks-of fleet)
+              :key (lambda (stack)
+                     (unless (and counts (eql 0 (gethash stack counts)))
+                       (range-bonus-of (stack-design stack))))
+              :initial-value nil)
+      0)))
+
+(defun fleet-range-units (fleet &optional counts)
+  (* (fleet-range-ly fleet counts) units/light-years))
 
 (defun fleet-state (fleet)
   (if (destination-of fleet)
@@ -482,14 +494,10 @@
      (setf (speed-of fleet) (reduce #'min (stacks-of fleet)
                                     :key (lambda (stack) (speed-of (stack-design stack)))))))
   (setf (stacks-of fleet)
-        (sort (stacks-of fleet)
-              (lambda (a b)
-                (flet ((height (stack) (img-height (design-thumbnail (stack-design stack)))))
-                  (or (> (height a) (height b))
-                      (> (design-serial (stack-design a)) (design-serial (stack-design b)))))))))
+        (sort (stacks-of fleet) #'<= :key (lambda (x) (design-slot-num (stack-design x))))))
 
-(defun star-in-range-of-fleet (star fleet)
-  (<= (distance-from-player (owner-of fleet) star) (fleet-range-units fleet)))
+(defun star-in-range-of-fleet (star fleet &optional counts)
+  (<= (distance-from-player (owner-of fleet) star) (fleet-range-units fleet counts)))
 
 (defun add-ships (player star design num)
   (let ((fleet (ensure-fleet player star)))
@@ -594,6 +602,19 @@
 
 ;;;; Designs
 
-(defun make-design (name size cost &key thumbnail)
-  (make-instance 'design :name name :size size :cost cost :thumbnail thumbnail 
-                 :techs (map 'vector (constantly nil) (elt *design-slot-names* size))))
+(defun design-techs (design) (remove nil (design-tech-slots design)))
+
+(defun make-design (name size cost &rest args)
+  (apply #'make-instance 'design :name name :size size :cost cost 
+                 :techs (map 'vector (constantly nil) (elt *design-slot-names* size))
+                 args))
+
+;;; Compute derived attributes (cost, speed, etc.) from a design, and set those slots.
+;;; May be called multiple times when the designer UI is running.
+(defun analyze-design (design)
+  (setf (speed-of design) (engine-speed (engine-of design)))
+  (setf (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus)))
+
+
+  
+

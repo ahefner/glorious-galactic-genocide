@@ -299,6 +299,7 @@
     ("Rhombus")
     ("Isis")
     ("Astra")
+    ("Lalla")
 ))
 
 (defun constellation-name-list ()
