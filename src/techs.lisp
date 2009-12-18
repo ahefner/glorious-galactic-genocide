@@ -46,3 +46,32 @@
 (deftech (engine trans-light-drive :name "Trans-light Drive" :engine-speed 6)
     "The ultimate refinement of the principle behind the Stardrive and Warp Drive, Trans-light Drives can propel a starship at up to three times the speed of light.")
 
+;;; Armor
+
+(deftech (hull titanium-hull :armor-level 0)
+    "The standard titanium hull protects a starship from the rigors of interstellar travel.")
+
+(deftech (armor titanium-armor :armor-level 2 :hull-modifier 1.5)
+     "A reinforced hull with thicker titanium armor plating protects vital ship systems in case of attack.")
+
+(deftech (hull duranium-hull :armor-level 1 :hull-modifier 1.25)
+    "A lightweight hull of synthetic duranium provides protection comparable with titanium armor at a fraction of its weight.")
+
+(deftech (armor duranium-armor :armor-level 3 :hull-modifier 1.75)
+    "Heavier duranium armor provides robust protection for a ship's vital systems.")
+
+(deftech (armor ablative-armor :armor-level 1 :hull-modifier 2 :beam-defense 5)
+    "Ablative armor provides advanced defense against beam weapons.")
+
+(deftech (hull plasteel-hull :armor-level 2 :hull-modifier 1.50)
+    "A plasteel hull offers suitable protection for ships in combat, without the weight or cost of heavy armor.")
+
+(deftech (armor plasteel-armor :armor-level 4 :hull-modifier 2.00)
+    "Plasteel armor can protect our heaviest warships in the thick of combat.")
+
+(deftech (armor neutronium-armor :armor-level 4 :hull-modifier 3.00)
+    "Heavy neutronium armor renders a ship's hull practically impregnable.")
+
+(deftech (armor macromolecular-armor :armor-level 2 :hull-modifier 1.50)
+    "Macromolecular armor has the ability to reform and repair weak spots at a rate of up to 15% per turn, but repeated attacks will eventually wear it away.")
+

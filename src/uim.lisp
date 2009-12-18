@@ -216,3 +216,38 @@
     (draw-bar* left right *panel-fill* 0 edge-top (uic-width uic))
     (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
 
+(defun run-hosted-panel (uic host bottom)
+  (let* ((pointer-in-host (< (uic-my uic) bottom))
+         (child-uic (child-uic uic 0 0 :active (not pointer-in-host))))
+    (with-slots (panel panel-y closing-panel) host
+      (cond 
+        (panel
+         (let* ((target (if closing-panel 0 (+ bottom (panel-height panel))))
+                (dist (- target panel-y))
+                (rate (* 10 (if (< dist 0)
+                                (min -1 (- (floor (* (uic-delta-t uic) (sqrt (- dist))))))
+                                (max  1 (ceiling  (* (uic-delta-t uic) (sqrt dist))))))))
+           (setf panel-y (clamp (+ panel-y rate) 0 (+ bottom (panel-height panel))))
+           (when closing-panel (setf (uic-active child-uic) nil))
+           (run-panel panel child-uic panel-y)
+           (when (and closing-panel (<= panel-y bottom))
+             (finalize-object panel)
+             (setf panel nil
+                   panel-y 0
+                   closing-panel nil))))
+        (t (gadget-paint (next-gadget host) child-uic))))))
+
+(defun close-panels (&optional (host *gameui*))
+  (with-slots (panel closing-panel) host
+    (when panel 
+      (dismiss-panel panel)
+      (setf closing-panel t))))
+
+(defun activate-panel (new-panel &optional (host *gameui*))
+  (with-slots (panel closing-panel) host
+    (when panel 
+      (setf (panel-y-of host) (+ (panel-height host) (panel-height new-panel)))
+      (finalize-object panel))
+    (setf panel new-panel
+          (host-of panel) host
+          closing-panel nil)))

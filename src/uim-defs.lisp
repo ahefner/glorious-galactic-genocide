@@ -115,15 +115,14 @@
 ;;;; Panels
 
 (defclass panel-host-mixin ()
-  ((closing-panel :initform nil)
-   (panel :initform nil)
-   (panel-y :initform 0)))
+  ((closing-panel :accessor child-panel-close? :initform nil :initarg :init-closing-panel)
+   (panel :accessor panel-of :initform nil :initarg :init-panel)
+   (panel-y :accessor panel-y-of :initform 0 :initarg :init-panel-y)))
 
 (defclass panel (dynamic-object) 
   ((panel-height :accessor panel-height :initarg :panel-height)
+   (host :accessor host-of :initform nil :initarg :host )
    (starmap :initarg :starmap)
    (closing :accessor closing-p :initform nil)))
 
 (defgeneric run-panel (panel uic bottom))
-
-

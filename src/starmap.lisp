@@ -299,14 +299,6 @@
          (draw-img-deluxe label-img x ly ocolor))
         (explored  (draw-img label-img x ly))))))
 
-(defun activate-panel (new-panel)
-  (with-slots (panel closing-panel) *gameui*
-    (when panel 
-      (setf (slot-value *gameui* 'panel-y) (+ (img-height (img :gamebar-left)) (panel-height new-panel)))
-      (finalize-object panel))
-    (setf panel new-panel
-          closing-panel nil)))
-
 (defun starmap-select (starmap object)
   (typecase object
     (fleet (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet object)))
@@ -503,14 +495,14 @@
 
 ;;;; Colony Control Panel
 
-(defclass colony-panel (panel)
+(defclass colony-panel (panel panel-host-mixin)
   ((colony :accessor colony-of :initarg :colony)
    (name-label :initform nil)
    (class-label :initform nil)
    (owner-label :initform nil)
    (stats-labels :initform nil)
    (production-label :initform nil)
-   (eta-label :initform nil)
+   (eta-label-cache :initform nil)
    (shipyard-color :initform nil)
    (amnt-labels :initform (make-array 4)))  
   (:default-initargs :panel-height 168))
@@ -549,9 +541,12 @@
 (let (build-ships-label
       set-defenses-label)
  (defmethod run-panel ((panel colony-panel) uic bottom)
-  (when (or (not (alive? (colony-of panel))) (and (uic-active uic) (released? uic +right+)))
+   (when (or (not (alive? (colony-of panel))) ; Colony is dead
+             (and (uic-active uic) (not (panel-of panel)) (released? uic +right+)))
     (close-panels))
-  (with-slots (starmap colony name-label class-label owner-label stats-labels eta-label production-label shipyard-color) panel
+   (when (and (panel-of panel) (released? uic +right+))
+     (close-panels panel))
+  (with-slots (starmap colony name-label class-label owner-label stats-labels eta-label-cache production-label shipyard-color) panel
     (let* ((*selected-object* (star-of colony))
            (player (owner-of colony))
            (planet (planet-of colony))
@@ -564,8 +559,10 @@
            (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
            (col2 (make-cursor :left *planet-panel-col2-left*)))
 
-      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
-      (draw-panel-background uic bottom)     
+      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) (max bottom (panel-y-of panel))))) ; FUX! FIXMES!
+      (when (panel-of panel)
+        (run-hosted-panel (child-uic uic 0 0 :active (>= (uic-my uic) bottom)) panel bottom))
+      (draw-panel-background uic bottom)
       (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
       
       ;; Draw the title and first column
@@ -607,9 +604,11 @@
                  (let ((old (aref sp idx)))
                    (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) old 100 (zerop amnt))
                          (cursor-x col2) (+ left 160 4))
-                   (unless (= old (aref sp idx)) ; Invalidate ETA label
-                     (free-img eta-label)
-                     (setf eta-label nil)))
+                   ;; You think that now, since I've switched to using
+                   ;; a cacheobj, I could skip this, but no.
+                   (unless (= old (aref sp idx))
+                     (free-img (cacheobj-derived eta-label-cache))
+                     (setf eta-label-cache nil)))
                  (cursor-draw-img col2 (colpanel-cache-amnt panel idx amnt))
                  (incf idx)
                  (cursor-newline col2) (incf (cursor-y col2) 7)))
@@ -619,30 +618,31 @@
           (item "Tech"     3 :colony-re-slider (budget-research b))
 
           (when design
-            (orf eta-label
-                 (progn
-                   (setf b (colony-compute-budget colony)) ; Recompute with new slider positions..
-                   (multiple-value-bind (built eta) (estimate-ship-construction colony (budget-ships b))
-                     (render-label panel :sans 11 
-                                   (cond
-                                     ((and (zerop built) (zerop eta))
-                                      (setf shipyard-color #(150 150 150))
-                                      (format nil "~A (idle)" (name-of design)))
-                                     ((zerop built) 
-                                      (setf shipyard-color color1)                                    
-                                      (format nil "~A (~:D turn~:P)" (name-of design) eta))
-                                     (t (setf shipyard-color color2)
-                                        (format nil "~A (~:Dx)" (name-of design) built))))))))))
+            (cachef (eta-label-cache design)
+              (setf b (colony-compute-budget colony)) ; Recompute with new slider positions..
+              (multiple-value-bind (built eta) (estimate-ship-construction colony (budget-ships b))
+                (render-label panel :sans 11 
+                              (cond
+                                ((and (zerop built) (zerop eta))
+                                 (setf shipyard-color #(150 150 150))
+                                 (format nil "~A (idle)" (name-of design)))
+                                ((zerop built) 
+                                 (setf shipyard-color color1)                                    
+                                 (format nil "~A (~:D turn~:P)" (name-of design) eta))
+                                (t (setf shipyard-color color2)
+                                   (format nil "~A (~:Dx)" (name-of design) built)))))))))
 
       ;; Draw the shipyard controls
       (let* ((cx 710)             
              (thumb (and design (design-thumbnail design)))
-             (label eta-label #+nil (and design (name-label-of design))))
-        (run-labelled-button uic (player-label :shipyard-button :bold 14 "Shipyard") cx (- bottom 70) :color color1)
-        (run-labelled-button uic (player-label :defense-button  :bold 14 "Defenses") cx (- bottom 40) :color color1)
+             (label (and design (cacheobj-derived eta-label-cache))))
+        
+        (when (run-labelled-button uic (global-label :bold 14 "Shipyard") cx (- bottom 70) :color color1)
+          (activate-panel (make-instance 'shipyard-panel :colony colony) panel))
+        (run-labelled-button uic (global-label  :bold 14 "Defenses") cx (- bottom 40) :color color1)
         (when design
           (draw-img-deluxe thumb cx (- bottom 125) shipyard-color)
-          (draw-img label (- cx (ash (img-width label) -1)) (- bottom 125 -16 (- (ash (img-height thumb) -1))) #+NIL (- bottom 76))))
+          (draw-img label (- cx (ash (img-width label) -1)) #+NIL (- bottom 125 -10 (- (ash (img-height thumb) -1))) (- bottom 76))))
 
       ;; Allow toggling between planet and star panel
       (when (and (uic-active uic) (pointer-in-radius* uic 71 *planet-panel-px* *planet-panel-py*))
@@ -653,12 +653,13 @@
 ))))
 
 (defmethod finalize-object ((panel colony-panel))
-  (with-slots (name-label class-label stats-labels production-label owner-label eta-label amnt-labels) panel
+  (with-slots (name-label class-label stats-labels production-label owner-label eta-label-cache amnt-labels ) panel
+    (when (slot-value panel 'panel) (finalize-object (slot-value panel 'panel)))
     (free-img name-label)
     (free-img class-label)
     (free-img production-label)
     (free-img owner-label)
-    (free-img eta-label)
+    (when eta-label-cache (free-img (cacheobj-derived eta-label-cache)))
     (map nil #'free-img stats-labels)
     (loop for foo across amnt-labels when foo do (free-img (cdr foo))))
   (values))
@@ -978,7 +979,7 @@
 
 (defun ui-finish-turn ()
   (with-slots (panel) *gameui*
-    (finish-for-turn panel)))
+    (finish-for-turn panel)))  
 
 (defun update-ui-for-new-turn ()
   ;; If there are planels open, update them.
@@ -990,12 +991,49 @@
         ((typep panel 'planet-panel) 
          (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
         ((typep panel 'colony-panel)
-         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel))))
+         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel)
+                                        :init-panel (panel-of panel) 
+                                        :init-closing-panel (child-panel-close? panel)
+                                        :init-panel-y (panel-y-of panel))))
         ((typep panel 'fleet-panel)
          (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel))))))))
 
 ;;;; AUGH
 
+(defclass shipyard-panel (panel)
+  ((colony :accessor colony-of :initarg :colony)
+   (label-table :initform (make-hash-table)))
+  (:default-initargs :panel-height 170))
 
+(defmethod run-panel ((panel shipyard-panel) uic bottom)
+  (when (and (uic-active uic) (released? uic +right+)) (close-panels (host-of panel)))
+  (with-slots (colony) panel
+    (let ((top (- bottom (panel-height panel) -22))
+          (color (pstyle-label-color (style-of *player*))))
+      (draw-panel-background uic bottom)
+      (draw-img (global-label :gothic 20 "Select Ship Construction") 13 top)
+      (loop with y = (+ top 57)
+            with lighter = (color-lighten color)
+            for design across (ship-designs-of *player*)
+            for x from (+ 5 42) by 84
+            as thumb = (and design (design-thumbnail design))
+            do
+            (when design
+              (let* ((col (if (eql design (building-design-of colony)) lighter color)))
+                (draw-img-deluxe thumb x y col)
+                (draw-img-deluxe (name-label-of design) (- x (ash (img-width (name-label-of design)) -1)) (+ y 50) lighter)
+                (when (and (pointer-in-img-rect uic thumb x y) (released? uic +left+))
+                  (setf (building-design-of colony) design)))))
+      (when (run-labelled-button uic (global-label :bold 14 "Idle Shipyard") (- (uic-width uic) 80) (- bottom 33) 
+                                 :color color)
+        (setf (building-design-of colony) nil)
+        (close-panels (host-of panel))))))
+
+(defmethod name-label-of :around ((design design))
+  (or (call-next-method)
+      (setf (slot-value design 'name-label)
+            (render-label design :sans 11 (name-of design)))))
+
+  
 
 ;;;; Fuck me, I'm out of duct tape!

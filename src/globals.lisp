@@ -44,3 +44,6 @@
 (defvar *word-map* (make-hash-table :test 'equal))
 
 (defvar *debug-show-packset* nil)
+
+
+(defstruct cacheobj value derived)      ; Nowhere else reasonable to define this..

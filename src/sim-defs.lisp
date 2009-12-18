@@ -210,15 +210,16 @@
   ((size  :accessor size-of  :initform 0 :initarg :size)
    (techs :accessor design-tech-slots :initarg :techs)
    (engine :accessor engine-of :initform nil :initarg :engine)
-   (range-bonus :accessor range-bonus-of :initform 0)
+   (range-bonus :accessor range-bonus-of :initform 0)   
    ;; Derived attributes:
    (speed :accessor speed-of :initform 1 :initarg :speed)
    (cost  :accessor cost-of  :initarg :cost) ; Derived from the above, but fixed at design time.
+   (armor-level :accessor armor-level-of :initform 0)
    ;; Runtime bullshit:
    (thumbnail :initform nil :initarg :thumbnail)
    #+NIL (serial :reader design-serial :initform (get-new-design-serial))
    (slot-num :accessor design-slot-num :initform 0 :initarg :slot-num)
-   (name-label :accessor name-label-of :initform nil)))
+   (name-label :accessor name-label-of :initform nil))) ;; DON'T FORGET TO FREE THESE!! ...
 
 ;;;; Technologies
 
@@ -232,6 +233,12 @@
    (speed-bonus :reader speed-bonus :initform 0 :initarg :speed-bonus)
    ;; Range bonus (for reserve tanks)
    (range-bonus :reader range-bonus :initform 0 :initarg :range-bonus)
+   ;; Contribution to overall starship armor (WTF does this do?)
+   (armor-level :accessor armor-level-of :initform 0 :initarg :armor-level)
+   ;; Hull factor scales the base hits of a ship size.
+   (hull-modifier :accessor hull-modifier-of :initform 1 :initarg :hull-modifier)
+   ;; Beam defense contribution
+   (beam-defense :accessor beam-defense-of :initform 0 :initarg :beam-defense)
 
    ;; List of planet types this tech allows colonization of
    (colonizable :initform nil :initarg :colonizable)
@@ -242,6 +249,8 @@
 
 (defclass special-tech (ship-tech) ())
 (defclass engine (ship-tech) ())
+(defclass hull (ship-tech) ())
+(defclass armor (hull) ())
 
 (defclass nulltech (tech) ())
 

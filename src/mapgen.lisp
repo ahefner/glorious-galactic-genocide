@@ -530,7 +530,6 @@
     (build-ships homeworld colony-ship 1)))
 
 (defun make-test-universe ()
-  (time
    (let* ((uni (make-instance 'universe))         
           (*universe* uni)
           (player (make-test-player "Goldfinch")))
@@ -548,4 +547,4 @@
        (setf min-bound (reduce #'vmin stars :key #'loc)
              max-bound (reduce #'vmax stars :key #'loc))      
        #+NIL (format t "~&Universe bounds: ~A - ~A~%" min-bound max-bound))
-     (values uni player))))
+     (values uni player)))

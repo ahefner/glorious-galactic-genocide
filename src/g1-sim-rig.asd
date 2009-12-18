@@ -14,5 +14,6 @@
      (:file "math")
      (:file "sim")
      (:file "mapgen")
+     (:file "techs")
 ))
 

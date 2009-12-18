@@ -6,6 +6,9 @@
   ((universe :reader universe-of :initarg :universe)
    (starmap)))
 
+(defmethod panel-height ((gadget gameui))
+  (img-height (img :gamebar-left)))
+
 (defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
   (with-slots (starmap panel closing-panel) gadget
     (cond 
@@ -33,12 +36,6 @@
               (parent-gadget starmap) gameui
               next-gadget starmap)))))
 
-(defun close-panels ()
-  (with-slots (panel closing-panel) *gameui*
-    (when panel 
-      (dismiss-panel panel)
-      (setf closing-panel t))))
-
 (defun client-do-next-turn (gamebar)
   (with-slots (universe starmap) gamebar
     (ui-finish-turn)
@@ -46,50 +43,44 @@
     (update-ui-for-new-turn)
     (incf (windup-factor-of starmap) 1.5)))
 
+(let (labels)
+  (defun draw-status-bar (x0)
+    (let ((color (pstyle-label-color (style-of *player*)))
+          (y 18))
+      (mapcar (lambda (label xoff) (draw-img-deluxe label (+ x0 xoff) y color))
+              (cachef (labels (year-of *universe*))
+                (mapcar (lambda (x) (render-label *global-owner* :sans 16 x))
+                        (list (format nil "Year ~D" (year-of *universe*))
+                              (format nil "Pop: ~:D mil" (reduce #'+ (colonies *player*) :key #'population-of)))))
+              (list 0 100)))))
+
+
 (defmethod gadget-paint ((gadget gameui) uic)
   ;; Run inferior UI elements first, because we have to draw on top of them.
-  (let* ((gb-height (img-height (img :gamebar-left)))
-         (pointer-in-gamebar (< (uic-my uic) gb-height))
-         ;;(pointer-in-panel (and panel (not pointer-in-gamebar) (< (uic-my uic) panel-y)))
-         (child-uic (child-uic uic 0 0 :active (not pointer-in-gamebar))))
-    (with-slots (panel panel-y closing-panel starmap) gadget
-      (cond 
-        (panel
-         (let* ((target (if closing-panel 0 (+ gb-height (panel-height panel))))
-                (dist (- target panel-y))
-                (rate (* 10 (if (< dist 0)
-                                (min -1 (- (floor (* (uic-delta-t uic) (sqrt (- dist))))))
-                                (max  1 (ceiling  (* (uic-delta-t uic) (sqrt dist))))))))
-           (setf panel-y (clamp (+ panel-y rate) 0 (+ gb-height (panel-height panel))))
-           (when closing-panel (setf (uic-active child-uic) nil))
-           (run-panel panel child-uic panel-y)
-           (when (and closing-panel (<= panel-y gb-height))
-             (finalize-object panel)
-             (setf panel nil
-                   panel-y 0
-                   closing-panel nil))))
-        (t (gadget-paint (next-gadget gadget) child-uic)))
-  
-      (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
-      (draw-img (imgblock :status-bar) 99 0)
+  (let ((bottom (panel-height gadget)))
+    (run-hosted-panel uic gadget bottom)
+    
+    (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
+    (draw-img (imgblock :status-bar) 99 0)
+    (draw-status-bar 125)
 
-      (let* ((game-label (global-label :bold 14 "Game"))
-             (turn-label (global-label :bold 14 "Next Turn"))
-             (research-label (global-label :bold 14 "Research"))
-             (color (pstyle-label-color (style-of *player*)))
-             ;; Button states:
-             (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
-             (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color))
-             #+NIL (clicked-research (run-labelled-button uic research-label (- (uic-width uic) 68 110) 3 :color color)))
-        
-        (cond
-          (clicked-game (printl "You clicked the Game button!"))
-          (clicked-turn (client-do-next-turn gadget))
-          ((and pointer-in-gamebar (released? uic +left+)) (close-panels))))
-
-      (when *debug-show-packset* (debug-show-packset))
+    (let* ((game-label (global-label :bold 14 "Game"))
+           (turn-label (global-label :bold 14 "Next Turn"))
+           (research-label (global-label :bold 14 "Research"))
+           (color (pstyle-label-color (style-of *player*)))
+           ;; Button states:
+           (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
+           (clicked-turn (run-labelled-button uic turn-label (- (uic-width uic) 68) 3 :color color))
+           #+NIL (clicked-research (run-labelled-button uic research-label (- (uic-width uic) 68 110) 3 :color color)))
       
-      (values))))
+      (cond
+        (clicked-game (printl "You clicked the Game button!"))
+        (clicked-turn (client-do-next-turn gadget))
+        ((and (< (uic-my uic) bottom) (released? uic +left+)) (close-panels))))
+    
+    (when *debug-show-packset* (debug-show-packset))
+    
+    (values)))
 
 
 
