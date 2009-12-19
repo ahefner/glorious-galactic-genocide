@@ -607,7 +607,7 @@
                    ;; You think that now, since I've switched to using
                    ;; a cacheobj, I could skip this, but no.
                    (unless (= old (aref sp idx))
-                     (free-img (cacheobj-derived eta-label-cache))
+                     (free-img (and eta-label-cache (cacheobj-derived eta-label-cache)))
                      (setf eta-label-cache nil)))
                  (cursor-draw-img col2 (colpanel-cache-amnt panel idx amnt))
                  (incf idx)
