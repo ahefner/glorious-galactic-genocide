@@ -61,6 +61,73 @@ static int ensure_freetype (void)
     return freetype_init;
 }
 
+struct cached_glyph
+{
+    int cached, width, height, bitmap_left, bitmap_top, pitch, advance;
+    unsigned char *buffer;
+};
+
+struct cached_face
+{
+    unsigned facenum, text_height;
+    struct cached_glyph glyphs[256];
+};
+
+static struct cached_face cached_faces[32];
+static int num_cached_faces = 0;
+
+static struct cached_face *
+ensure_cached_face (unsigned facenum, unsigned text_height)
+{
+    for (int i=0; i<num_cached_faces;i++) {
+        if ((cached_faces[i].facenum == facenum) && 
+            (cached_faces[i].text_height == text_height)) return cached_faces+i;
+    }
+    
+    assert(num_cached_faces < sizeof(cached_faces) / sizeof(cached_faces[0]));
+
+    struct cached_face *f = cached_faces + num_cached_faces;
+    num_cached_faces++;
+
+    f->facenum = facenum;
+    f->text_height = text_height;
+    memset(f->glyphs, 0, sizeof(f->glyphs));
+
+    return f;
+}
+
+static struct cached_glyph *
+ensure_cached_glyph (struct cached_face *cface, unsigned char code, FT_UInt index)
+{
+    if (!cface->glyphs[code].cached) 
+    {
+        struct cached_glyph *gl = &cface->glyphs[code];
+        FT_Face face = faces[cface->facenum];
+        FT_Set_Pixel_Sizes(face, 0, cface->text_height);
+        int error = FT_Load_Glyph(face, index, 
+                              FT_LOAD_RENDER | 
+                              FT_LOAD_NO_HINTING | 
+                              FT_LOAD_TARGET_LIGHT);
+        if (error) return NULL;
+        
+        gl->bitmap_left = face->glyph->bitmap_left;
+        gl->bitmap_top = face->glyph->bitmap_top;
+        gl->pitch = face->glyph->bitmap.pitch;
+        gl->width = face->glyph->bitmap.width;
+        gl->height = face->glyph->bitmap.rows;
+        gl->advance = face->glyph->advance.x >> 6;
+
+        if (gl->width * gl->height) {
+            gl->buffer = malloc(gl->width * gl->height);
+            memcpy(gl->buffer, face->glyph->bitmap.buffer, gl->width * gl->height);
+        }
+        
+        gl->cached = 1;
+    }
+
+    return &cface->glyphs[code];
+}
+
 image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, char *string)
 {
     static uint8_t *rtmp = NULL;
@@ -68,7 +135,6 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
     static unsigned tmpheight = 0;
     static unsigned rheight = 0;
     int baseline = text_height + 4;
-    int error;
     int first_char = 1;
     int min_x = 0;
     int min_y = baseline;
@@ -81,6 +147,8 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
     }
 
     FT_Face face = faces[facenum];
+    struct cached_face *cface = ensure_cached_face(facenum, text_height);
+    assert(cface != NULL);
 
     assert(text_height > 0);
     if (text_height > tmpheight) {
@@ -108,29 +176,27 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
             FT_Get_Kerning(face, last_glyph_index, glyph_index, 
                            FT_KERNING_DEFAULT, &delta);
             pen_x += delta.x >> 6;
-            last_glyph_index = glyph_index;
         }
 
-        error = FT_Load_Glyph(face, glyph_index, 
-                              FT_LOAD_RENDER | 
-                              FT_LOAD_NO_HINTING | 
-                              FT_LOAD_TARGET_LIGHT);
-        if (error) continue;
+        last_glyph_index = glyph_index;
 
-        FT_Bitmap *bmp = &face->glyph->bitmap;
+        struct cached_glyph *glyph = ensure_cached_glyph(cface, c, glyph_index);
+        if (!glyph) continue;
+
+        //FT_Bitmap *bmp = &glyph->bitmap;
         /*
         printf("  x=%3i: Char %c:   %ix%i + %i + %i   advance=%f\n",
                pen_x, c, bmp->width, bmp->rows,
-               face->glyph->bitmap_left,
-               face->glyph->bitmap_top,
-               ((float)face->glyph->advance.x) / 64.0);
+               glyph->bitmap_left,
+               glyph->bitmap_top,
+               ((float)glyph->advance.x) / 64.0);
         */        
 
         /* Transfer the glyph to the temporary buffer.. */
-        int ox0 = pen_x + face->glyph->bitmap_left;
+        int ox0 = pen_x + glyph->bitmap_left;
         int ix0 = 0;
-        int ox1 = ox0 + bmp->width;
-        int ix1 = bmp->width;
+        int ox1 = ox0 + glyph->width;
+        int ix1 = glyph->width;
 
         // Clip to left edge
         if (ox0 < 0) {
@@ -151,18 +217,17 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
         assert(width >= 0);
         assert(ix0 >= 0);
 
-        int oy0 = baseline - face->glyph->bitmap_top;
-        int height = bmp->rows;
+        int oy0 = baseline - glyph->bitmap_top;
+        int height = glyph->height;
 
         // Update bounding rectangle
-        //min_x = min(min_x, cx0);
         max_x = max(max_x, ox1);
         min_y = max(0, min(min_y, oy0));
         max_y = min(rheight, max(max_y, oy0+height));
 
         // Ick?
-        unsigned char *input = bmp->buffer;
-        int input_pitch = bmp->pitch;
+        unsigned char *input = glyph->buffer;
+        int input_pitch = glyph->pitch;
         for (int y=0 ; y<height; y++) {
             int y_out = oy0 + y;
             if ((y_out >= 0) && (y_out < rheight)) {
@@ -177,7 +242,7 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
             }
         }
 
-        pen_x += face->glyph->advance.x >> 6;
+        pen_x += glyph->advance;
     }
 
     uint32_t *data = malloc(4*(max_x - min_x)*(max_y - min_y));
