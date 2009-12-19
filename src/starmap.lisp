@@ -401,42 +401,25 @@
 
       (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
       (draw-panel-background uic bottom)
-      (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
-      
-      (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "~A ~A"
-                                                                                   (if owner "Colony" "Planet")
-                                                                                   (name-of planet)))) color1)
-      (cursor-newline col1)
-      (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
-      (cursor-newline col1)
-      
-      (when (and owner (not (eql *player* owner)))
-        (cursor-draw-img col1 (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of owner)))))
-        (cursor-newline col1))
-
-      (incf (cursor-y col1) 9)
-      (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
-            
-      
-      (cursor-draw-lines col1
-        (orf col1-labels
-            (mapcar (lambda (string) (render-label panel :sans 11 string))
-                    (flet ((show (name units &optional (pl name))
-                             (cond
-                               ((zerop units) (format nil "No ~A" name))
-                               ((= units 1) (format nil "Minimal ~A" name))
-                               (t (format nil "~,1F% ~A (~:D Mm²)" (* 100 units (/ area)) pl (* units units-to-mm))))))
-                      (list (show "Solid Land"        (aref terrains 0))
-                            (show "Surface Water"     (aref terrains 1))
-                            (show "Surface Ice"       (aref terrains 2))
-                            (show "Volcanic Activity" (aref terrains 3) "Volcanically Active"))))))
-      (incf (cursor-y col1) 9)
-      (cursor-draw-img col1
-        (orf area-label (render-label panel :sans 11 (format nil "Total Surface Area: ~:D Mm²" (* area units-to-mm)))))
-
       (with-slots (habitability production-modifier) planet
-        (cursor-draw-lines col2
-          (orf col2-labels
+
+        (orf name-label (render-label panel :gothic 20 (format nil "~A ~A" (if owner "Colony" "Planet") (name-of planet))))
+        (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet))))
+        (when (and owner (not (eql *player* owner)))
+          (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of owner)))))
+        (orf col1-labels
+              (mapcar (lambda (string) (render-label panel :sans 11 string))
+                      (flet ((show (name units &optional (pl name))
+                               (cond
+                                 ((zerop units) (format nil "No ~A" name))
+                                 ((= units 1) (format nil "Minimal ~A" name))
+                                 (t (format nil "~,1F% ~A (~:D Mm²)" (* 100 units (/ area)) pl (* units units-to-mm))))))
+                        (list (show "Solid Land"        (aref terrains 0))
+                              (show "Surface Water"     (aref terrains 1))
+                              (show "Surface Ice"       (aref terrains 2))
+                              (show "Volcanic Activity" (aref terrains 3) "Volcanically Active")))))
+        (orf area-label (render-label panel :sans 11 (format nil "Total Surface Area: ~:D Mm²" (* area units-to-mm))))
+        (orf col2-labels
             (mapcar (lambda (string) (render-label panel :sans 11 string))
                     (remove nil
                      (list
@@ -456,7 +439,27 @@
                             (t "Very Rich Mineral Deposits"))
                       (unless (zerop (pollution-of planet))
                         (format nil "Pollution: ~:D" (pollution-of planet)))
-                      ))))))
+                      ))))
+
+        (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
+
+        (cursor-draw-img col1 name-label color1)
+        (cursor-newline col1)
+        (cursor-draw-img col1 class-label color2)
+        (cursor-newline col1)
+
+        (when (and owner (not (eql *player* owner)))
+          (cursor-draw-img col1 owner-label)
+          (cursor-newline col1))
+        
+        (incf (cursor-y col1) 9)
+        (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
+        
+        (cursor-draw-lines col1 col1-labels)
+        (incf (cursor-y col1) 9)
+        (cursor-draw-img col1 area-label)
+
+        (cursor-draw-lines col2 col2-labels))
 
       (and.. (find *player* (fleets-orbiting (star-of planet)) :key #'owner-of)
              (fleet-find-colony-ship-for $ planet)
@@ -563,36 +566,41 @@
       (when (panel-of panel)
         (run-hosted-panel (child-uic uic 0 0 :active (>= (uic-my uic) bottom)) panel bottom))
       (draw-panel-background uic bottom)
+
+      (orf stats-labels
+           (mapcar (lambda (string) (render-label panel :sans 11 string))
+                   (list (format nil "Population: ~:D million (max. ~:D)"
+                                 (population-of colony) (compute-max-population colony))
+                         (format nil "Industry: ~:D Factor~:@p (max. ~:D)"
+                                 (factories-of colony) (max-factories colony))
+                         (format nil "Pollution: ~:D (spending ~:D BC/turn)" 
+                                 (whenzero "None" (pollution-of planet))
+                                 (budget-cleanup post-cleanup-budget))
+                         (format nil "~A Missile Base~:P" (whenzero "No" (num-bases-of colony))))))
+      (orf production-label
+           (render-label panel :sans 11
+                         (format nil "Available Production: ~:D of ~:D BC"
+                                 (round (budget-unspent post-cleanup-budget))
+                                 (round (production-of colony)))))
+      (orf name-label (render-label panel :gothic 20 (format nil "Colony ~A" (name-of colony))))
+      (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet))))
+      (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of player))))
+
       (draw-img (nth-value 1 (planet->images planet)) *planet-panel-px* (- bottom *planet-panel-py*))
       
       ;; Draw the title and first column
-      (cursor-draw-img col1 (orf name-label (render-label panel :gothic 20 (format nil "Colony ~A" (name-of colony)))) color1)
+      (cursor-draw-img col1 name-label color1)
       (cursor-newline col1)
-      (cursor-draw-img col1 (orf class-label (render-label panel :sans 11 (planet-type-description (planet-type-of planet)))) color2)
+      (cursor-draw-img col1 class-label color2)
       (cursor-newline col1)
       (unless (eql *player* player)
-        (cursor-draw-img col1 (orf owner-label (render-label panel :sans 11 (format nil "Owned by ~A" (name-of player)))))
+        (cursor-draw-img col1 owner-label)
         (cursor-newline col1))
       (incf (cursor-y col1) 9)
       (setf (cursor-y col2) (cursor-y col1)) ; Align columns at this point
-      (cursor-draw-lines col1 
-       (orf stats-labels
-            (mapcar (lambda (string) (render-label panel :sans 11 string))
-                    (list (format nil "Population: ~:D million (max. ~:D)"
-                                  (population-of colony) (compute-max-population colony))
-                          (format nil "Industry: ~:D Factor~:@p (max. ~:D)"
-                                  (factories-of colony) (max-factories colony))
-                          (format nil "Pollution: ~:D (spending ~:D BC/turn)" 
-                                  (whenzero "None" (pollution-of planet))
-                                  (budget-cleanup post-cleanup-budget))
-                          (format nil "~A Missile Base~:P" (whenzero "No" (num-bases-of colony)))))))
+      (cursor-draw-lines col1 stats-labels)
       (incf (cursor-y col1) 9)
-      (cursor-draw-img col1
-                       (orf production-label
-                        (render-label panel :sans 11
-                         (format nil "Available Production: ~:D of ~:D BC"
-                                 (round (budget-unspent post-cleanup-budget))
-                                 (round (production-of colony))))))
+      (cursor-draw-img col1 production-label)
 
       ;; Draw the (no longer) hypothetical second column
       (let ((b (colony-compute-budget colony))
@@ -604,8 +612,8 @@
                  (let ((old (aref sp idx)))
                    (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) old 100 (zerop amnt))
                          (cursor-x col2) (+ left 160 4))
-                   ;; You think that now, since I've switched to using
-                   ;; a cacheobj, I could skip this, but no.
+                   ;; You think that since I've switched to using
+                   ;; a cacheobj I could skip this, but no.
                    (unless (= old (aref sp idx))
                      (free-img (and eta-label-cache (cacheobj-derived eta-label-cache)))
                      (setf eta-label-cache nil)))

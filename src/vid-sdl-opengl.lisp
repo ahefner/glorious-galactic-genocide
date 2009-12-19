@@ -16,11 +16,13 @@
 
 (defstruct gltexobj texid width height)
 
-(defun bind-texobj (obj)
-  (c "glBindTexture(GL_TEXTURE_2D, #0)" :int (gltexobj-texid obj))
-  (c "glMatrixMode(GL_TEXTURE)")
-  (c "glLoadIdentity()")
-  (c "glScaled(1.0/(#0), 1.0/(#1), 1.0)" :int (gltexobj-width obj) :int (gltexobj-height obj)))
+(let ((texobj nil))
+  (defun bind-texobj (obj)
+    (unless (eq texobj obj)
+      (c "glBindTexture(GL_TEXTURE_2D, #0)" :int (gltexobj-texid obj))
+      (c "glMatrixMode(GL_TEXTURE)")
+      (c "glLoadIdentity()")
+      (c "glScaled(1.0/(#0), 1.0/(#1), 1.0)" :int (gltexobj-width obj) :int (gltexobj-height obj)))))
 
 (defun alloc-texid ()
   (ffi:c-inline () () :unsigned-int
@@ -90,8 +92,7 @@
 
   (bind-texobj *stars01*)
   (c "glBlendFunc(GL_ONE, GL_ONE)")
-  (draw-tile 0 0 (c :int "window_width") (c :int "window_height") (round (* 0.666 x)) (round (* 0.666 y)))
-)
+  (draw-tile 0 0 (c :int "window_width") (c :int "window_height") (round (* 0.666 x)) (round (* 0.666 y))))
 
 (defun paint-begin ()
 ;;  (c "glClearColor(#0, #1, #2, 0.0)" :float (random 1.0) :float (random 1.0) :float (random 1.0))
@@ -121,9 +122,12 @@
 (defun img-is-free? (img)
   (not (or (img-surface img) (img-pixels img))))
 
-(defun free-img (img)
+(defun free-img (img)  
   (cond
     ((null img) (values))
+    ((eql (img-owner img) *global-owner*)
+     (format *trace-output* "Not releasing global image ~W.~%" (img-name img))
+     (return-from free-img))
     ((img-surface img) (call "SDL_FreeSurface" :pointer-void (img-surface img)))
     ((img-pixels img)  (call "free" :pointer-void (img-pixels img)))
     (t (warn "Attempt to free IMG ~A with no underlying surface or pixel pointer. Odd." img)))
@@ -294,6 +298,10 @@
       (:top (setf (img-y-offset img) 0))
       (:baseline)
       (:bottom (setf (img-y-offset img) (img-height img))))
+
+    ;; Put it in the packset, since we're probably going to use it immediately.
+    (packset-ensure *packset* img)
+
     img))
 
 (let ((global-labels (make-hash-table :test 'equal)))
@@ -383,7 +391,7 @@
 ;;; expected. Strange.
 (defun packset-clear (ps)
   (check-gl-error)
-
+  (bind-texobj ps)
   (ffi:c-inline ((packset-texid ps) (packset-width ps) (packset-height ps)) (:int :int :int) (values)
                 "{ void *tmp = calloc(#1*#2, 4);
                    static int blub = 1;
@@ -452,8 +460,10 @@
     (t (vector-push-extend object (packset-images packset))
        (packset-repack-for-object packset object))))
 
+(defvar *ps-suppress-upload* nil)
+
 (defun packset-upload-object (object)
-  ;; Beware! Must bind the packset texture before calling this!
+  (bind-texobj *packset*)
   (let ((x (img-x object))
         (y (img-y object))
         (width (img-width object))
@@ -461,8 +471,9 @@
     (assert (not (img-is-free? object)))
     #+NIL
     (format t "~&Uploaded ~A at (~D,~D) [~Dx~D]~%" object x y width height)
-    (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
-       :int x :int y :int width :int height :pointer-void (img-pixels object))
+    (unless *ps-suppress-upload*
+      (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
+         :int x :int y :int width :int height :pointer-void (img-pixels object)))
     (check-gl-error)))
 
 (defun packset-alloc (packset width height object)
