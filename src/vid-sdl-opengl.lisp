@@ -99,6 +99,7 @@
 ;;  (c "glClear(GL_COLOR_BUFFER_BIT)")
   (c "glDisable(GL_DEPTH_TEST)")
   (c "glDisable(GL_CULL_FACE)")
+  (c "glShadeModel(GL_FLAT)")
   (c "glEnable(GL_BLEND)")
   (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)")

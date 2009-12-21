@@ -512,7 +512,7 @@
                             #+with-gui :thumbnail #+with-gui (img :showfleet-lame)
                             :slot-num 0
                             :engine (find-tech 'ion-drive)))
-        (colony-ship (make-design "Colony Ship" 2 6000
+        (colony-ship (make-design "Colony Ship" 2 2500
                                   :slot-num 1
                                   #+with-gui :thumbnail #+with-gui (img :sh-colony)
                                   :engine (find-tech 'ion-drive))))

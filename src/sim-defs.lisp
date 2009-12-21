@@ -223,26 +223,67 @@
 
 ;;;; Technologies
 
-(defclass tech (named)
+(defclass tech (named)                  ; holy fuck look at all this bullshit!
   ((description :reader description-of :initform nil :initarg :description)
+
+   ;; Tech level (used to determine price as 100*(level^1.6)
+   (level :reader level-of :initform 0 :initarg :level)
+
+   ;; Probability that tech will be available to a player in a given game (default 50%)
+   (probability :reader probability-of :initform 0.50 :initarg :probability)
 
    ;; Engine speed of this tech (only engines should have nonzero speeds)
    (engine-speed :reader engine-speed :initform 0 :initarg :engine-speed)
 
    ;; Speed bonus of this tech (for specials that improve travel speed):
    (speed-bonus :reader speed-bonus :initform 0 :initarg :speed-bonus)
-   ;; Range bonus (for reserve tanks)
+
+   ;; Range bonus (for reserve tanks and fuel techs)
    (range-bonus :reader range-bonus :initform 0 :initarg :range-bonus)
+
    ;; Contribution to overall starship armor (WTF does this do?)
    (armor-level :accessor armor-level-of :initform 0 :initarg :armor-level)
+
+   ;; Shield level (cumulative with armor level, I guess)
+   (shield-level :accessor shield-level-of :initform 0 :initarg :shield-level)
+
    ;; Hull factor scales the base hits of a ship size.
    (hull-modifier :accessor hull-modifier-of :initform 1 :initarg :hull-modifier)
+
    ;; Beam defense contribution
    (beam-defense :accessor beam-defense-of :initform 0 :initarg :beam-defense)
+
+   ;; Scaling of enemy shields (when calculating weapon effect):
+   (shield-scaling :reader shield-scaling-of :initform 1.0 :initarg :shield-scaling)
+
+   ;; Weapon damage:
+   (damage :accessor damage-of :initform nil :initarg :damage)
+
+   ;; Size modifier (base size is computed from tech level unless otherwise specified):
+   (size-modifier :accessor size-modifier-of :initform 1.0 :initarg :sizemod)
+
+   ;; Cost modifier (base cost is computed from tech level unless otherwise specified):
+   (cost-modifier :accessor cost-modifier-of :initform 1.0 :initarg :costmod)
+
+   ;; Speed (of missiles and torpedos)
+   (projectile-speed :accessor projectile-speed-of :initform 2.0 :initarg :projectile-speed)
+
+   ;; Targetting bonus (for weapons)
+   (weapon-targetting-bonus :accessor weapon-targetting-bonus-of :initform 0 :initarg :weapon-targetting-bonus)
+
+   ;; Range (of targettable combat items, in unspecified units)
+   (range :accessor range-of :initform 1.0 :initarg :range)
 
    ;; List of planet types this tech allows colonization of
    (colonizable :initform nil :initarg :colonizable)
 
+   ;; If a tech has multiple variations which should be gained
+   ;; simultaneously (such as a hull and armor tech), link one to the
+   ;; other:
+   (linked-to :reader linked-to :initform nil :initarg :linked-to)
+   
+   
+   ;; --- Runtime bullshit ---
    (name-label :accessor name-label-of :initform nil)))
 
 (defclass ship-tech (tech) ())
@@ -251,13 +292,28 @@
 (defclass engine (ship-tech) ())
 (defclass hull (ship-tech) ())
 (defclass armor (hull) ())
+(defclass shield (ship-tech) ())
 
-(defclass nulltech (tech) ())
+(defclass weapon (ship-tech) ())
+(defclass energy-weapon (weapon) ())
+(defclass beam (energy-weapon) ())
+(defclass particle-weapon (energy-weapon) ())
+(defclass missile (weapon) ())
+(defclass torpedo (weapon) ())
+(defclass projectile (weapon) ())
+(defclass bomb (weapon) ())
+
+(defclass global-tech (tech) ())
+(defclass fuel (global-tech) ())
+
+(defstruct (range (:constructor range (min max))) min max)
+(defgeneric roll (distribution)
+  (:method ((r range)) (+ (range-min r) (random (1+ (- (range-max r) (range-min r)))))))
 
 (defvar *name->tech* (make-hash-table))
 (defun find-tech (name) (gethash name *name->tech*))
 
-(defmacro deftech ((class name-sym &rest initargs) description)
+(defmacro deftech ((level class name-sym &rest initargs) description)
     `(progn
        (setf (gethash ',name-sym *name->tech*)
-             (make-instance ',class :description ,description ,@initargs :name (pretty-sym ',name-sym)))))
+             (make-instance ',class :description ,description ,@initargs :level ,level :name (pretty-sym ',name-sym)))))
