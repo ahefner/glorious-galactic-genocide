@@ -23,6 +23,12 @@
     ((eql keysym (keysym :G))
      (setf (values *universe* *player*) (make-test-universe)
            (slot-value starmap 'universe) *universe*))
+    ((eql keysym (keysym :T))
+     (printl "Have some techs! Have them all!")
+     (maphash (lambda (name tech)
+                (declare (ignore name))
+                (grant-tech *player* tech))
+              *name->tech*))
     ((eql char #\P) (setf *debug-show-packset* (not *debug-show-packset*)))
     ((eql keysym (keysym :E))
      (print "Exploring the universe!")
@@ -311,34 +317,6 @@
          (colony (activate-panel (make-instance 'colony-panel :starmap starmap :colony colony)))
          (planet (activate-panel (make-instance 'planet-panel :starmap starmap :planet planet)))
          (star   (activate-panel (make-instance 'star-panel   :starmap starmap :star star))))))))
-
-;;;; Cursor Layout Utility
-
-(defstruct cursor left x y (newline-p t) (descent 0) (y-pad 0) (min-line-height 14))
-
-(defun cursor-draw-img (cursor img &optional (color (vector 255 255 255 255)))
-  (when (cursor-newline-p cursor)
-    (setf (cursor-x cursor) (cursor-left cursor)
-          (cursor-newline-p cursor) nil))
-  (draw-img-deluxe img (cursor-x cursor) (cursor-y cursor) color)
-  (maxf (cursor-descent cursor) (- (img-height img) (img-y-offset img)))
-  (incf (cursor-x cursor) (img-width img)))
-
-(defun cursor-newline (cursor)
-  (incf (cursor-y cursor) (max (cursor-min-line-height cursor)
-                               (+ (cursor-y-pad cursor) (cursor-descent cursor))))
-  (setf (cursor-newline-p cursor) t
-        (cursor-descent cursor) 0
-        (cursor-x cursor) (cursor-left cursor)))
-
-(defun cursor-draw-line (cursor images)
-  (if (or (listp images) (vectorp images))
-      (map nil (lambda (img) (cursor-draw-img cursor img)) images)
-      (cursor-draw-img cursor images))
-  (cursor-newline cursor))
-
-(defun cursor-draw-lines (cursor line-seq)
-  (map nil (lambda (line) (cursor-draw-line cursor line)) line-seq))
 
 ;;;; Starmap panels
 
@@ -726,7 +704,7 @@
 ;;;; Stuffs
 
 (defun design-thumbnail (design)
-  (or (slot-value design 'thumbnail) (img :showfleet-sq-default)))
+  (or (img (slot-value design 'thumbnail)) (img :showfleet-sq-default)))
 
 (defmethod name-label-of :around ((this design))
   (or (call-next-method)

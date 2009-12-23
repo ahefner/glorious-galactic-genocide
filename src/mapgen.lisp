@@ -505,16 +505,32 @@
   (let ((player (make-instance 'player :race *race-human* :name name)))
     (update-player-stats player)))
 
+(defun choose-techs-for-race (race)
+  (declare (ignore race))
+  (stable-sort 
+   (shuffle (loop for tech being the hash-values of *name->tech* 
+                  when (and (not (linked-to tech)) 
+                            (< (random 1.0) (probability-of tech)))
+                  collect tech))
+   #'< :key #'level-of))
+
+(defun init-player-techs (player)
+  (let* ((all-techs (choose-techs-for-race (race-of player)))
+         (initial-techs (remove-if-not (lambda (tech) (zerop (level-of tech))) all-techs))
+         (remaining-techs (remove 0 all-techs :key #'level-of)))
+    (loop for tech in initial-techs do (grant-tech player tech))
+      (setf (potential-techs-of player) remaining-techs)))
+
 (defun add-initial-ships-and-designs (player)
   (let ((designs (ship-designs-of player))
         (homeworld (aref (colonies player) 0))
         (scout (make-design "Scout" 0 100 
-                            #+with-gui :thumbnail #+with-gui (img :showfleet-lame)
+                            :thumbnail :showfleet-lame
                             :slot-num 0
                             :engine (find-tech 'ion-drive)))
         (colony-ship (make-design "Colony Ship" 2 2500
                                   :slot-num 1
-                                  #+with-gui :thumbnail #+with-gui (img :sh-colony)
+                                  :thumbnail :sh-colony
                                   :engine (find-tech 'ion-drive))))
 
     (setf (aref (design-tech-slots scout) 2) (find-tech 'reserve-tanks))
@@ -542,9 +558,10 @@
        (assign-computer-colors uni)
        (generate-planets uni)
        (update-player-planets uni)
-       (loop for player in (all-players uni)
-             do (add-initial-ships-and-designs player))
+       (dolist (player (all-players uni))
+         (init-player-techs player)
+         (add-initial-ships-and-designs player))
        (setf min-bound (reduce #'vmin stars :key #'loc)
-             max-bound (reduce #'vmax stars :key #'loc))      
+             max-bound (reduce #'vmax stars :key #'loc))
        #+NIL (format t "~&Universe bounds: ~A - ~A~%" min-bound max-bound))
      (values uni player)))

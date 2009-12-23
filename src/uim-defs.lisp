@@ -126,3 +126,8 @@
    (closing :accessor closing-p :initform nil)))
 
 (defgeneric run-panel (panel uic bottom))
+
+;;;; Cursor Layout Utility
+
+(defstruct cursor left x y (newline-p t) (descent 0) (y-pad 0) (min-line-height 14) (color #(255 255 255)))
+

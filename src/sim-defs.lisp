@@ -72,10 +72,12 @@
 (defclass player (named perishable)
   ((explored-stars :reader explored-stars-of :initform (make-hash-table :test 'eq))
    (race :reader race-of :initarg :race)
-   (technologies :reader technologies-of :initform (make-hash-table :test 'eq))
+   (technologies :accessor technologies-of :initform nil)
+   (potential-techs :accessor potential-techs-of :initform nil)
    (style :accessor style-of :initarg :style :initform nil)
    (ship-designs-of :reader ship-designs-of :initform (make-array 9))
 
+   ;;; Runtime bullshit:
    (owned-images :accessor owned-images-of :initform (make-hash-table))
 
    ;;; All the slots below are cached values, updated at the beginning of each turn:
@@ -225,6 +227,7 @@
 
 (defclass tech (named)                  ; holy fuck look at all this bullshit!
   ((description :reader description-of :initform nil :initarg :description)
+   (sym :reader sym-of :initarg :sym)
 
    ;; Tech level (used to determine price as 100*(level^1.6)
    (level :reader level-of :initform 0 :initarg :level)
@@ -284,7 +287,8 @@
    
    
    ;; --- Runtime bullshit ---
-   (name-label :accessor name-label-of :initform nil)))
+   (small-name-label :accessor small-name-label-of :initform nil)
+   (big-name-label :accessor big-name-label-of :initform nil)))
 
 (defclass ship-tech (tech) ())
 
@@ -298,8 +302,9 @@
 (defclass energy-weapon (weapon) ())
 (defclass beam (energy-weapon) ())
 (defclass particle-weapon (energy-weapon) ())
-(defclass missile (weapon) ())
-(defclass torpedo (weapon) ())
+(defclass missile-weapon (weapon) ())
+(defclass missile (missile-weapon) ())
+(defclass torpedo (missile-weapon) ())
 (defclass projectile (weapon) ())
 (defclass bomb (weapon) ())
 
@@ -310,10 +315,18 @@
 (defgeneric roll (distribution)
   (:method ((r range)) (+ (range-min r) (random (1+ (- (range-max r) (range-min r)))))))
 
+(defgeneric distribution->string (dist)
+  (:method ((this number)) (write-to-string this))
+  (:method ((this range)) (format nil "~:D-~:D" (range-min this) (range-max this))))
+
 (defvar *name->tech* (make-hash-table))
 (defun find-tech (name) (gethash name *name->tech*))
 
 (defmacro deftech ((level class name-sym &rest initargs) description)
     `(progn
        (setf (gethash ',name-sym *name->tech*)
-             (make-instance ',class :description ,description ,@initargs :level ,level :name (pretty-sym ',name-sym)))))
+             (make-instance ',class 
+                            :sym ',name-sym 
+                            :description ,description
+                            ,@initargs 
+                            :level ,level :name (pretty-sym ',name-sym)))))

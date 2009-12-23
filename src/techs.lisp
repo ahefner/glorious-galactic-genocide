@@ -12,19 +12,19 @@
 
 ;;; Misc. starting techs
 
-(deftech (0 special-tech reserve-tanks :range-bonus 3)
+(deftech (0 special-tech reserve-tanks :probability 1.0 :range-bonus 3)
     "Extends ship range by 3 light-years.")
 
 (defparameter *friendly-planet-types* 
   '(terran oceanic jungle arid desert tundra minimal))
 
-(deftech (0 special-tech colony-base :colonizable *friendly-planet-types*)
+(deftech (0 special-tech colony-base :probability 1.0 :colonizable *friendly-planet-types*)
     "A colony base can be used to create a new settlement on any uninhabited planet with a breathable atmosphere. The colony ship is dismantled and recycled by the new colony.")
 
 
 ;;;; Engines
 
-(deftech (0 engine ion-drive :engine-speed 1)
+(deftech (0 engine ion-drive :probability 1.0 :engine-speed 1)
     "Allowing acceleration up to half the speed of light, the Ion Drive made interstellar travel practical for the first time.")
 
 (deftech (4 engine pulse-drive :engine-speed 2)
@@ -53,10 +53,10 @@
 
 ;;;; Armor
 
-(deftech (0 hull titanium-hull :armor-level 0)
+(deftech (0 hull titanium-hull :probability 1.0 :armor-level 0)
     "The standard titanium hull protects a starship from the rigors of interstellar travel.")
 
-(deftech (0 armor titanium-armor :armor-level 2 :hull-modifier 1.5 :linked-to (find-tech 'titanium-hull))
+(deftech (0 armor titanium-armor :probability 1.0 :armor-level 2 :hull-modifier 1.5 :linked-to (find-tech 'titanium-hull))
      "A reinforced hull with thicker titanium armor plating protects vital ship systems in case of attack.")
 
 (deftech (5 hull duranium-hull :armor-level 1 :hull-modifier 1.25)
@@ -97,7 +97,7 @@
 
 ;;;; Fuel technology
 
-(deftech (0 fuel fission-power-plant :range-bonus 4)
+(deftech (0 fuel fission-power-plant :probability 1.0 :range-bonus 4)
     "The standard fission power plant allows a starship to travel up to 4 light-years from the nearest colony.")
 
 (deftech (2 fuel high-efficiency-power-plant :name "High-efficiency Power Plant" :range-bonus 5)
@@ -164,10 +164,11 @@
 
 ;;;; Non-missile Weapons
 
-(deftech (0 beam laser-beam :damage (range 1 5))
+(deftech (0 beam laser-beam :probability 1.0 :damage (range 1 5))
     "Laser beams have been standard defensive weapons since the earliest days of space warfare.")
 
-(deftech (0 beam heavy-laser-beam :damage (range 2 9) :linked-to (find-tech 'laser-beam) :sizemod 3.0 :costmod 3.0 :range 2)
+(deftech (0 beam heavy-laser-beam :probability 1.0 :damage (range 2 9) :linked-to (find-tech 'laser-beam) 
+            :sizemod 3.0 :costmod 3.0 :range 2)
     "Heavy lasers provide the punch necessary to penetrate heavy armor.")
 
 (deftech (1 beam pulse-laser :damage (range 2 6) :costmod 1.2)
@@ -232,7 +233,7 @@
 
 ;;;; Missiles and Torpedos
 
-(deftech (0 missile megaton-missile :damage (range 2 7) :projectile-speed 2 :weapon-targetting-bonus 0)
+(deftech (0 missile megaton-missile :probability 1.0 :damage (range 2 7) :projectile-speed 2 :weapon-targetting-bonus 0)
     "Multi-megaton nuclear warheads, adapted from pre-spacefaring nuclear arsenals.")
 
 (deftech (4 missile zarite-missile :damage (range 3 9) :projectile-speed 2.5 :weapon-targetting-bonus 1)

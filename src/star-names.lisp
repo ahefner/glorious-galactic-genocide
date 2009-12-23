@@ -300,6 +300,8 @@
     ("Isis")
     ("Astra")
     ("Lalla")
+    ("Talos")
+    ("Sargon")
 ))
 
 (defun constellation-name-list ()

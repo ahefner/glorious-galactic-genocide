@@ -1,4 +1,7 @@
-;;; Word-wrapping text layout engine.
+;;;; Word-wrapping text layout engine.
+
+;;;; How to use this: Call TYPESET-TEXT to get a list of typeset
+;;;; words. Cache this. Call DRAW-TYPESET-TEXT to display them.
 
 (in-package :g1)
 
@@ -31,7 +34,7 @@
 
 #+SBCL (defun global-label (a b string) (make-img :name string :width (random 50))) ; Testing hack
 
-(defparameter *justify-threshold* 0.8)
+(defparameter *justify-threshold* 0.80)
 
 (defstruct typeset-word x y img)
 

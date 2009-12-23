@@ -69,7 +69,7 @@ struct cached_glyph
 
 struct cached_face
 {
-    unsigned facenum, text_height;
+    unsigned facenum, text_height, loadflags;
     struct cached_glyph glyphs[256];
 };
 
@@ -91,6 +91,8 @@ ensure_cached_face (unsigned facenum, unsigned text_height)
 
     f->facenum = facenum;
     f->text_height = text_height;
+    /*if (text_height <= 11) f->loadflags = FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL;
+    else*/ f->loadflags = FT_LOAD_RENDER | FT_LOAD_NO_HINTING | FT_LOAD_TARGET_NORMAL;
     memset(f->glyphs, 0, sizeof(f->glyphs));
 
     return f;
@@ -104,10 +106,9 @@ ensure_cached_glyph (struct cached_face *cface, unsigned char code, FT_UInt inde
         struct cached_glyph *gl = &cface->glyphs[code];
         FT_Face face = faces[cface->facenum];
         FT_Set_Pixel_Sizes(face, 0, cface->text_height);
-        int error = FT_Load_Glyph(face, index, 
-                              FT_LOAD_RENDER | 
-                              FT_LOAD_NO_HINTING | 
-                              FT_LOAD_TARGET_LIGHT);
+        unsigned flags = cface->loadflags;
+        int error = FT_Load_Glyph(face, index, flags);
+
         if (error) return NULL;
         
         gl->bitmap_left = face->glyph->bitmap_left;

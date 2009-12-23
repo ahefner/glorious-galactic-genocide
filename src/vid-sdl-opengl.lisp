@@ -311,6 +311,8 @@
          (destructuring-bind (face size string) args
            (render-label *global-owner* face size string)))))
 
+(defun gtxt (string) (global-label :sans 11 string))
+
 (defun player-label (key face size string)
   (orf (gethash key (owned-images-of *player*))
        (render-label *player* face size string)))

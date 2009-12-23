@@ -33,8 +33,16 @@
   (:method ((gadget gadget) uic)
     (gadget-paint (next-gadget gadget) uic)))
 
-(defun activate-gadget (gadget)
+(defun reactivate-gadget (gadget)
   (setf *gadget-root* gadget))
+
+(defun activate-new-gadget (gadget)
+  (setf (next-gadget gadget) *gadget-root* 
+        *gadget-root* gadget))
+
+(defun pop-gadget (gadget)
+  (assert (not (null (next-gadget gadget))))
+  (reactivate-gadget (next-gadget gadget)))
 
 (defun update-modifier-masks (uic last-uic)
   (let ((now (uic-modifiers uic))
@@ -251,3 +259,35 @@
     (setf panel new-panel
           (host-of panel) host
           closing-panel nil)))
+
+;;;; Cursor Layout Utility
+
+(defun cursor-draw-img (cursor img &optional (color (cursor-color cursor)))
+  (when (cursor-newline-p cursor)
+    (setf (cursor-x cursor) (cursor-left cursor)
+          (cursor-newline-p cursor) nil))
+  (draw-img-deluxe img (cursor-x cursor) (cursor-y cursor) color)
+  (maxf (cursor-descent cursor) (- (img-height img) (img-y-offset img)))
+  (incf (cursor-x cursor) (img-width img)))
+
+(defun cursor-newline (cursor)
+  (incf (cursor-y cursor) (max (cursor-min-line-height cursor)
+                               (+ (cursor-y-pad cursor) (cursor-descent cursor))))
+  (setf (cursor-newline-p cursor) t
+        (cursor-descent cursor) 0
+        (cursor-x cursor) (cursor-left cursor)))
+
+(defun cursor-draw-line (cursor images)
+  (if (or (listp images) (vectorp images))
+      (map nil (lambda (img) (cursor-draw-img cursor img)) images)
+      (cursor-draw-img cursor images))
+  (cursor-newline cursor))
+
+(defun cursor-draw-lines (cursor line-seq)
+  (map nil (lambda (line) (cursor-draw-line cursor line)) line-seq))
+
+(defun cursor-advance (cursor advance)
+  (unless (cursor-x cursor)
+    (setf (cursor-x cursor) (cursor-left cursor)))
+  (setf (cursor-newline-p cursor) nil)
+  (incf (cursor-x cursor) advance))

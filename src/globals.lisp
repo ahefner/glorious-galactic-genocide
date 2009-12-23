@@ -24,6 +24,9 @@
 (defvar *presentation-stack*)
 (defvar *grab-id* nil)
 
+(defvar *label-color* nil)              ; Set at game initialization.
+(defvar *lighter-color* nil)
+
 ;;; Object currently being inspected by a panel, to highlight in the starmap.
 (defvar *selected-object* nil)
 

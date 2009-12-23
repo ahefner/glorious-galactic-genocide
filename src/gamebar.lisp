@@ -12,6 +12,8 @@
 (defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
   (with-slots (starmap panel closing-panel) gadget
     (cond 
+      ((eql char #\r)
+       (activate-new-gadget (make-instance 'research-ui :player *player*)))
       ((eql char #\Space)
        (client-do-next-turn gadget))
       ((and panel (not closing-panel)) (gadget-key-pressed panel uic keysym char))

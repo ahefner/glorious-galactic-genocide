@@ -601,6 +601,15 @@
   (loop for star across (stars universe) do (dolist (fleet (fleets-orbiting star)) (explore-star star (owner-of fleet))))
   (incf (year-of universe) 2))
 
+;;;; Technology
+
+(defun grant-tech (player tech)
+  (pushnew tech (technologies-of player))
+  (deletef (potential-techs-of player) tech)
+  (loop for linked being the hash-values of *name->tech*
+        when (eql tech (linked-to linked))
+        do (grant-tech player linked)))
+
 ;;;; Designs
 
 (defun design-techs (design) (remove nil (design-tech-slots design)))

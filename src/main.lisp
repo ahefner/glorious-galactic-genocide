@@ -97,7 +97,9 @@
  
   (multiple-value-bind (*universe* *player*) (make-test-universe)
     (setf *gameui* (create-gameui *universe*)
-          *gadget-root* *gameui*)
+          *gadget-root* *gameui*
+          *label-color* (pstyle-label-color (style-of *player*))
+          *lighter-color* (color-lighten *label-color*))
     
 ;;    (time (uim-sdl-run))
     #+NIL (repaint (initial-uic))
