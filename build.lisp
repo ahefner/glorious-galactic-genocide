@@ -98,8 +98,6 @@ for comparison. Accepts and produces only lists."
 
 ;;;; Build process
 
-(format t "~&--------------- ESTABLISHING COMPILE-TIME ENVIRONMENT ---------------~%")
-
 (defvar *compiler-sources* (make-hash-table :test 'equal))
 
 (defun ensure-compiler-source (filename)
@@ -109,25 +107,33 @@ for comparison. Accepts and produces only lists."
                                              (pathname-name (pathname filename)))))
     (setf (gethash filename *compiler-sources*) t)))
 
-(loop for filename in (lisp-compile-sources)
-      do (ensure-compiler-source filename))
 
-(format t "~&--------------- BUILDING SOURCE FILES ---------------~%")
+
+(defun load-compiler-sources ()
+  (format t "~&--------------- ESTABLISHING COMPILE-TIME ENVIRONMENT ---------------~%")
+  (loop for filename in (lisp-compile-sources)
+        do (ensure-compiler-source filename)))
+
+;;(format t "~&--------------- BUILDING SOURCE FILES ---------------~%")
 
 ;(trace changed-dependencies)
 ;(trace object-pathname)
 ;(trace c::compiler-cc)
 ;(trace newer?)
 
-(loop for source-spec in (append (c-sources) (lisp-sources))
+(loop with compiler-sources-loaded = nil 
+      for source-spec in (append (c-sources) (lisp-sources))
       as filename = (if (listp source-spec)
                         (first source-spec)
                         source-spec)
       as compile-time-deps = (and (listp source-spec) (rest source-spec))
-      as deps = (changed-dependencies (pathname filename) compile-time-deps)
+      as deps = (changed-dependencies (pathname filename) compile-time-deps)      
       do (print (list :file filename :compile-time-deps compile-time-deps :deps deps))
       when deps
       do (progn
+           (unless compiler-sources-loaded 
+             (setf compiler-sources-loaded t)
+             (load-compiler-sources))
            (format t "~&---- Compiling ~A ----~%" filename)
            (when (probe-file (object-pathname filename))
              (format t "~&(Recompiling due to changes in ~{~A~^, ~})~%" deps))
@@ -160,7 +166,7 @@ for comparison. Accepts and produces only lists."
                   :lisp-files (source-names->object-names (lisp-linked-sources))
                   :ld-flags (append (mapcar #'namestring (source-names->object-names (c-sources)))
                                     (mapcar (lambda (x) (format nil "-l~A" x)) (shared-libraries)))
-                  :epilogue-code '(g1:main) #+NIL '(eval (read-from-string "(g1:main)")))
+                  :epilogue-code '(eval (read-from-string "(g1:main)")))
 
 (format t "~&--------------- BUILD COMPLETE ! ---------------~%")
 (finish-output)
