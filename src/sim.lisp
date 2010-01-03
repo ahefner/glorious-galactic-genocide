@@ -363,7 +363,7 @@
 
 (defun simulate-colony (colony)  
   ;;(format t "~&Wasted ~D of ~D production units.~%" (unallocated-production-of colony) (production-of colony))
-
+  (setf (spend-research (spending-vector-of colony)) 0)
   ;; Apply budget to spending
   (map-into (spending-vector-of colony) #'+ (spending-vector-of colony) (colony-compute-budget colony))
 
@@ -392,6 +392,9 @@
 
   colony)
 
+(defun tally-tech-spending (player)
+  (loop for colony across (colonies player)
+        summing (spend-research (spending-vector-of colony))))
 
 ;;; Debug shit
 
@@ -593,22 +596,29 @@
     (colony-turn-prep (colony-of star))
     (update-player-planets (universe-of star))))
 
-;;;; Turn cycle
-
-(defun next-turn (universe)
-  (loop for star across (stars universe) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
-  (loop for fleet in (fleets-in-transit *universe*) do (simulate-fleet fleet))
-  (loop for star across (stars universe) do (dolist (fleet (fleets-orbiting star)) (explore-star star (owner-of fleet))))
-  (incf (year-of universe) 2))
-
 ;;;; Technology
+
+(defun update-player-attributes (player)
+  (let ((globals (remove-if-not (lambda (tech) (typep tech 'global-tech)) (technologies-of player))))
+    (setf (range-of player) (reduce #'max globals :key #'range-bonus :initial-value 4))))
 
 (defun grant-tech (player tech)
   (pushnew tech (technologies-of player))
   (deletef (potential-techs-of player) tech)
   (loop for linked being the hash-values of *name->tech*
-        when (eql tech (linked-to linked))
-        do (grant-tech player linked)))
+        when (eql tech (linked-to linked)) 
+        do (grant-tech player linked))
+  (update-player-attributes player))
+
+(defun tech-level-cost (level) (* 100 (round (expt level 1.6))))
+
+(defun tech-cost (tech) (tech-level-cost (level-of tech)))
+
+(defun progress-research-project (player project investment)
+  (incf (researching-spent project) investment)
+  (if (>= (researching-spent project) (tech-cost (researching-tech project)))
+      (prog1 t (grant-tech player (researching-tech project)))
+      nil))
 
 ;;;; Designs
 
@@ -625,6 +635,31 @@
   (setf (speed-of design) (engine-speed (engine-of design)))
   (setf (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus)))
 
+;;;; Turn cycle
 
-  
+(defun next-turn (universe)  
+  (loop for star across (stars universe) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
+  (loop for fleet in (fleets-in-transit *universe*) do (simulate-fleet fleet))
+  (loop for star across (stars universe) do (dolist (fleet (fleets-orbiting star)) (explore-star star (owner-of fleet))))
+
+  ;; Note that we can't do research until we've computed final planet budgets.
+  (dolist (player (all-players universe))
+    (loop for project across (research-projects-of player)
+          as investment = (tally-tech-spending player)
+          when project do (progress-research-project player project investment)))
+
+  ;; One last thing:
+  (incf (year-of universe) 2))
+
+;;;; Events
+
+(defun enqueue-player-event (player new-event)
+  (setf (event-list-of player)
+        (delete-if (lambda (old-event) (event-supercedes? old-event new-event))
+                   (event-list-of player)))
+  (push event (event-list-of player)))
+
+(defun new-player-event (player event-type &rest args)
+  (enqueue-player-event player (apply #'make-instance event-type :player player args)))
+
 

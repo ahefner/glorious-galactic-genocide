@@ -82,6 +82,8 @@
     
     (when *debug-show-packset* (debug-show-packset))
     
+;;    (run-shader-test uic)
+    
     (values)))
 
 

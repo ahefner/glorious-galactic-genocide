@@ -9,16 +9,19 @@
 (ffi:clines "#include \"text-render.h\"")
 (ffi:clines "#include <SDL/SDL_image.h>")
 
-(defun check-gl-error ()
+(defun check-gl-error (&optional (context ""))
   (let ((err (c :int "glGetError()")))
-    (unless (c :int "#0 == GL_NO_ERROR" :int err)
-      (error "OpenGL error ~D" err))))
+    (unless (zerop err)
+      (error "OpenGL error ~D ~A" err context))))
 
 (defstruct gltexobj texid width height)
 
-(let ((texobj nil))
-  (defun bind-texobj (obj)
-    (unless (eq texobj obj)
+(let ((texobjs (make-array 8)))
+  (defun bind-texobj (obj &optional (texnum 0))
+    (unless (eq (aref texobjs texnum) obj)
+      (ffi:c-inline (texnum) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
+      (setf (aref texobjs texnum) obj)
+      (c "glEnable(GL_TEXTURE_2D)")
       (c "glBindTexture(GL_TEXTURE_2D, #0)" :int (gltexobj-texid obj))
       (c "glMatrixMode(GL_TEXTURE)")
       (c "glLoadIdentity()")
@@ -79,7 +82,47 @@
   (do-draw-tile x0 y0 x1 y1 tx ty)
   (c "glEnd()"))
 
-(defun render-starfield (x y)
+(defun do-dual-draw-tile (x0 y0 x1 y1 u0 v0 u1 v1)
+  (ffi:c-inline (x0 y0 x1 y1 u0 v0 u1 v1) (:int :int :int :int :int :int :int :int) (values)
+   "{ int x0 = #0, y0 = #1, x1 = #2, y1 = #3, u0 = #4, v0 = #5, u1 = #6, v1 = #7, width = x1-x0, height = y1-y0;
+      glMultiTexCoord2i(GL_TEXTURE0, u0, v0);
+      glMultiTexCoord2i(GL_TEXTURE1, u1, v1);
+      glVertex2i(x0, y0);
+      glMultiTexCoord2i(GL_TEXTURE0, u0+width, v0);
+      glMultiTexCoord2i(GL_TEXTURE1, u1+width, v1);
+      glVertex2i(x0+width, y0);
+      glMultiTexCoord2i(GL_TEXTURE0, u0+width, v0+height);
+      glMultiTexCoord2i(GL_TEXTURE1, u1+width, v1+height);
+      glVertex2i(x0+width, y0+height);
+      glMultiTexCoord2i(GL_TEXTURE0, u0, v0+height);
+      glMultiTexCoord2i(GL_TEXTURE1, u1, v1+height);
+      glVertex2i(x0, y0+height); }"
+   :one-liner nil))
+
+(defun do-triple-draw-tile (x0 y0 x1 y1 u0 v0 u1 v1 u2 v2)
+  (ffi:c-inline (x0 y0 x1 y1 u0 v0 u1 v1 u2 v2) (:int :int :int :int :int :int :int :int :int :int) (values)
+   "{ int x0 = #0, y0 = #1, x1 = #2, y1 = #3, u0 = #4, v0 = #5, u1 = #6, v1 = #7, u2=#8, v2=#9, width = x1-x0, height = y1-y0;
+      glMultiTexCoord2i(GL_TEXTURE0, u0, v0);
+      glMultiTexCoord2i(GL_TEXTURE1, u1, v1);
+      glMultiTexCoord2i(GL_TEXTURE2, u2, v2);
+      glVertex2i(x0, y0);
+      glMultiTexCoord2i(GL_TEXTURE0, u0+width, v0);
+      glMultiTexCoord2i(GL_TEXTURE1, u1+width, v1);
+      glMultiTexCoord2i(GL_TEXTURE2, u2+width, v2);
+      glVertex2i(x0+width, y0);
+      glMultiTexCoord2i(GL_TEXTURE0, u0+width, v0+height);
+      glMultiTexCoord2i(GL_TEXTURE1, u1+width, v1+height);
+      glMultiTexCoord2i(GL_TEXTURE2, u2+width, v2+height);
+      glVertex2i(x0+width, y0+height);
+      glMultiTexCoord2i(GL_TEXTURE0, u0, v0+height);
+      glMultiTexCoord2i(GL_TEXTURE1, u1, v1+height);
+      glMultiTexCoord2i(GL_TEXTURE2, u2, v2+height);
+      glVertex2i(x0, y0+height); }"
+   :one-liner nil))
+
+
+(defun render-starfield-opengl (x y)
+  ;;; Vanilla OpenGL starfield renderer
   (c "glEnable(GL_TEXTURE_2D)")
   (c "glColor3f(1.0f, 1.0f, 1.0f)")
   (bind-texobj *stars00*)
@@ -93,6 +136,45 @@
   (bind-texobj *stars01*)
   (c "glBlendFunc(GL_ONE, GL_ONE)")
   (draw-tile 0 0 (c :int "window_width") (c :int "window_height") (round (* 0.666 x)) (round (* 0.666 y))))
+
+(defun render-starfield-multitex (x y)
+  ;;; Render starfield using multiple texture units
+  (c "glActiveTexture(GL_TEXTURE0)")
+  (bind-texobj *stars00* 0)
+  (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)")
+
+  (c "glActiveTexture(GL_TEXTURE1)")
+  (bind-texobj *stars03* 1)
+  (c "glEnable(GL_TEXTURE_2D)")
+  (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD)")
+
+  (c "glActiveTexture(GL_TEXTURE2)") 
+  (bind-texobj *stars01* 2)
+  (c "glEnable(GL_TEXTURE_2D)")
+  (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD)")
+
+  (c "glBlendFunc(GL_ONE, GL_ZERO)")
+  (c "glBegin(GL_QUADS)")
+  (do-triple-draw-tile 0 0 (c :int "window_width") (c :int "window_height")
+                     (ash x -1) (ash y -1)
+                     (round (* 0.58 x)) (round (* 0.58 (+ y -25)))
+                     (round (* 0.666 x)) (round (* 0.666 y)))
+  (c "glEnd()")
+
+  ;; Cleanup GL state for rest of game:
+  (c "glActiveTexture(GL_TEXTURE1)")
+  (c "glDisable(GL_TEXTURE_2D)")
+
+  (c "glActiveTexture(GL_TEXTURE2)")
+  (c "glDisable(GL_TEXTURE_2D)")
+
+  (c "glActiveTexture(GL_TEXTURE0)")
+  (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)"))
+
+(defun render-starfield (x y)
+  ;; The difference on my laptop? 130 fps versus 111 fps. Screw it.
+  (render-starfield-opengl x y)
+  #+NIL (render-starfield-multitex x y))
 
 (defun paint-begin ()
 ;;  (c "glClearColor(#0, #1, #2, 0.0)" :float (random 1.0) :float (random 1.0) :float (random 1.0))
@@ -543,3 +625,166 @@
   (fill-rect 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)
   (draw-tile 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
 
+
+;;;; Shader test
+
+(defun gl-get-integer (enum)
+  (prog1 (ffi:c-inline (enum) (:int) :int "{ GLint tmp; glGetIntegerv((GLenum)#0, &tmp); @(return 0) = tmp; }"
+                       :one-liner nil)
+    (check-gl-error)))
+
+(defun alloc-program-id ()
+  (ffi:c-inline () () :unsigned-int
+   " { GLuint id; glGenProgramsARB(1, &id); @(return 0)=id; }"))
+
+(defun sgr (&rest modes) (format t "~C[~{~D~^;~}m" #\Esc modes)) ; on loan from Shuffletron
+
+(defun program-shader (source &key (signal-error t) (error-stream *trace-output*) (name "anonymous"))
+  (check-gl-error)
+  (c "glProgramStringARB(GL_FRAGMENT_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, #0, #1)"
+     :unsigned-int (length source) :cstring source)
+  (let ((err (call :int "glGetError")))
+    (cond
+      ((zerop err) t)
+      ((/= err (cx :int "GL_INVALID_OPERATION"))
+       (error "Unknown error ~D (0x~X) from glProgramStringARB" err err))
+      (t (let* ((position (gl-get-integer (cx :int "GL_PROGRAM_ERROR_POSITION_ARB")))
+                (inline (< position (length source)))
+                (string (c :cstring "glGetString(GL_PROGRAM_ERROR_STRING_ARB)"))
+                (output (format nil "Shader (~A) error, position ~:D~%~A"                                
+                                name position string)))
+           (when error-stream
+             (format error-stream "~A~%" output)
+             (when inline
+               (format error-stream "------------------------------------------------------------~%")
+               (sgr 32)
+               (write-string (subseq source 0 position) error-stream)
+               (sgr 1 33)
+               (format error-stream ">>")
+               (sgr 0 31)
+               (write-string (subseq source position) error-stream)
+               (sgr 0)
+               (format error-stream "------------------------------------------------------------~%")))
+           (when signal-error (error "~A" output))
+           nil)))))
+    
+    
+
+(let ((init nil)
+      (id nil))
+  (defun ensure-shader-test-init ()
+    (check-gl-error)
+    (unless init
+      (setf init t
+            id (alloc-program-id))
+      (c "glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, #0)" :unsigned-int id)
+      (check-gl-error "bind fragment program")
+      (let ((shader-src
+"!!ARBfp1.0
+# Normal mapped sprite shader
+OPTION ARB_precision_hint_fastest;
+ATTRIB tc = fragment.texcoord;          # first set of texture coordinates
+ATTRIB ulight = fragment.color.primary; # abuse primary color as light vector. not ideal.
+
+PARAM uadjust = { 0.5, 0.5, 0.5, 0 };
+
+OUTPUT outColor = result.color;
+
+TEMP color, surfnorm, tmp, light;
+
+TEX surfnorm, tc, texture[1], 2D;     # Sample normal map
+TEX color,    tc, texture[0], 2D;     # Sample color map
+SUB light, ulight, uadjust;           # Same same
+SUB surfnorm, surfnorm, uadjust;      # Adjust from unsigned to signed range (-0.5,0.5)
+# MUL surfnorm, surfnorm, {2.0, 2.0, 2.0, 1.0};
+DP3 tmp, surfnorm, light;             # Diffuse coefficient
+#MUL tmp, tmp, tmp;
+ADD tmp, tmp, tmp;                    # (correct range of inputs)
+ADD tmp, tmp, tmp;                    # (correct range of inputs)
+MUL tmp, tmp, color;
+
+MOV tmp.a, surfnorm.a;
+MOV outColor, tmp;
+
+
+    
+END
+"))
+        (program-shader shader-src)
+))))
+      
+      
+(defun unorm (vector)
+  (v+ (vec 0.5 0.5 0.5) (vscaleto vector 0.5)))
+
+#+NIL
+(defun do-draw-ship-sprite (x0 y0 x1 y1 tx ty)
+  (ffi:c-inline (x0 y0 x1 y1 tx ty) (:int :int :int :int :int :int) (values)
+   "{ int x0 = #0, y0 = #1, x1 = #2, y1 = #3, tx = #4, ty = #5, width = x1-x0, height = y1-y0;
+      glMultiTexCoord2i(GL_TEXTURE0, tx, ty);
+      glMultiTexCoord2i(GL_TEXTURE1, tx, ty);
+      glVertex2i(x0, y0);
+      glMultiTexCoord2i(GL_TEXTURE0, tx+width, ty);
+      glMultiTexCoord2i(GL_TEXTURE1, tx+width, ty);
+      glVertex2i(x0+width, y0);
+      glMultiTexCoord2i(GL_TEXTURE0, tx+width, ty+height);
+      glMultiTexCoord2i(GL_TEXTURE1, tx+width, ty+height);
+      glVertex2i(x0+width, y0+height);
+      glMultiTexCoord2i(GL_TEXTURE0, tx, ty+height);
+      glMultiTexCoord2i(GL_TEXTURE1, tx, ty+height);
+      glVertex2i(x0, y0+height); }"
+   :one-liner nil))
+
+(defun do-draw-ship-sprite (x y tw th angle zoom)
+  (ffi:c-inline (x y tw th angle zoom) (:int :int :int :int :float :float) (values)
+   "{ float angle = #4, zoom = #5;
+      int x = #0, y = #1, width = #2, height = #3;
+      int tx = 0, ty = 0;
+      float cx = x, cy = y, hw = zoom * width * 0.5f, hh = zoom * height * 0.5f;
+      float adx = hw *  cos(angle), ady = hh * sin(angle);     
+      float idx = hw * -sin(angle), idy = hh * cos(angle);
+
+      glMultiTexCoord2i(GL_TEXTURE0, tx, ty);
+      glMultiTexCoord2i(GL_TEXTURE1, tx, ty);
+      glVertex2f(cx - adx - idx, cy - ady - idy);
+
+      glMultiTexCoord2i(GL_TEXTURE0, tx+width, ty);
+      glMultiTexCoord2i(GL_TEXTURE1, tx+width, ty);
+      glVertex2f(cx + adx - idx, cy + ady - idy);
+
+      glMultiTexCoord2i(GL_TEXTURE0, tx+width, ty+height);
+      glMultiTexCoord2i(GL_TEXTURE1, tx+width, ty+height);
+      glVertex2f(cx + adx + idx, cy + ady + idy);
+
+      glMultiTexCoord2i(GL_TEXTURE0, tx, ty+height);
+      glMultiTexCoord2i(GL_TEXTURE1, tx, ty+height);
+      glVertex2f(cx - adx + idx, cy - ady + idy);
+
+    }"
+   :one-liner nil))
+
+(defun run-shader-test (uic)
+  (ensure-shader-test-init)
+  (let* ((x0 360)
+         (y0 300)
+         (angle (/ (uic-mx uic) 200.0))
+         (zoom (/ (+ 1.0 (/ (max 0 (- (uic-my uic) 100)) 300.0))))
+         (pz 10)
+         (light (unorm (print (vec (single (* -140 (cos angle))) (single (* -140 (sin angle))) (single 70))))))
+    (printl :angle angle :zoom zoom :light light)
+    (with-vector (l light)
+      (call "glColor3f" :float l.x :float l.y :float l.z))
+    (c "glEnable(GL_FRAGMENT_PROGRAM_ARB)")
+    (check-gl-error "enable fragment program")
+    (let ((nm  (texture :scout-normals :filter t))
+          (tex (texture :scout-texture :filter t)))
+      (bind-texobj tex 0)
+      (bind-texobj nm  1)
+      (c "glBegin(GL_QUADS)")
+      (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
+      (c "glEnd()"))
+    (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")
+    (c "glActiveTexture(GL_TEXTURE1)")
+    (c "glDisable(GL_TEXTURE_2D)")
+    (c "glActiveTexture(GL_TEXTURE0)")
+    (check-gl-error)))

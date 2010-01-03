@@ -965,24 +965,35 @@
 
 (defun ui-finish-turn ()
   (with-slots (panel) *gameui*
-    (finish-for-turn panel)))  
+    (finish-for-turn panel)
+    (prompt-for-research)))
 
 (defun update-ui-for-new-turn ()
-  ;; If there are planels open, update them.
+  (present-new-techs)
+  ;; If there are panels open, update them. Also, present completed research and prompt for new research.
   (with-slots (panel closing-panel starmap) *gameui*
-    (unless closing-panel
-      (cond
-        ((typep panel 'star-panel)
-         (starmap-select starmap (star-of panel)))
-        ((typep panel 'planet-panel) 
-         (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
-        ((typep panel 'colony-panel)
-         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel)
-                                        :init-panel (panel-of panel) 
-                                        :init-closing-panel (child-panel-close? panel)
-                                        :init-panel-y (panel-y-of panel))))
-        ((typep panel 'fleet-panel)
-         (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel))))))))
+    (cond
+      ;; If there are events, show the events.
+      ((event-list-of *player*)
+       ;; HACK!
+       (loop for event in (event-list-of *player*)
+             do (format t "~&~A~%" (summary-of event)))
+       ;; HACK!
+       (setf (event-list-of *player*) nil))
+       ;; Otherwise, update the existing panel
+      (closing-panel
+       (cond
+         ((typep panel 'star-panel)
+          (starmap-select starmap (star-of panel)))
+         ((typep panel 'planet-panel) 
+          (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
+         ((typep panel 'colony-panel)
+          (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel)
+                                         :init-panel (panel-of panel) 
+                                         :init-closing-panel (child-panel-close? panel)
+                                         :init-panel-y (panel-y-of panel))))
+         ((typep panel 'fleet-panel)
+          (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel)))))))))
 
 ;;;; AUGH
 

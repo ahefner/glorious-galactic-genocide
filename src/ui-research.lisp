@@ -174,5 +174,17 @@
         (when inspector-tech
           (run-ui-research-inspector uic inspector-tech (round inspector-y)))))))
 
+(defun prompt-for-research ()
+  (when (some #'null (research-projects-of *player*))
+    (printl "Imagine the game has just nagged you to select new research projects.")))
 
-  
+(defun unpresented-techs (player)
+  (loop for tech in (technologies-of player)
+        unless (gethash tech (presented-technologies-of player))
+        collect tech))
+
+(defun present-new-techs ()
+  (dolist (tech (unpresented-techs *player*))
+    (printl "pretend you were just shown:" tech)
+    (setf (gethash tech (presented-technologies-of *player*)) t))
+  (prompt-for-research))

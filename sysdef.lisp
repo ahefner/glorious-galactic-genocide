@@ -20,7 +20,7 @@
         "src/globals.lisp"
         "src/util.lisp"
         "src/math.lisp"
-        "src/vid-sdl-opengl.lisp"
+        '("src/vid-sdl-opengl.lisp" "src/math.lisp")
         "src/text-layout.lisp"
         "src/uim-defs.lisp"
         '("src/uim.lisp"     "src/uim-defs.lisp")

@@ -518,8 +518,10 @@
   (let* ((all-techs (choose-techs-for-race (race-of player)))
          (initial-techs (remove-if-not (lambda (tech) (zerop (level-of tech))) all-techs))
          (remaining-techs (remove 0 all-techs :key #'level-of)))
-    (loop for tech in initial-techs do (grant-tech player tech))
-      (setf (potential-techs-of player) remaining-techs)))
+    (loop for tech in initial-techs do 
+          (grant-tech player tech)
+          (setf (gethash tech (presented-technologies-of player)) t))
+    (setf (potential-techs-of player) remaining-techs)))
 
 (defun add-initial-ships-and-designs (player)
   (let ((designs (ship-designs-of player))

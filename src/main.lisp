@@ -1,6 +1,7 @@
 (in-package :g1)
 
 (ffi:clines "#include \"sys.h\"")
+(ffi:clines "#include \"GL/gl.h\"")
 
 (defun apath (filename-or-symbol)       ; What file should I live in?
   (typecase filename-or-symbol
@@ -83,8 +84,14 @@
 
   (setf *package* (find-package :g1))
   (unless (zerop (c :int "sys_init(\"Glorious Galactic Genocide!\")")) 
-    (print "oh, poo.")
+    (print "System init failed. Oh, poo.")
     (ext:quit))
+
+  (format t "~&GL Vendor: ~A~%GL Renderer: ~A~%GL Version: ~A~%~D texture units.~%"
+          (c :cstring "glGetString(GL_VENDOR)")
+          (c :cstring "glGetString(GL_RENDERER)")
+          (c :cstring "glGetString(GL_VERSION)")
+          (gl-get-integer (cx :int "GL_MAX_TEXTURE_UNITS")))
   
   (load-assets)
 

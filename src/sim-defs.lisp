@@ -16,6 +16,9 @@
 (defclass in-universe ()
   ((universe :accessor universe-of :initarg :universe)))
 
+(defclass at-star ()
+  ((star :accessor star-of :initarg :star)))
+
 (defclass universe ()
   ((stars :accessor stars :initarg :stars)
    (year :accessor year-of :initform 2200)
@@ -73,16 +76,19 @@
   ((explored-stars :reader explored-stars-of :initform (make-hash-table :test 'eq))
    (race :reader race-of :initarg :race)
    (technologies :accessor technologies-of :initform nil)
+   (presented-technologies :reader presented-technologies-of :initform (make-hash-table))
    (potential-techs :accessor potential-techs-of :initform nil)
    (style :accessor style-of :initarg :style :initform nil)
    (ship-designs-of :reader ship-designs-of :initform (make-array 9))
+   (research-projects :accessor research-projects-of :initform (make-array 2))
+   (event-list :accessor event-list-of :initform nil)
 
-   ;;; Runtime bullshit:
+   ;;; Dubious runtime bullshit:
    (owned-images :accessor owned-images-of :initform (make-hash-table))
 
-   ;;; All the slots below are cached values, updated at the beginning of each turn:
+   ;;; All the slots below are cached values, updated whenever:
 
-   (travel-range :accessor range-of :initform 4)
+   (travel-range :accessor range-of :initform nil)
    ;; Number of population units current technology permits to inhabit per square of each terrain type:
    (adaptation-vector :accessor adaptation-vector-of :initarg :adaptation-vector)
    (growth-costs        :accessor growth-costs-of)
@@ -97,9 +103,8 @@
 
 (defstruct pstyle label-color fill-color primary-color)
 
-(defclass planet (named)
-  ((star :reader star-of :initarg :star)
-   (planet-type :reader planet-type-of :initarg :planet-type)
+(defclass planet (named at-star)
+  ((planet-type :reader planet-type-of :initarg :planet-type)
    (planet-attribute :reader planet-attribute-of :initarg :planet-attribute :initform :abundant)
    (terrains :reader terrains-of :initform nil :initarg :terrains)
    (habitability :accessor habitability-of :initform 1.0 :initarg :habitability)
@@ -164,15 +169,15 @@
 
 ;;;; Ships and fleets
 
-(defclass fleet (owned ent in-universe perishable)
-  ((successor :accessor successor-of :initform nil) ; If merged, points to merged fleet. Forms a chain.
-   (star :accessor star-of :initform nil :initarg :star)
+(defclass fleet (owned ent in-universe perishable at-star)
+  ((successor :accessor successor-of :initform nil) ; If merged, points to merged fleet. Forms a chain.   
    (destination :accessor destination-of :initform nil :initarg :destination)
    (orbital :accessor orbital-of :initform nil :initarg :orbital)
    (stacks :accessor stacks-of :initform nil :initarg :stacks)
    (speed :accessor speed-of :initform 1 :initarg :speed)   
    (initiative :accessor initiative-of :initform 0)
-   (vloc :accessor vloc :initarg :vloc)))
+   (vloc :accessor vloc :initarg :vloc))
+  (:default-initargs :star nil))
 
 (defstruct stack design count fleet)
 
@@ -330,3 +335,30 @@
                             :description ,description
                             ,@initargs 
                             :level ,level :name (pretty-sym ',name-sym)))))
+
+(defstruct researching tech spent)
+
+;;;; Events / Announcements. Modal events run first, grouped by
+;;;; type. Modeless events are presented on the starmap screen.
+
+(defclass player-event (owned)
+  ((summary :reader summary-of :initform nil :initarg :summary)))
+
+(defgeneric event-supercedes? (this by)
+  (:method (this by)
+    (declare (ignore this by))
+    nil))
+
+;;; Modal and modeless events are an exhaustive partition of player-event.
+(defclass modal-event (player-event) ())
+(defclass modeless-event (player-event) ())
+
+;;; Concrete event types:
+
+(defclass explored-event (modeless-event at-star) ())
+
+
+(defclass colony-ship-arrived-event (modeless-event at-star) ())
+
+(defmethod event-supercedes? ((this explored-event) (that colony-ship-arrived-event))
+  (eql (star-of this) (star-of that)))
