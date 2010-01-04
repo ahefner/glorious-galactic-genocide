@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <SDL/SDL.h>
+#include <SDL/SDL_image.h>
 #include <GL/gl.h>
 
 SDL_Surface *window_surface;
@@ -39,6 +40,8 @@ int sys_setvideomode (void)
 int sys_init (char *title)
 {
     int i, tmp;
+    // My SDL_image is too old for this. It will supposedly make things faster.
+    //IMG_Init(IMG_INIT_PNG);
 
     apptitle = title;
 
