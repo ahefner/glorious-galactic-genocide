@@ -11,6 +11,7 @@ Resolved minor issues:
 * Starmap scrolling feels gritty
 * Fix quantization of scroll coordinates when zoomed beyond 100%
 * Slow convergence when scrolling/zooming (clamp, or add small linear component)
+* After founding new colony, switch to colony panel.
 
 
 

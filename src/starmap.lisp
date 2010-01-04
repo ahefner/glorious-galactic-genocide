@@ -307,7 +307,11 @@
 
 (defun starmap-select (starmap object)
   (typecase object
+    (colony (activate-panel (make-instance 'colony-panel :starmap starmap :colony object)))
     (fleet (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet object)))
+    ;; Okay, this is fucking stupid. It won't happen, but
+    ;; hypothetically, what if I really wanted to select the star
+    ;; rather than the DWIM choice here?
     (star
      (let* ((star (and (typep object 'star) object))
             (explored (explored? *player* star)) ; XXX
@@ -439,11 +443,13 @@
 
         (cursor-draw-lines col2 col2-labels))
 
-      (and.. (find *player* (fleets-orbiting (star-of planet)) :key #'owner-of)
-             (fleet-find-colony-ship-for $ planet)
+      (and.. (null (owner-of planet))
+             (find *player* (fleets-orbiting (star-of planet)) :key #'owner-of)
+             (fleet-find-colony-ship-for $ planet)             
              (run-labelled-button uic (global-label :bold 14 "Colonize") 436 (- bottom 40)
                                   :color (pstyle-label-color (style-of (owner-of $$))))
-             (establish-colony (owner-of $$$) $$))
+             (establish-colony (owner-of $$$) $$)
+             (starmap-select starmap $))
 
       (let ((x0 534))
         (orf description-typesetting 
@@ -915,8 +921,9 @@
                              (fleet-find-colony-ship-for fleet $$))
                   (deflabel :colonize (:face :bold :size 14) "Colonize")
                   (when (run-labelled-button uic (label :colonize) (allot :colonize) y :color color1)
-                    (establish-colony (owner-of fleet) (fleet-find-colony-ship-for fleet (planet-of (star-of fleet)))))))))
-))))
+                    (let ((star (star-of fleet)))
+                    (establish-colony (owner-of fleet) (fleet-find-colony-ship-for fleet (planet-of star)))
+                    (starmap-select starmap star)))))))))))
 
 (defun fleet-panel-ready-to-send (panel)
   (with-slots (fleet counts target label-table too-far) panel
