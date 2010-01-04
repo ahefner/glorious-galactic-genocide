@@ -593,8 +593,9 @@
                                             :planet planet
                                             :population 1
                                             :factories 1))
-    (colony-turn-prep (colony-of star))
-    (update-player-planets (universe-of star))))
+    (prog1 (colony-of planet)
+      (colony-turn-prep (colony-of star))
+      (update-player-planets (universe-of star)))))
 
 ;;;; Technology
 
