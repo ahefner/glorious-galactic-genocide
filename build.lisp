@@ -75,7 +75,7 @@ for comparison. Accepts and produces only lists."
   (let ((stream (ext:run-program "cpp" 
                                  (append (cflags)
                                          (list "-M" (namestring filename)))
-                                 :input nil :output :stream :error t)))
+                                 :input nil :output :stream :error *error-output*)))
     (handler-case 
         (progn
           (loop until (eql (read-char stream) #\:))
