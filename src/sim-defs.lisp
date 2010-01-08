@@ -352,8 +352,12 @@
 ;;; Modal and modeless events are an exhaustive partition of player-event.
 (defclass modal-event (player-event) ())
 (defclass modeless-event (player-event) ())
+(defclass non-ui-event (player-event) ())
 
 ;;; Concrete event types:
+
+(defclass new-tech-event (non-ui-event)
+  ((tech :initarg :tech)))
 
 (defclass explored-event (modeless-event at-star) ())
 

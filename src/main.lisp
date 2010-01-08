@@ -60,9 +60,11 @@
   (eval (read-from-string "(swank:create-server :port 0)")))
 
 (defun main ()
+  ;; Old ECL hacks. Hopefully shouldn't be necessary anymore.
+  #+NIL
   (setf system::*lisp-initialized* t
         system::*break-enable* t)
-  
+
   ;; Disable goddamned floating point traps.
   (ext:trap-fpe 'floating-point-underflow nil)
 
@@ -83,6 +85,7 @@
   (setf *global-owner* (make-instance 'global-owner))
 
   (setf *package* (find-package :g1))
+
   (unless (zerop (c :int "sys_init(\"Glorious Galactic Genocide!\")")) 
     (print "System init failed. Oh, poo.")
     (ext:quit))
@@ -116,3 +119,52 @@
 
   (format t "~&Bye!~%")
   (ext:quit))
+
+;;;; Runtime recompilation
+
+(defvar *compilation-times* (make-hash-table :test 'equal))
+
+(defun ensure-source-file (filename)
+  (when (> (file-write-date (pathname filename))
+           (gethash filename *compilation-times* *program-start-time*))
+    ;; Another totally irrelevant race condition.
+    (setf (gethash filename *compilation-times*) (file-write-date (pathname filename)))
+    (format t "~&---- Compiling ~A ----~%" filename)
+    (let ((fasl (compile-file filename :print nil :verbose nil
+                              ;;:user-cflags (format nil "-I../src/ ~{ ~A~}" (cl-user::cflags))
+                              :output-file (format nil "obj/hotpatch_~A.fasl" 
+                                                   (pathname-name (pathname filename))))))
+      (unless fasl
+        (format *trace-output* "~&Error compiling ~A~%" filename)
+        (throw 'abort-reload t))
+      (load fasl))))
+
+(defun reload-modified-sources ()
+  ;; There's something completely insane about ECL that foils my
+  ;; attempts to hack in a special variable for user CC flags in.
+  #+NIL
+  (setf (symbol-value 'c::*user-cc-flags*)
+        (format nil "-I../src/ ~{ ~A~}" (cl-user::cflags))
+         #+NIL
+         (format nil "GAYNIGGERS ~A~{ ~A~}"
+                 #-HACKWTF" -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -g -O2 -fPIC  -D_THREAD_SAFE -Dlinux"
+                 #+HACKWTF c::*cc-flags* ; Unbound in the executable for whatever reason.
+                 (cl-user::cflags)))
+  ;;(declare (special c::*user-cc-flags*)) ; Seriously, what the fuck is with ECL?
+    ;;(format t "~&CFLAGS should now be: ~A~%" c::*cc-flags*)
+    (catch 'abort-reload 
+      (loop for source-spec in (append (cl-user::lisp-compile-sources) (cl-user::lisp-sources))
+            as filename = (if (listp source-spec)
+                              (first source-spec)
+                              source-spec)
+            as compile-time-deps = (and (listp source-spec) (rest source-spec))
+            do
+
+            (print (list :checking filename :deps compile-time-deps))
+            (mapc #'ensure-source-file compile-time-deps)
+            (ensure-source-file filename))))
+
+
+
+
+

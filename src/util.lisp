@@ -46,7 +46,9 @@ error if SEQUENCE is not a proper sequence."
 (defun lerp (param from to)
   (+ (* from (- 1.0f0 param)) (* to param)))
 
-(defun printl (&rest args) (print args))
+(defun printl (&rest args) 
+  (print args)
+  (finish-output))
 
 (defun whenzero (string number)
   (if (zerop number) string number))

@@ -24,7 +24,7 @@
     (declare (ignore cursor tech))))
 
 ;;; Some people may call this block names such "hack" or
-;;; "kludge". Ignore these philistines and their narrow perspective.
+;;; "kludge". Philistines, they are.
 
 (macrolet ((cout (label) `(cursor-draw-img cursor ,label))
            (pair (this that)
@@ -95,8 +95,9 @@
 
 (let ((typeset nil)
       (lasttech nil))
-  (defun run-ui-research-inspector (uic tech top)
-    (draw-bar* (img :upanel-left) (img :upanel-right) (texture :upanel-fill) 0 top (uic-width uic))
+  (defun run-ui-research-inspector (uic tech top &key (panel t))
+    (when panel
+      (draw-bar* (img :upanel-left) (img :upanel-right) (texture :upanel-fill) 0 top (uic-width uic)))
     (let* ((b (+ top 64))
            (baseline (+ top 50))
            (col2-x 250)
@@ -109,7 +110,6 @@
         (setf typeset (typeset-text *word-map* col2-width (description-of tech))))
       (print-tech-stats cursor tech)
       (draw-typeset-text typeset col2-x baseline #(255 255 255 255)))))
-  
 
 (defmethod gadget-paint ((gadget research-ui) uic)
   (with-slots (player alpha alpha-target 
@@ -123,6 +123,7 @@
         (if inspector-tech
             (setf close-inspector t)
             (setf alpha-target 0)))
+      ;; FIXME, framerate-dependent
       (setf alpha (clamp (+ alpha (if (and (zerop unfold) closing?) -13 13)) 0 255))
       (unless (= alpha 255)
         (gadget-paint (next-gadget gadget) (child-uic uic 0 0 :active nil)))
@@ -184,7 +185,52 @@
         collect tech))
 
 (defun present-new-techs ()
+  (activate-new-gadget (make-instance 'fade-transition-gadget 
+                                      :child (make-instance 'present-tech-ui :player *player*)))
   (dolist (tech (unpresented-techs *player*))
-    (printl "pretend you were just shown:" tech)
+    ;;(printl "pretend you were just shown:" tech)
     (setf (gethash tech (presented-technologies-of *player*)) t))
   (prompt-for-research))
+
+;;;;
+
+(defclass fade-transition-gadget (gadget)
+  ((child :initarg :child)
+   (level :initform 0.0)
+   (color :initform #(0 0 0) :initarg :color)
+   (state :initform :in)
+   (rate  :initform 500 :initarg rate)))
+
+(defmethod gadget-paint ((gadget fade-transition-gadget) uic)
+  (call-next-method gadget (child-uic uic 0 0 :active nil))
+
+  (with-slots (child level color state rate) gadget
+    (setf level (clamp (+ level (* (case state (:out -1.0) (otherwise 1.0))
+                                   rate 
+                                   (max 0.0001 (uic-delta-t uic))))
+                       #|min|# 0.0 #|max|# 255.0))
+    (with-vector (c color)
+      (fill-rect 0 0 (uic-width uic) (uic-height uic) c.x c.y c.z (round level)))
+    (cond
+      ((and (eq state :in) (> level 254.0))
+       (setf state t)
+       (activate-new-gadget child))
+      ((and (eq state t) (eq *gadget-root* gadget))
+       (setf state :out))
+      ((and (eq state :out) (< level 1.0))
+       (pop-gadget gadget)))))
+
+;;;; Present new tech
+
+(defclass present-tech-ui (gadget)
+  ((player :initarg :player)))
+
+(defmethod gadget-paint ((gadget present-tech-ui) uic)
+  (call-next-method)
+  (draw-img-deluxe (global-label :gothic 30 "New Discovery") 10 30 *label-color*)
+  (when (released? uic (logior +left+ +right+))
+    (pop-gadget gadget)))
+
+
+
+

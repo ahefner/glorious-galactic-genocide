@@ -1,5 +1,6 @@
 (in-package :g1)
 
+#+ecl
 (ffi:clines "#include <SDL/SDL.h>")
 
 ;;;; Resource Management
@@ -49,6 +50,9 @@
    (parent-gadget :accessor parent-gadget :initarg :parent-gadget :initform nil)))
 
 (defmacro keysym (name)
+  (declare (ignorable name))
+  #+sbcl 666                            ; Dev hack
+  #+ecl
   `(cx :int ,(format nil "SDLK_~A" (if (= 1 (length (string name))) 
                                        (string-downcase (string name))
                                        name))))
@@ -60,6 +64,10 @@
 (defconstant +scroll-down+ 16)
 (defconstant +scroll-left+ 32)
 (defconstant +scroll-right+ 64)
+
+(defconstant +control-mask+ #xC0)
+(defconstant +alt-mask+ #xF00)          ; Merge Alt and Meta
+
 
 ;;;; Presentations
 

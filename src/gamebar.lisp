@@ -12,9 +12,9 @@
 (defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
   (with-slots (starmap panel closing-panel) gadget
     (cond 
-      ((eql char #\r)
+      ((and (eql char #\r) (no-modifiers uic))
        (activate-new-gadget (make-instance 'research-ui :player *player*)))
-      ((eql char #\Space)
+      ((and (eql char #\Space) (no-modifiers uic))
        (client-do-next-turn gadget))
       ((and panel (not closing-panel)) (gadget-key-pressed panel uic keysym char))
       (t (gadget-key-pressed starmap uic keysym char)))))
@@ -48,14 +48,13 @@
 (let (labels)
   (defun draw-status-bar (x0)
     (let ((color (pstyle-label-color (style-of *player*)))
-          (y 18))
+          (y 19))
       (mapcar (lambda (label xoff) (draw-img-deluxe label (+ x0 xoff) y color))
               (cachef (labels (year-of *universe*))
-                (mapcar (lambda (x) (render-label *global-owner* :sans 16 x))
+                (mapcar (lambda (x) (render-label *global-owner* :gothic 20 x))
                         (list (format nil "Year ~D" (year-of *universe*))
                               (format nil "Pop: ~:D mil" (reduce #'+ (colonies *player*) :key #'population-of)))))
-              (list 0 100)))))
-
+              (list 0 112)))))
 
 (defmethod gadget-paint ((gadget gameui) uic)
   ;; Run inferior UI elements first, because we have to draw on top of them.
@@ -82,7 +81,7 @@
     
     (when *debug-show-packset* (debug-show-packset))
     
-;;    (run-shader-test uic)
+    ;;(run-shader-test uic)
     
     (values)))
 

@@ -9,47 +9,66 @@
 (ffi:clines "#include \"text-render.h\"")
 (ffi:clines "#include <SDL/SDL_image.h>")
 
+(defun gl-error-to-string (number)
+  (case number
+    (#x0                                :GL_NO_ERROR)
+    (#x0500                         :GL_INVALID_ENUM)
+    (#x0501                        :GL_INVALID_VALUE)
+    (#x0502                    :GL_INVALID_OPERATION)
+    (#x0503                       :GL_STACK_OVERFLOW)
+    (#x0504                      :GL_STACK_UNDERFLOW)
+    (#x0505                        :GL_OUT_OF_MEMORY)))
+    
 (defun check-gl-error (&optional (context ""))
   (let ((err (c :int "glGetError()")))
     (unless (zerop err)
-      (error "OpenGL error ~D ~A" err context))))
+      (cerror "Fuck it" "OpenGL error 0x~X (~A) ~A" err (gl-error-to-string err) context))))
 
 (defstruct gltexobj texid width height)
 
 (let ((texobjs (make-array 8)))
-  (defun bind-texobj (obj &optional (texnum 0))
-    (unless (eq (aref texobjs texnum) obj)
-      (ffi:c-inline (texnum) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
-      (setf (aref texobjs texnum) obj)
-      (c "glEnable(GL_TEXTURE_2D)")
-      (c "glBindTexture(GL_TEXTURE_2D, #0)" :int (gltexobj-texid obj))
-      (c "glMatrixMode(GL_TEXTURE)")
-      (c "glLoadIdentity()")
-      (c "glScaled(1.0/(#0), 1.0/(#1), 1.0)" :int (gltexobj-width obj) :int (gltexobj-height obj)))))
+  (defun bind-texobj (obj &key (unit 0) force)
+    (cond
+      ((and (not force) (eq (aref texobjs unit) obj))
+       (ffi:c-inline (unit) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
+       (check-gl-error "bind-texobj activate on cache hit"))
+      (t
+       (ffi:c-inline (unit) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
+       (setf (aref texobjs unit) obj)
+       (c "glEnable(GL_TEXTURE_2D)")
+       (check-gl-error "bind-texobj activate and enable")
+       (c "glBindTexture(GL_TEXTURE_2D, #0)" :int (gltexobj-texid obj))
+       (check-gl-error "bind-texobj bind texture")
+       (c "glMatrixMode(GL_TEXTURE)")
+       (c "glLoadIdentity()")
+       (c "glScaled(1.0/(#0), 1.0/(#1), 1.0)" :int (gltexobj-width obj) :int (gltexobj-height obj))
+       (check-gl-error "bind-texobj configure matrix")))))
 
 (defun alloc-texid ()
   (ffi:c-inline () () :unsigned-int
    " { GLuint id; glGenTextures(1, &id); @(return 0)=id; }"))
 
-(defun upload-sdl-surface (surface &key filter)
+(defun upload-sdl-surface (surface &key min-filter mag-filter)
   (let ((id (alloc-texid)))
     (c "glBindTexture(GL_TEXTURE_2D, #0)" :unsigned-int id)
+    (unless (find min-filter (list (cx :int "GL_NEAREST") (cx :int "GL_LINEAR")))
+      (c "glTexParameteri(GL_TEXTURE_2D,GL_GENERATE_MIPMAP,GL_TRUE)"))      
     (ffi:c-inline (surface) (:pointer-void) (values)
      "{ SDL_Surface *surf = #0; 
         int mode = (surf->format->BytesPerPixel==3)? GL_RGB : GL_RGBA;
         glTexImage2D(GL_TEXTURE_2D, 0, mode, surf->w, surf->h, 0, mode, GL_UNSIGNED_BYTE, surf->pixels); 
       }")
     (check-gl-error)
-    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,#0?GL_LINEAR:GL_NEAREST)" :int (if filter 1 0))
-    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,#0?GL_LINEAR:GL_NEAREST)" :int (if filter 1 0))
+    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,#0)" :int (or min-filter (cx :int "GL_NEAREST")))
+    (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,#0)" :int (or mag-filter (cx :int "GL_NEAREST")))
     (check-gl-error)
     id))
 
 (defstruct (texture (:include gltexobj)))
 
-(defun load-texture-file (filename &key filter)
+(defun load-texture-file (filename &key min-filter mag-filter)
   (let ((surface (call :pointer-void "IMG_Load" :cstring filename)))
-    (prog1 (make-texture :texid (upload-sdl-surface surface :filter filter)
+    (prog1 (make-texture :texid (upload-sdl-surface surface :min-filter min-filter :mag-filter mag-filter)
                          :width  (c :int "((SDL_Surface *)#0)->w" :pointer-void surface)
                          :height (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))
       (call "SDL_FreeSurface" :pointer-void surface))))
@@ -140,16 +159,16 @@
 (defun render-starfield-multitex (x y)
   ;;; Render starfield using multiple texture units
   (c "glActiveTexture(GL_TEXTURE0)")
-  (bind-texobj *stars00* 0)
+  (bind-texobj *stars00* :unit 0)
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)")
 
   (c "glActiveTexture(GL_TEXTURE1)")
-  (bind-texobj *stars03* 1)
+  (bind-texobj *stars03* :unit 1)
   (c "glEnable(GL_TEXTURE_2D)")
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD)")
 
   (c "glActiveTexture(GL_TEXTURE2)") 
-  (bind-texobj *stars01* 2)
+  (bind-texobj *stars01* :unit 2)
   (c "glEnable(GL_TEXTURE_2D)")
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD)")
 
@@ -244,10 +263,10 @@
 
 (let ((tex-lookaside (make-hash-table))           ; More Absurdly premature optimization
       (tex-hash (make-hash-table :test 'equal)))
-  (defun texture (name &key filter)
+  (defun texture (name &key min-filter mag-filter)
     (or (gethash name tex-lookaside)
         (let ((tex (or (gethash name tex-hash)
-                       (load-texture-file (apath name) :filter filter))))
+                       (load-texture-file (apath name) :min-filter min-filter :mag-filter mag-filter))))
           (setf (gethash name tex-hash) tex
                 (gethash name tex-lookaside) tex)))))
 
@@ -299,7 +318,7 @@
   (draw-img-deluxe* img x y (aref color 0) (aref color 1) (aref color 2) (if (= 4 (length color)) (aref color 3) 255)))
 
 (defun draw-line (u v &key (pattern-offset 0) (color #(255 255 255 255)))
-  (let ((texture (texture :line-dashed :filter t)))
+  (let ((texture (texture :line-dashed)))
     (bind-texobj texture)
     (set-color color)
     (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
@@ -548,6 +567,7 @@
 (defvar *ps-suppress-upload* nil)
 
 (defun packset-upload-object (object)
+  (check-gl-error "packset upload precheck")
   (bind-texobj *packset*)
   (let ((x (img-x object))
         (y (img-y object))
@@ -559,7 +579,16 @@
     (unless *ps-suppress-upload*
       (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
          :int x :int y :int width :int height :pointer-void (img-pixels object)))
-    (check-gl-error)))
+
+    ;; WORKAROUND for fglrx: If at first you don't succeed, try again.
+    (when (zerop (c :int "(glGetError() == GL_NO_ERROR)"))
+      (format *trace-output* "Driver fuckup? glTexSubImage2D failed.~%")
+      (printl :ps-upload :x x :y y :width width :height height :pointer-void (img-pixels object))
+      (bind-texobj *packset* :unit 0 :force t)
+      (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
+         :int x :int y :int width :int height :pointer-void (img-pixels object)))
+
+    (check-gl-error "packset subimage upload")))
 
 (defun packset-alloc (packset width height object)
   (let* ((current (packset-stack packset))
@@ -770,21 +799,28 @@ END
          (angle (/ (uic-mx uic) 200.0))
          (zoom (/ (+ 1.0 (/ (max 0 (- (uic-my uic) 100)) 300.0))))
          (pz 10)
-         (light (unorm (print (vec (single (* -140 (cos angle))) (single (* -140 (sin angle))) (single 70))))))
-    (printl :angle angle :zoom zoom :light light)
+         (light (unorm (vec (single (* -140 (cos angle))) (single (* -140 (sin angle))) (single 70)))))
+    ;;(printl :angle angle :zoom zoom :light light)
     (with-vector (l light)
       (call "glColor3f" :float l.x :float l.y :float l.z))
     (c "glEnable(GL_FRAGMENT_PROGRAM_ARB)")
     (check-gl-error "enable fragment program")
-    (let ((nm  (texture :scout-normals :filter t))
-          (tex (texture :scout-texture :filter t)))
-      (bind-texobj tex 0)
-      (bind-texobj nm  1)
+    (let ((nm  (texture :scout-normals :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
+          (tex (texture :scout-texture :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
+          (lights (texture :scout-lights :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR"))))
+      (bind-texobj tex :unit 0)
+      (bind-texobj nm  :unit 1)
+      (c "glBegin(GL_QUADS)")
+      (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
+      (c "glEnd()")
+      (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")
+      (c "glActiveTexture(GL_TEXTURE1)")
+      (c "glDisable(GL_TEXTURE_2D)")
+      (bind-texobj lights :unit 0)
+      (set-color* 255 255 255 255)
+      (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE)")
       (c "glBegin(GL_QUADS)")
       (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
       (c "glEnd()"))
-    (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")
-    (c "glActiveTexture(GL_TEXTURE1)")
-    (c "glDisable(GL_TEXTURE_2D)")
-    (c "glActiveTexture(GL_TEXTURE0)")
+   
     (check-gl-error)))

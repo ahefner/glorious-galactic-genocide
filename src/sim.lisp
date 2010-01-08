@@ -618,7 +618,9 @@
 (defun progress-research-project (player project investment)
   (incf (researching-spent project) investment)
   (if (>= (researching-spent project) (tech-cost (researching-tech project)))
-      (prog1 t (grant-tech player (researching-tech project)))
+      (prog1 t 
+        (grant-tech player (researching-tech project))
+        (new-player-event player :tech (researching-tech project)))
       nil))
 
 ;;;; Designs
@@ -658,9 +660,7 @@
   (setf (event-list-of player)
         (delete-if (lambda (old-event) (event-supercedes? old-event new-event))
                    (event-list-of player)))
-  (push event (event-list-of player)))
+  (push new-event (event-list-of player)))
 
 (defun new-player-event (player event-type &rest args)
   (enqueue-player-event player (apply #'make-instance event-type :player player args)))
-
-

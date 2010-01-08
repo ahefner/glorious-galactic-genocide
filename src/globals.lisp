@@ -1,4 +1,4 @@
-;;;; Global variables.
+;;;; Global variables and random bits.
 
 ;;;; We have to put them here and define them during compilation,
 ;;;; otherwise the compiler will warn when compiling files that use
@@ -48,5 +48,8 @@
 
 (defvar *debug-show-packset* nil)
 
+(defvar *devmode* t)
+(defvar *program-start-time* (get-universal-time))
 
 (defstruct cacheobj value derived)      ; Nowhere else reasonable to define this..
+

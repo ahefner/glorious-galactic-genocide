@@ -76,6 +76,19 @@
             :active t
             :time (gettime) :delta-t 0.0))
 
+(defvar *swank-running* nil)
+
+(defun start-swank (background-p)
+  (unless *swank-running*
+    (setf *swank-running* t)   
+    (require :asdf)
+    (eval (read-from-string 
+           "(push '(MERGE-PATHNAMES \".sbcl/systems/\" (USER-HOMEDIR-PATHNAME)) asdf:*central-registry*)"))
+    (eval (read-from-string "(asdf:oos 'asdf:load-op :swank)"))
+    (flet ((run () (eval (read-from-string "(swank:create-server :port 0)"))))
+      (if background-p (mp:process-run-function 'swank-process run) (run)))))
+
+
 (defun uim-sdl-run ()
   (loop named runloop 
         with *grab-id* = nil
@@ -126,6 +139,12 @@
                  (setf (uic-modifiers uic) (cx :int "cur_event.key.keysym.mod"))
                  (update-modifier-masks uic last-uic)
                  (let ((char (ignore-errors (code-char (cx :int "(int)cur_event.key.keysym.unicode")))))
+                   (printl :modifiers (uic-modifiers uic))
+                   (when (and *devmode* (not (zerop (logand +alt-mask+ (uic-modifiers uic)))))
+                     (when (and (eql char #\r))
+                       (reload-modified-sources))
+                     (when (and (eql char #\s))
+                       (start-swank (not (zerop (logand +control-mask+ (uic-modifiers uic)))))))
                    (gadget-key-pressed gadget uic
                                        (cx :int "(int)cur_event.key.keysym.sym")
                                        (and (char/= char #\Nul) char))))
@@ -152,16 +171,20 @@
         (setf last-uic uic)))
 
 
-;;;; Helper functions
+;;;; Helper functions - Clicked/Released are edge-triggered and the
+;;;; mask is a disjunction. Held mask is a conjunction.
 
-(defun clicked? (uic button-mask)
-  (= button-mask (logand (uic-buttons-pressed uic) button-mask)))
+(defun clicked? (uic &optional (button-mask +left+))
+  (not (zerop (logand (uic-buttons-pressed uic) button-mask))))
 
-(defun released? (uic button-mask)
-  (= button-mask (logand (uic-buttons-released uic) button-mask)))
+(defun released? (uic &optional (button-mask +left+))
+  (not (zerop (logand (uic-buttons-released uic) button-mask))))
 
 (defun held? (uic button-mask)
   (= button-mask (logand (uic-buttons uic) button-mask)))
+
+(defun no-modifiers (uic)
+  (zerop (logand (uic-modifiers-pressed uic) (logior +alt-mask+ +control-mask+))))
 
 (defun pointer-normsq* (uic x y) (+ (square (- x (uic-mx uic))) (square (- y (uic-my uic)))))
 (defun pointer-in-radius* (uic radius x y) (<= (pointer-normsq* uic x y) (square radius)))

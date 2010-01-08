@@ -16,7 +16,8 @@
 
 (defun lisp-sources ()
   "Lisp sources to be linked into the final executable"
-  (list "src/package.lisp"
+  (list "sysdef.lisp"               ; For runtime recompile feature..
+        "src/package.lisp"
         "src/globals.lisp"
         "src/util.lisp"
         "src/math.lisp"
