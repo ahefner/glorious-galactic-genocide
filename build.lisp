@@ -104,6 +104,7 @@ for comparison. Accepts and produces only lists."
 (defvar *compiler-sources* (make-hash-table :test 'equal))
 
 (defun ensure-compiler-source (filename)
+  (format t "~&~%----- Compile-time dependency: ~A -----~%" filename)
   (unless (gethash filename *compiler-sources*)
     (load (compile-file filename :print nil :verbose nil 
                         :output-file (format nil "compile-time-~A.fasl" 
@@ -113,35 +114,35 @@ for comparison. Accepts and produces only lists."
 
 
 (defun load-compiler-sources ()
-  (format t "~&--------------- ESTABLISHING COMPILE-TIME ENVIRONMENT ---------------~%")
+  (format t "~&~%--------------- ESTABLISHING COMPILE-TIME ENVIRONMENT ---------------~%~%")
   (loop for filename in (lisp-compile-sources)
         do (ensure-compiler-source filename)))
-
-;;(format t "~&--------------- BUILDING SOURCE FILES ---------------~%")
 
 ;(trace changed-dependencies)
 ;(trace object-pathname)
 ;(trace c::compiler-cc)
 ;(trace newer?)
 
-(loop with compiler-sources-loaded = nil 
+(loop with compiler-sources-loaded = nil
       for source-spec in (append (c-sources) (lisp-sources))
       as filename = (if (listp source-spec)
                         (first source-spec)
                         source-spec)
       as compile-time-deps = (and (listp source-spec) (rest source-spec))
       as deps = (changed-dependencies (pathname filename) compile-time-deps)      
-      do (print (list :file filename :compile-time-deps compile-time-deps :deps deps))
+      ;;do (print (list :file filename :compile-time-deps compile-time-deps :deps deps))
       when deps
       do (progn
            (unless compiler-sources-loaded 
              (setf compiler-sources-loaded t)
-             (load-compiler-sources))
-           (format t "~&---- Compiling ~A ----~%" filename)
+             (load-compiler-sources)
+             (format t "~&~%--------------- BUILDING SOURCE FILES ---------------~%~%"))
+           
            (when (probe-file (object-pathname filename))
              (format t "~&(Recompiling due to changes in ~{~A~^, ~})~%" deps))
            (cond
              ((c-file? filename)
+              (format t "~&~%----===---- Compiling ~A ----===----~%~%" filename)
               (handler-bind
                   ((serious-condition (lambda (foo) (fail))))
                 (c::compiler-cc filename (object-pathname filename)))
@@ -150,6 +151,7 @@ for comparison. Accepts and produces only lists."
                 (ext:quit 1)))
              (t                         ; Lisp file
               (mapc #'ensure-compiler-source compile-time-deps)
+              (format t "~&~%----===---- Compiling ~A ----===----~%~%" filename)
               (unless (compile-file filename :verbose nil :system-p t :print nil
                                     :c-file (make-pathname
                                              :type "c"
@@ -158,9 +160,9 @@ for comparison. Accepts and produces only lists."
                 (format *trace-output* "~&Error compiling ~A~%" filename)
                 (fail))))))
 
-(format t "~&--------------- BUILDING EXECUTABLE ---------------~%")
+(format t "~&~%--------------- BUILDING EXECUTABLE ---------------~%")
 
-(print (lisp-linked-sources))
+;;;(print (lisp-linked-sources))
 
 (defun source-names->object-names (sources)
   (mapcar #'object-pathname sources))
