@@ -1,4 +1,4 @@
-(require 'asdf)
+;;(require 'asdf)
 
 (pushnew :with-gui *features*)
 
@@ -123,6 +123,12 @@ for comparison. Accepts and produces only lists."
 ;(trace c::compiler-cc)
 ;(trace newer?)
 
+(defvar *use-colors* t)
+(defun sgr (&rest modes)
+  (when *use-colors* (format t "~C[~{~D~^;~}m" #\Esc modes)))
+
+
+
 (loop with compiler-sources-loaded = nil
       for source-spec in (append (c-sources) (lisp-sources))
       as filename = (if (listp source-spec)
@@ -132,32 +138,51 @@ for comparison. Accepts and produces only lists."
       as deps = (changed-dependencies (pathname filename) compile-time-deps)      
       ;;do (print (list :file filename :compile-time-deps compile-time-deps :deps deps))
       when deps
-      do (progn
+      do (handler-bind ((c::compiler-note
+                         (lambda (condition)
+                           (sgr 0)))
+                        (c::compiler-warning
+                         (lambda (condition)
+                           (sgr 1 33)))
+                        (c::compiler-error
+                         (lambda (condition)
+                           (sgr 0 31)))
+                        (c::compiler-undefined-variable
+                         (lambda (condition)
+                           (sgr 0 31))))
+           (sgr 0)
            (unless compiler-sources-loaded 
              (setf compiler-sources-loaded t)
              (load-compiler-sources)
+             (sgr 0)
              (format t "~&~%--------------- BUILDING SOURCE FILES ---------------~%~%"))
            
            (when (probe-file (object-pathname filename))
+             (sgr 0)
              (format t "~&(Recompiling due to changes in ~{~A~^, ~})~%" deps))
            (cond
              ((c-file? filename)
+              (sgr 0)
               (format t "~&~%----===---- Compiling ~A ----===----~%~%" filename)
               (handler-bind
                   ((serious-condition (lambda (foo) (fail))))
+                (sgr 0)
                 (c::compiler-cc filename (object-pathname filename)))
               #+NIL
               (unless (zerop (print (c::compiler-cc filename (object-pathname filename))))
                 (ext:quit 1)))
              (t                         ; Lisp file
               (mapc #'ensure-compiler-source compile-time-deps)
+              (sgr 0)
               (format t "~&~%----===---- Compiling ~A ----===----~%~%" filename)
               (unless (compile-file filename :verbose nil :system-p t :print nil
                                     :c-file (make-pathname
                                              :type "c"
                                              :directory (pathname-directory #p"obj/")
                                              :name (pathname-name (pathname filename))))
+                (sgr 0 31)
                 (format *trace-output* "~&Error compiling ~A~%" filename)
+                (sgr 0)
                 (fail))))))
 
 (format t "~&~%--------------- BUILDING EXECUTABLE ---------------~%")
@@ -173,7 +198,9 @@ for comparison. Accepts and produces only lists."
                                     (mapcar (lambda (x) (format nil "-l~A" x)) (shared-libraries)))
                   :epilogue-code '(eval (read-from-string "(g1:main)")))
 
-(format t "~&--------------- BUILD COMPLETE ! ---------------~%")
+(sgr 32)
+(format t "~&BUILD COMPLETE!~%~%")
+(sgr 0)
 (finish-output)
 
 
