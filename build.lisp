@@ -143,13 +143,13 @@ for comparison. Accepts and produces only lists."
                            (sgr 0)))
                         (c::compiler-warning
                          (lambda (condition)
-                           (sgr 1 33)))
+                           (sgr 0 33)))
                         (c::compiler-error
                          (lambda (condition)
                            (sgr 0 31)))
                         (c::compiler-undefined-variable
                          (lambda (condition)
-                           (sgr 0 31))))
+                           (sgr 1 31))))
            (sgr 0)
            (unless compiler-sources-loaded 
              (setf compiler-sources-loaded t)
@@ -163,7 +163,7 @@ for comparison. Accepts and produces only lists."
            (cond
              ((c-file? filename)
               (sgr 0)
-              (format t "~&~%----===---- Compiling ~A ----===----~%~%" filename)
+              (format t "~&~%----===---- Compiling ~A ----===----~%" filename)
               (handler-bind
                   ((serious-condition (lambda (foo) (fail))))
                 (sgr 0)
@@ -174,7 +174,7 @@ for comparison. Accepts and produces only lists."
              (t                         ; Lisp file
               (mapc #'ensure-compiler-source compile-time-deps)
               (sgr 0)
-              (format t "~&~%----===---- Compiling ~A ----===----~%~%" filename)
+              (format t "~&~%----===---- Compiling ~A ----===----~%" filename)
               (unless (compile-file filename :verbose nil :system-p t :print nil
                                     :c-file (make-pathname
                                              :type "c"
