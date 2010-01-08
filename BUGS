@@ -2,7 +2,7 @@ Serious issues:
 
 
 Minor issues:
-
+* Intermittent INVALID_OPERATION errors on fglrx that seem bogus. Kludge around and ignore it.
 
 Resolved serious issues:
 * Starmap floating point underflow
