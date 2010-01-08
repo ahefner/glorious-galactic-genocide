@@ -36,6 +36,9 @@ for comparison. Accepts and produces only lists."
 
 (compile 'fail)
 
+;;; BEWARE! This only works by accident. This isn't always bound, and
+;;; ECL seems to fuck with itself at other times, although I can't
+;;; find where this occurs.
 (setf c::*cc-flags* (format nil "~A~{ ~A~}" c::*cc-flags* (cflags)))
 
 (defun object-pathname (filename)
@@ -148,12 +151,12 @@ for comparison. Accepts and produces only lists."
              (t                         ; Lisp file
               (mapc #'ensure-compiler-source compile-time-deps)
               (unless (compile-file filename :verbose nil :system-p t :print nil
-                                    :c-file (merge-pathnames
-                                             (make-pathname :type "c")
-                                             (merge-pathnames #p"tmp/" (pathname filename))))
+                                    :c-file (make-pathname
+                                             :type "c"
+                                             :directory (pathname-directory #p"obj/")
+                                             :name (pathname-name (pathname filename))))
                 (format *trace-output* "~&Error compiling ~A~%" filename)
                 (fail))))))
-
 
 (format t "~&--------------- BUILDING EXECUTABLE ---------------~%")
 
