@@ -25,7 +25,7 @@
 
 (defgeneric gadget-key-released (gadget uic keysym)
   (:method (gadget uic keysym)
-    (declare (ignore gadget uic keysym char))))
+    (declare (ignore gadget uic keysym))))
 
 (defgeneric gadget-paint (gadget uic)
   (:method ((gadget null) uic)
@@ -86,7 +86,7 @@
            "(push '(MERGE-PATHNAMES \".sbcl/systems/\" (USER-HOMEDIR-PATHNAME)) asdf:*central-registry*)"))
     (eval (read-from-string "(asdf:oos 'asdf:load-op :swank)"))
     (flet ((run () (eval (read-from-string "(swank:create-server :port 0)"))))
-      (if background-p (mp:process-run-function 'swank-process run) (run)))))
+      (if background-p (mp:process-run-function 'swank-process #'run) (run)))))
 
 
 (defun uim-sdl-run ()
@@ -139,7 +139,6 @@
                  (setf (uic-modifiers uic) (cx :int "cur_event.key.keysym.mod"))
                  (update-modifier-masks uic last-uic)
                  (let ((char (ignore-errors (code-char (cx :int "(int)cur_event.key.keysym.unicode")))))
-                   (printl :modifiers (uic-modifiers uic))
                    (when (and *devmode* (not (zerop (logand +alt-mask+ (uic-modifiers uic)))))
                      (when (and (eql char #\r))
                        (reload-modified-sources))
@@ -173,6 +172,8 @@
 
 ;;;; Helper functions - Clicked/Released are edge-triggered and the
 ;;;; mask is a disjunction. Held mask is a conjunction.
+
+;;;; Would it be helpful for clicked/released (and maybe held) to check if the UIC is active? Probably..
 
 (defun clicked? (uic &optional (button-mask +left+))
   (not (zerop (logand (uic-buttons-pressed uic) button-mask))))
@@ -274,10 +275,11 @@
       (dismiss-panel panel)
       (setf closing-panel t))))
 
-(defun activate-panel (new-panel &optional (host *gameui*))
+(defun activate-panel (new-panel &key (host *gameui*))
   (with-slots (panel closing-panel) host
     (when panel 
-      (setf (panel-y-of host) (+ (panel-height host) (panel-height new-panel)))
+      (setf (panel-y-of host) (+ (- (panel-y-of host) (panel-height panel))
+                                 (panel-height new-panel)))
       (finalize-object panel))
     (setf panel new-panel
           (host-of panel) host
