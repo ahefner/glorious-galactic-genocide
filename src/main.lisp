@@ -42,7 +42,7 @@
             (max (reduce #'max times))
             (fps (/ (length times) 1.0 (/ (- max min) internal-time-units-per-second))))
        ;;(print (diffvec times))
-       (format t "~&Frames per second: ~D~%" fps)
+       ;;(format t "~&Frames per second: ~D~%" fps)
        #+NIL (throw 'bailout :byebye)))
    (setf (aref times (mod total-frames (length times))) (get-internal-real-time))
    (incf total-frames)
