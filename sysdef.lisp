@@ -9,7 +9,7 @@
         "src/text-render.c"))
 
 (defun lisp-compile-sources ()
-  "Lisp source needed during compile-time (macros, package definitions, etc.)"
+  "Lisp source needed during compile-time (macros, package definitions, etc.) for all source files."
   (list "src/package.lisp"
         "src/macrology.lisp"
         "src/globals.lisp"))
@@ -21,18 +21,18 @@
         "src/globals.lisp"
         "src/util.lisp"
         "src/math.lisp"
-        '("src/vid-sdl-opengl.lisp" "src/math.lisp")
+        '("src/vid-sdl-opengl.lisp" #|depends on:|# "src/math.lisp")
         "src/text-layout.lisp"
         "src/uim-defs.lisp"
-        '("src/uim.lisp"     "src/uim-defs.lisp")
+        '("src/uim.lisp"         #|depends on:|# "src/uim-defs.lisp")
         "src/star-names.lisp"
-        '("src/sim-defs.lisp" "src/math.lisp")
-        '("src/sim.lisp" "src/sim-defs.lisp" "src/math.lisp")
-        '("src/mapgen.lisp" "src/sim-defs.lisp" "src/math.lisp")
-        '("src/techs.lisp" "src/sim-defs.lisp" "src/math.lisp")
-        '("src/gamebar.lisp" "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
-        '("src/starmap.lisp" "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
-        '("src/ui-research.lisp" "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
+        '("src/sim-defs.lisp"    #|depends on:|# "src/math.lisp")
+        '("src/sim.lisp"         #|depends on:|# "src/sim-defs.lisp" "src/math.lisp")
+        '("src/mapgen.lisp"      #|depends on:|# "src/sim-defs.lisp" "src/math.lisp")
+        '("src/techs.lisp"       #|depends on:|# "src/sim-defs.lisp" "src/math.lisp")
+        '("src/gamebar.lisp"     #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
+        '("src/starmap.lisp"     #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
+        '("src/ui-research.lisp" #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
         "src/main.lisp"))
 
 (defun shared-libraries ()
