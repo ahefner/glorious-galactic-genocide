@@ -238,7 +238,7 @@
           (img-pixels img) nil)))
 
 (defun load-image-file (filename &optional x-offset y-offset)
-  (format t "~&Loading ~A~%" filename)
+  ;;(format t "~&Loading ~A~%" filename)
   (let* ((surface (call :pointer-void "IMG_Load" :cstring filename))
          (width  (cx :int "((SDL_Surface *)#0)->w" :pointer-void surface))
          (height (cx :int "((SDL_Surface *)#0)->h" :pointer-void surface)))
