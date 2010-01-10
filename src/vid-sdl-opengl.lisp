@@ -824,3 +824,46 @@ END
       (c "glEnd()"))
    
     (check-gl-error)))
+
+
+;;;; I might as well put the audio code here too.
+
+(defstruct sound-effect name pointer length)
+
+(defun load-wav-file (filename)
+  (multiple-value-bind (pointer length)
+      (ffi:c-inline (filename) (:cstring) (values :pointer-void :int)
+       "{
+          SDL_AudioSpec spec;
+          void *data;
+          unsigned length;
+          if (!SDL_LoadWAV(#0, &spec, &data, &length)) length = 0;
+          @(return 0) = data;
+          @(return 1) = length; 
+        }")
+    (printl :wavfile :pointer pointer :length length)
+    (when (zerop length)
+      (format t "~&Error loading ~A (~A)~%" filename (c :cstring "SDL_GetError()")))
+    (make-sound-effect :name filename :pointer pointer :length (truncate length 2))))
+
+(let ((sfx-lookaside (make-hash-table))
+      (sfx-hash (make-hash-table :test 'equal)))
+  (defun sound-effect (name)
+    (or (gethash name sfx-lookaside)
+        (let ((sound (or (gethash name sfx-hash)
+                         (etypecase name
+                           (sound-effect name)
+                            (string (load-wav-file (format nil "~A/sfx/~A" (asset-base) name)))
+                            (symbol (load-wav-file (format nil "~A/sfx/~A.wav" 
+                                                           (asset-base) 
+                                                           (string-downcase (symbol-name name)))))))))
+          (setf (gethash name sfx-hash) sound
+                (gethash name sfx-lookaside) sound)))))
+
+(defun play-sound (sound-effect)
+  (setf sound-effect (sound-effect sound-effect))
+  (call "play_sound_effect" 
+        :pointer-void (sound-effect-pointer sound-effect)
+        :int (sound-effect-length sound-effect)))
+
+(defun snd-click () (play-sound :click-high))
