@@ -50,6 +50,8 @@ int sys_init (char *title)
         return 1;
     }
 
+    audio_init();
+
     SDL_VideoInfo *vinf = SDL_GetVideoInfo();
     if (!(vid_fullscreen)) {
 //        window_width = vinf->current_w - 64;
@@ -62,7 +64,7 @@ int sys_init (char *title)
         // Expected typical resolution:
         //window_width = 1280;
         //window_height = 800;
-    }
+    }   
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
@@ -73,6 +75,7 @@ int sys_init (char *title)
 
 void sys_shutdown (void)
 {
+    audio_shutdown();
     SDL_FreeSurface(window_surface);
     SDL_Quit();
 }
