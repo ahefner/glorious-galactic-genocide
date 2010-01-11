@@ -1,8 +1,11 @@
 Serious issues:
 
+Medium issues:
+* Leaking label images in status bar (for year and population)
 
 Minor issues:
 * Intermittent INVALID_OPERATION errors on fglrx that seem bogus. Kludge around and ignore it.
+
 
 Resolved serious issues:
 * Starmap floating point underflow
@@ -13,11 +16,12 @@ Resolved minor issues:
 * Slow convergence when scrolling/zooming (clamp, or add small linear component)
 * After founding new colony, switch to colony panel.
 
+---------------------------------
 
-
-
-Important but unimplemented:
+TODO, High priority:
 * Free per-game (nonglobal) resources at end of a game
+* Adjust fleet positions on starmap to avoid overlap
 
-
+TODO, Low priority:
+* SFX are too loud. Stagger times too, for start of turn events.
 
