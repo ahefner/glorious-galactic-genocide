@@ -318,7 +318,10 @@
   (draw-img-deluxe* img x y (aref color 0) (aref color 1) (aref color 2) (if (= 4 (length color)) (aref color 3) 255)))
 
 (defun draw-line (u v &key (pattern-offset 0) (color #(255 255 255 255)))
-  (let ((texture (texture :line-dashed)))
+  (let ((texture (texture :line-dashed
+                          :mag-filter (cx :int "GL_LINEAR")
+                          ;; On fglrx, we need GL_LINEAR on the min filter to get a smooth line.
+                          :min-filter (cx :int "GL_LINEAR"))))
     (bind-texobj texture)
     (set-color color)
     (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
