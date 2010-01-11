@@ -85,6 +85,7 @@
     (eval (read-from-string 
            "(push '(MERGE-PATHNAMES \".sbcl/systems/\" (USER-HOMEDIR-PATHNAME)) asdf:*central-registry*)"))
     (eval (read-from-string "(asdf:oos 'asdf:load-op :swank)"))
+    #+NIL
     (flet ((run () (eval (read-from-string "(swank:create-server :port 0)"))))
       (if background-p (mp:process-run-function 'swank-process #'run) (run)))))
 
@@ -274,18 +275,26 @@
 (defun close-panels (&optional (host *gameui*))
   (with-slots (panel closing-panel) host
     (when panel 
+      ;; Tricky: This might be called when the panel is already
+      ;; closing, even every frame, so only play the sound once.
+      (unless closing-panel (play-sound :close1))
       (dismiss-panel panel)
       (setf closing-panel t))))
 
-(defun activate-panel (new-panel &key (host *gameui*))
+(defun activate-panel (new-panel &key (host *gameui*) (update-p nil))
   (with-slots (panel closing-panel) host
     (when panel 
       (setf (panel-y-of host) (+ (- (panel-y-of host) (panel-height panel))
                                  (panel-height new-panel)))
       (finalize-object panel))
+    (unless update-p
+      (play-sound (if panel :click-high :open1)))
     (setf panel new-panel
           (host-of panel) host
           closing-panel nil)))
+
+(defun update-panel  (new-panel &key (host *gameui*))
+  (activate-panel new-panel :host host :update-p t))
 
 ;;;; Cursor Layout Utility
 
