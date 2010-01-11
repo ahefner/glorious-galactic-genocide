@@ -507,7 +507,9 @@
     (incf (stack-count (ensure-stack design fleet)) num)
     (update-fleet fleet)))
 
-(defun build-ships (colony design num) (add-ships (owner-of colony) colony design num))
+(defun build-ships (colony design num)
+  (new-player-event (owner-of colony) 'sound-event :name :chime-low)
+  (add-ships (owner-of colony) colony design num))
 
 (defun fleet-successor (fleet)
   (or (and.. (successor-of fleet) (fleet-successor $)) fleet))
@@ -555,6 +557,7 @@
          (push fleet (fleets-in-transit *universe*)))
        (deletef (fleets-orbiting (star-of fleet)) fleet)
        (setf (destination-of fleet) star)
+       ;; TODO: Play a little computer noise here.
        (values fleet t))))
 
 (defun simulate-fleet (fleet)
@@ -563,9 +566,10 @@
            (dest (destination-of fleet))
            (distance (vdist (loc fleet) (loc dest))))
       (printl :speed (speed-of fleet) :in-units speed-units :distance-remaining distance)
-      (cond 
+      (cond
         ((<= distance speed-units)
          (setf (initiative-of fleet) (- speed-units distance))
+         (new-player-event (owner-of fleet) 'sound-event :name :chime-high)
          (join-fleet-to-star fleet dest))
         (t (setf (loc fleet) (v+ (loc fleet) (vscaleto (v- (loc dest) (loc fleet)) speed-units))
                  (star-of fleet) nil))))))
@@ -663,4 +667,5 @@
   (push new-event (event-list-of player)))
 
 (defun new-player-event (player event-type &rest args)
-  (enqueue-player-event player (apply #'make-instance event-type :player player args)))
+  (enqueue-player-event player (apply #'make-instance event-type :owner player args)))
+

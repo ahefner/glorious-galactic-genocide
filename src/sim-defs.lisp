@@ -170,13 +170,13 @@
 ;;;; Ships and fleets
 
 (defclass fleet (owned ent in-universe perishable at-star)
-  ((successor :accessor successor-of :initform nil) ; If merged, points to merged fleet. Forms a chain.   
+  ((successor   :accessor successor-of   :initform nil) ; If merged, points to merged fleet. Forms a chain.   
    (destination :accessor destination-of :initform nil :initarg :destination)
-   (orbital :accessor orbital-of :initform nil :initarg :orbital)
-   (stacks :accessor stacks-of :initform nil :initarg :stacks)
-   (speed :accessor speed-of :initform 1 :initarg :speed)   
-   (initiative :accessor initiative-of :initform 0)
-   (vloc :accessor vloc :initarg :vloc))
+   (orbital     :accessor orbital-of     :initform nil :initarg :orbital)
+   (stacks      :accessor stacks-of      :initform nil :initarg :stacks)
+   (speed       :accessor speed-of       :initform 1   :initarg :speed)   
+   (initiative  :accessor initiative-of  :initform 0)
+   (vloc        :accessor vloc :initarg :vloc))
   (:default-initargs :star nil))
 
 (defstruct stack design count fleet)
@@ -353,6 +353,8 @@
 (defclass modal-event (player-event) ())
 (defclass modeless-event (player-event) ())
 (defclass non-ui-event (player-event) ())
+(defclass sound-event (non-ui-event)
+  ((name :initform nil :initarg :name)))
 
 ;;; Concrete event types:
 
@@ -360,7 +362,6 @@
   ((tech :initarg :tech)))
 
 (defclass explored-event (modeless-event at-star) ())
-
 
 (defclass colony-ship-arrived-event (modeless-event at-star) ())
 

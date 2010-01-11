@@ -630,7 +630,7 @@
              (label (and design (cacheobj-derived eta-label-cache))))
         
         (when (run-labelled-button uic (global-label :bold 14 "Shipyard") cx (- bottom 70) :color color1)
-          (activate-panel (make-instance 'shipyard-panel :colony colony) panel))
+          (activate-panel (make-instance 'shipyard-panel :colony colony) :host panel))
         (run-labelled-button uic (global-label  :bold 14 "Defenses") cx (- bottom 40) :color color1)
         (when design
           (draw-img-deluxe thumb cx (- bottom 125) shipyard-color)
@@ -906,7 +906,9 @@
               (button-pad 36)
               (x (- (uic-width uic) 12)))
           (flet ((allot (label)
+                   (declare (ignore label))
                    (- (uic-width uic) 68)
+                   ;; I used to do it this way. New policy: Only one label allowed!
                    #+NIL
                    (let ((adj (+ 5 button-pad (img-width (label label)))))
                      (decf x adj)
@@ -976,31 +978,44 @@
     (prompt-for-research)))
 
 (defun update-ui-for-new-turn ()
-  (present-new-techs)
   ;; If there are panels open, update them. Also, present completed research and prompt for new research.
+  (present-new-techs)
   (with-slots (panel closing-panel starmap) *gameui*
-    (cond
-      ;; If there are events, show the events.
-      ((event-list-of *player*)
-       ;; HACK!
-       (loop for event in (event-list-of *player*)
-             do (format t "~&~A~%" (summary-of event)))
-       ;; HACK!
-       (setf (event-list-of *player*) nil))
-       ;; Otherwise, update the existing panel
-      (closing-panel
-       (cond
-         ((typep panel 'star-panel)
-          (starmap-select starmap (star-of panel)))
-         ((typep panel 'planet-panel) 
-          (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
-         ((typep panel 'colony-panel)
-          (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel)
-                                         :init-panel (panel-of panel) 
-                                         :init-closing-panel (child-panel-close? panel)
-                                         :init-panel-y (panel-y-of panel))))
-         ((typep panel 'fleet-panel)
-          (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel)))))))))
+    ;; If there are events, show the events.
+
+    ;; Play sound events.
+    (let ((sounds 
+           (remove-duplicates
+            (map 'list (lambda (ev) (sound-effect (slot-value ev 'name)))
+                 (remove-if-not (lambda (ev) (typep ev 'sound-event))
+                                (event-list-of *player*))))))
+      (dolist (sound sounds) (play-sound sound)))
+    ;; Delete sounds events
+    (setf (event-list-of *player*)
+          (delete-if (lambda (ev) (typep ev 'sound-event)) (event-list-of *player*)))
+
+    ;; Testing bullshit: Print events then delete them.
+    (when (event-list-of *player*)
+      ;; HACK!
+      (loop for event in (event-list-of *player*)
+            do (format t "~&~A~%" (summary-of event)))
+      ;; HACK!
+      (setf (event-list-of *player*) nil))
+
+    ;; Update open panel.
+    (when closing-panel
+      (cond
+        ((typep panel 'star-panel)
+         (starmap-select starmap (star-of panel)))
+        ((typep panel 'planet-panel) 
+         (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
+        ((typep panel 'colony-panel)
+         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel)
+                                        :init-panel (panel-of panel) 
+                                        :init-closing-panel (child-panel-close? panel)
+                                        :init-panel-y (panel-y-of panel))))
+        ((typep panel 'fleet-panel)
+         (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel))))))))
 
 ;;;; AUGH
 
