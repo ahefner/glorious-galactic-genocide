@@ -3,10 +3,15 @@
 (ffi:clines "#include \"sys.h\"")
 (ffi:clines "#include \"GL/gl.h\"")
 
-(defun apath (filename-or-symbol)       ; What file should I live in?
+(defun asset-base () ".")                ; TODO FIXME!!
+
+(defun apath (filename-or-symbol &optional (extension "png"))       ; What file should I live in?
   (typecase filename-or-symbol
-    (string (format nil "data/~A" filename-or-symbol))
-    (symbol (format nil "data/~A.png" (string-downcase (string filename-or-symbol))))))
+    (string (format nil "~A/data/~A" (asset-base) filename-or-symbol))
+    (symbol (format nil "~A/data/~A.~A" 
+                    (asset-base)
+                    (string-downcase (string filename-or-symbol)) 
+                    extension))))
 
 (defun load-assets ()
   (setf *stars00* (load-texture-file (apath "stars00.png"))
