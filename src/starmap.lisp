@@ -305,7 +305,7 @@
          (draw-img-deluxe label-img x ly ocolor))
         (explored  (draw-img label-img x ly))))))
 
-(defun starmap-select (starmap object)
+(defun starmap-select (starmap object &key update-p)
   (typecase object
     (colony (activate-panel (make-instance 'colony-panel :starmap starmap :colony object)))
     (fleet (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet object)))
@@ -316,11 +316,12 @@
      (let* ((star (and (typep object 'star) object))
             (explored (explored? *player* star)) ; XXX
             (planet (and.. explored star (planet-of $)))
-            (colony (and.. planet (colony-of $))))
+            (colony (and.. planet (colony-of $)))
+            (fn (if update-p #'update-panel #'activate-panel)))
        (cond
-         (colony (activate-panel (make-instance 'colony-panel :starmap starmap :colony colony)))
-         (planet (activate-panel (make-instance 'planet-panel :starmap starmap :planet planet)))
-         (star   (activate-panel (make-instance 'star-panel   :starmap starmap :star star))))))))
+         (colony (funcall fn (make-instance 'colony-panel :starmap starmap :colony colony)))
+         (planet (funcall fn (make-instance 'planet-panel :starmap starmap :planet planet)))
+         (star   (funcall fn (make-instance 'star-panel   :starmap starmap :star star))))))))
 
 ;;;; Starmap panels
 
@@ -1003,19 +1004,19 @@
       (setf (event-list-of *player*) nil))
 
     ;; Update open panel.
-    (when closing-panel
+    (unless closing-panel
       (cond
         ((typep panel 'star-panel)
          (starmap-select starmap (star-of panel)))
         ((typep panel 'planet-panel) 
-         (activate-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
+         (update-panel (make-instance 'planet-panel :starmap starmap :planet (planet-of panel))))
         ((typep panel 'colony-panel)
-         (activate-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel)
+         (update-panel (make-instance 'colony-panel :starmap starmap :colony (colony-of panel)
                                         :init-panel (panel-of panel) 
                                         :init-closing-panel (child-panel-close? panel)
                                         :init-panel-y (panel-y-of panel))))
         ((typep panel 'fleet-panel)
-         (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel))))))))
+         (update-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel))))))))
 
 ;;;; AUGH
 
