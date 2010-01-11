@@ -93,6 +93,8 @@
         (pair "Type" "Shield")
         (pair "Absorbtion" (gtxt (write-to-string (shield-level-of tech))))))))
 
+(defconstant +research-inspector-height+ 160)
+
 (let ((typeset nil)
       (lasttech nil))
   (defun run-ui-research-inspector (uic tech top &key (panel t))
@@ -117,7 +119,7 @@
                inspector-tech inspector-y close-inspector) gadget
     (let ((color (pstyle-label-color (style-of player)))
           (closing? (zerop alpha-target))
-          (iymin (- (uic-height uic) 160)))
+          (iymin (- (uic-height uic) +research-inspector-height+ )))
       ;; Handle fade in/out.
       (when (released? uic +right+)
         (if inspector-tech
@@ -185,12 +187,23 @@
         collect tech))
 
 (defun present-new-techs ()
-  (activate-new-gadget (make-instance 'fade-transition-gadget 
-                                      :child (make-instance 'present-tech-ui :player *player*)))
-  (dolist (tech (unpresented-techs *player*))
-    ;;(printl "pretend you were just shown:" tech)
-    (setf (gethash tech (presented-technologies-of *player*)) t))
-  (prompt-for-research))
+  ;; TEMPORARY HACK:
+  #+NIL
+  (setf (gethash (find-tech 'ion-drive) (presented-technologies-of *player*)) nil
+        (gethash (find-tech 'laser-beam) (presented-technologies-of *player*)) nil)
+ 
+  (cond
+    ;; If there are unpresented techs, present them, and let the
+    ;; present-tech-ui segue into tech selection itself. This is the
+    ;; usual case.
+    ((unpresented-techs *player*)
+     (activate-new-gadget (make-instance 'fade-transition-gadget
+                                         :child (make-instance 'present-tech-ui :player *player*))))
+    ;; Otherwise prompt for research (it will check if it's necessary
+    ;; itself). This only occurs at the end of the first turn, when
+    ;; there are no new techs, but research hasn't been selected yet.
+    (t (prompt-for-research))))
+
 
 ;;;;
 
@@ -202,11 +215,11 @@
    (rate  :initform 500 :initarg rate)))
 
 (defmethod gadget-paint ((gadget fade-transition-gadget) uic)
-  (call-next-method gadget (child-uic uic 0 0 :active nil))
-
   (with-slots (child level color state rate) gadget
+    (unless (= level 0.0)
+      (call-next-method gadget (child-uic uic 0 0 :active nil)))
     (setf level (clamp (+ level (* (case state (:out -1.0) (otherwise 1.0))
-                                   rate 
+                                   rate
                                    (max 0.0001 (uic-delta-t uic))))
                        #|min|# 0.0 #|max|# 255.0))
     (with-vector (c color)
@@ -227,9 +240,18 @@
 
 (defmethod gadget-paint ((gadget present-tech-ui) uic)
   (call-next-method)
-  (draw-img-deluxe (global-label :gothic 30 "New Discovery") 10 30 *label-color*)
-  (when (released? uic (logior +left+ +right+))
-    (pop-gadget gadget)))
+  (with-slots (player) gadget
+    (let ((new-techs (unpresented-techs player)))
+      (when (released? uic (logior +left+ +right+))
+        (setf (gethash (first new-techs) (presented-technologies-of *player*)) t)
+        (pop new-techs))
+      (cond
+        ((not new-techs) (pop-gadget gadget))
+        (t         
+         (draw-img-deluxe (global-label :gothic 30 "New Discovery") 10 30 *label-color*)
+         (run-ui-research-inspector uic (first new-techs) (- (uic-height uic) +research-inspector-height+)))))))
+
+
 
 
 

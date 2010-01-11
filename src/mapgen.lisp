@@ -318,8 +318,6 @@
 (defparameter *star-min-distance* 130
   "Minimum distance in the X/Y plane separating stars on the map")
 
-(defparameter *starfield-depth* 200)
-
 (defun inset-random (range border)
   (+ border (random (- range border border))))
 
@@ -520,7 +518,7 @@
          (remaining-techs (remove 0 all-techs :key #'level-of)))
     (loop for tech in initial-techs do 
           (grant-tech player tech)
-          (setf (gethash tech (presented-technologies-of player)) t))
+          #+HACKHACK (setf (gethash tech (presented-technologies-of player)) t))
     (setf (potential-techs-of player) remaining-techs)))
 
 (defun add-initial-ships-and-designs (player)
@@ -545,7 +543,11 @@
           (aref designs 1) colony-ship
           (building-design-of homeworld) scout)
     (build-ships homeworld scout 2)
-    (build-ships homeworld colony-ship 1)))
+    (build-ships homeworld colony-ship 1)
+    ;; Building the ships causes a sound-event to be inserted into the
+    ;; event list, but it won't play until next turn. We don't want it
+    ;; to play at all, so just clear the whole list.
+    (setf (event-list-of player) nil)))
 
 (defun make-test-universe ()
    (let* ((uni (make-instance 'universe))         
