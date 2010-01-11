@@ -200,10 +200,10 @@
 
 ;;;; Gadgetry - Image Button
 
-(defun run-img-button (uic img-up img-down x y)
+(defun run-img-button (uic img-up img-down x y &key (clicked-sound :click-mid))
   (let ((in (and (uic-active uic) (pointer-in-img-rect uic img-up x y))))
     (draw-img (if (and in (held? uic +left+)) img-down img-up) x y)
-    (and in (released? uic +left+))))
+    (and in (released? uic +left+) (prog1 t (and clicked-sound (play-sound clicked-sound))))))
 
 ;;;; Gadgetry - Labelled Button
 
@@ -214,12 +214,14 @@
          (lx (if center-x (- x (ash bar-width -1)) x)))
   (values lx y (+ lx bar-width) (+ y (bar-style-height style)))))
 
-(defun run-labelled-button (uic label x y &key min-width (center-x t) (color (vector 255 255 255)) (style *button-a*))
+(defun run-labelled-button (uic label x y &key min-width (center-x t) (color (vector 255 255 255)) (style *button-a*)
+                            (clicked-sound (sound-effect :click-high)))
   (let ((in (and (uic-active uic)
                  (multiple-value-call #'pointer-in-rect* uic
                    (labelled-button-rect style label x y :min-width min-width :center-x center-x)))))
     (draw-button style label (and in (held? uic +left+)) x y :min-width min-width :center-x center-x :color color)
-    (and in (released? uic +left+))))
+    (and in (released? uic +left+) 
+         (prog1 t (and clicked-sound (play-sound clicked-sound))))))
 
 ;;;; Gadgetry - Slider
 
