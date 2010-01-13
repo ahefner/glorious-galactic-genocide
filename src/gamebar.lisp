@@ -37,7 +37,7 @@
               (parent-gadget starmap) gameui
               next-gadget starmap)))))
 
-(defun client-do-next-turn (gamebar)
+(defun client-do-next-turn (gamebar)  
   (with-slots (starmap) gamebar
     (ui-finish-turn)
     (next-turn *universe*)
@@ -45,12 +45,12 @@
     (incf (windup-factor-of starmap) 1.5)))
 
 (let (labels)
-  (defun draw-status-bar (x0)
+  (defun draw-status-bar (gameui x0)
     (let ((color (pstyle-label-color (style-of *player*)))
           (y 19))
       (mapcar (lambda (label xoff) (draw-img-deluxe label (+ x0 xoff) y color))
-              (cachef (labels (year-of *universe*))
-                (mapcar (lambda (x) (render-label *global-owner* :gothic 20 x))
+              (cachef (labels (year-of *universe*) :delete (lambda (list) (dolist (img list) (free-img img))))
+                (mapcar (lambda (x) (render-label gameui :gothic 20 x))
                         (list (format nil "Year ~D" (year-of *universe*))
                               (format nil "Pop: ~:D mil" (reduce #'+ (colonies *player*) :key #'population-of)))))
               (list 0 112)))))
@@ -62,7 +62,7 @@
     
     (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
     (draw-img (imgblock :status-bar) 99 0)
-    (draw-status-bar 125)
+    (draw-status-bar gadget 125)
 
     (let* ((game-label (global-label :bold 14 "Game"))
            (turn-label (global-label :bold 14 "Next Turn"))

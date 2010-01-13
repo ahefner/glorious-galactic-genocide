@@ -2,13 +2,13 @@ Serious issues:
 
 
 Medium issues:
-* Leaking label images in status bar (for year and population)
+
 
 
 
 Minor issues:
-* Intermittent INVALID_OPERATION errors on fglrx that seem bogus. Kludge around and ignore it.
-* Star exploration stops working in subsequent games using debug key 'G'
+
+
 
 
 
@@ -19,7 +19,7 @@ Resolved serious issues:
 
 
 Resolved medium issues:
-
+* Leaking label images in status bar (for year and population)
 
 
 Resolved minor issues:
@@ -27,6 +27,8 @@ Resolved minor issues:
 * Fix quantization of scroll coordinates when zoomed beyond 100%
 * Slow convergence when scrolling/zooming (clamp, or add small linear component)
 * After founding new colony, switch to colony panel.
+* Star exploration stops working in subsequent games using debug key 'G'
+? Intermittent INVALID_OPERATION errors on fglrx that seem bogus. Kludge around and ignore it.
 
 ---------------------------------
 

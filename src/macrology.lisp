@@ -119,10 +119,16 @@
 
 ;;;; Simple cache utility.. should've added this earlier..
 
-(defmacro cachef ((place value-form &optional (test 'equal)) &body derived-forms)
+
+(defmacro cachef ((place value-form &key (test 'equal) (delete 'identity)) 
+                  &body derived-forms)
   `(flet ((value-fn () ,value-form)
           (derived-fn () ,@derived-forms))
      (let ((value (value-fn)))       
-       (cacheobj-derived (if (and ,place (,test (cacheobj-value ,place) value))
-                             ,place
-                             (setf ,place (make-cacheobj :value value :derived (derived-fn))))))))
+       (cacheobj-derived (cond 
+                           ((not ,place)
+                            (setf ,place (make-cacheobj :value value :derived (derived-fn))))
+                           ((and ,place (,test (cacheobj-value ,place) value))
+                            ,place)
+                           (t (,delete (cacheobj-derived ,place))
+                              (setf ,place (make-cacheobj :value value :derived (derived-fn)))))))))
