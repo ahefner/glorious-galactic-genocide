@@ -1,5 +1,7 @@
 ;;;; -*- Coding: latin-1 -*-
 
+(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+
 ;;;; Starmap
 
 (in-package :g1)
@@ -733,6 +735,19 @@
    (label-table :initform (make-hash-table)))
   (:default-initargs :panel-height 160))
 
+(defun deflect-from-stars (universe loc fudge dest)
+  (loop with accum = loc ;;(vec 0.0f0 0.0f0 0.0f0)
+        with fudged = (v+ loc fudge)
+        with antifudged = (v- loc fudge)
+        for star across (stars universe)
+        as vec = (v- (if (eql star dest) antifudged fudged) (loc star))
+        as len = (len vec)
+        as foo = (max 0.0 (- 40.0 len))
+        unless (zerop foo) do
+        ;;(printl :accum accum :vec vec :len len :foo foo)
+        (setf accum (v+ accum (safe-vscaleto vec foo)))
+        finally (return accum)))
+
 (defun fleet-screen-vector (camera fleet)
   ;; Assumption: We're far enough into rendering that the star
   ;; positions are established for the current frame.
@@ -741,8 +756,22 @@
      (let ((sc (screen-coord-of (star-of fleet)))
            (rel (aref (relative-orbital-vectors) (orbital-of fleet))))
        (v2 (+ (v2.x rel) (v2.x sc)) (+ (v2.y rel) (v2.y sc)))))
+    ((:enroute :departing)
+     #+NIL(perspective-transform (v- (vloc fleet) camera))
+     (perspective-transform
+      (v-
+       (deflect-from-stars (universe-of fleet)
+                           (vloc fleet)
+                           (safe-vscaleto (v- (loc (destination-of fleet)) 
+                                              (loc fleet))
+                                          13.0f0)
+                           (destination-of fleet))
+       camera)))
+
+    #+NIL
     (:enroute
      (perspective-transform (v- (vloc fleet) camera)))
+    #+NIL
     (:departing                         ; FIXME !!
      (perspective-transform (v- (vloc fleet) camera)))))
 

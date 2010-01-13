@@ -171,6 +171,12 @@
   (declare (type v3 vector))
   (vscale vector (* new-length (x^-1/2 (dot vector vector)))))
 
+(defun safe-vscaleto (vector new-length)
+  (declare (type v3 vector))
+  (if (vzerop vector)
+      vector
+      (vscale vector (* new-length (x^-1/2 (dot vector vector))))))
+
 (defun stp (a b c)
   (declare (type v3 a b c))
   (dot a (cross b c)))

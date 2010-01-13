@@ -32,11 +32,10 @@ Resolved minor issues:
 
 TODO, High priority:
 * Free per-game (nonglobal) resources at end of a game
-* Adjust fleet positions on starmap to avoid overlap
 
 TODO, Medium priority:
 * Sliding selection of ship quantity in fleet panel
 
 TODO, Low priority:
-* SFX are too loud. Stagger times too, for start of turn events.
+
 
