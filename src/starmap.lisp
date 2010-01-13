@@ -310,22 +310,23 @@
         (explored  (draw-img label-img x ly))))))
 
 (defun starmap-select (starmap object &key update-p)
-  (typecase object
-    (colony (activate-panel (make-instance 'colony-panel :starmap starmap :colony object)))
-    (fleet (activate-panel (make-instance 'fleet-panel :starmap starmap :fleet object)))
-    ;; Okay, this is fucking stupid. It won't happen, but
-    ;; hypothetically, what if I really wanted to select the star
-    ;; rather than the DWIM choice here?
-    (star
-     (let* ((star (and (typep object 'star) object))
-            (explored (explored? *player* star)) ; XXX
-            (planet (and.. explored star (planet-of $)))
-            (colony (and.. planet (colony-of $)))
-            (fn (if update-p #'update-panel #'activate-panel)))
-       (cond
-         (colony (funcall fn (make-instance 'colony-panel :starmap starmap :colony colony)))
-         (planet (funcall fn (make-instance 'planet-panel :starmap starmap :planet planet)))
-         (star   (funcall fn (make-instance 'star-panel   :starmap starmap :star star))))))))
+  (flet ((act (&rest args)
+           (apply (if update-p #'update-panel #'activate-panel) args)))               
+    (typecase object
+      (colony (act (make-instance 'colony-panel :starmap starmap :colony object)))
+      (fleet  (act (make-instance 'fleet-panel :starmap starmap :fleet object)))
+      ;; Okay, this is fucking stupid. It won't happen, but
+      ;; hypothetically, what if I really wanted to select the star
+      ;; rather than the DWIM choice here?
+      (star
+       (let* ((star (and (typep object 'star) object))
+              (explored (explored? *player* star)) ; XXX
+              (planet (and.. explored star (planet-of $)))
+              (colony (and.. planet (colony-of $))))
+         (cond
+           (colony (act (make-instance 'colony-panel :starmap starmap :colony colony)))
+           (planet (act (make-instance 'planet-panel :starmap starmap :planet planet)))
+           (star   (act (make-instance 'star-panel   :starmap starmap :star star)))))))))
 
 ;;;; Starmap panels
 
@@ -454,7 +455,7 @@
              (run-labelled-button uic (global-label :bold 14 "Colonize") 436 (- bottom 40)
                                   :color (pstyle-label-color (style-of (owner-of $$))))
              (establish-colony (owner-of $$$) $$)
-             (starmap-select starmap $))
+             (starmap-select starmap $ :update-p t))
 
       (let ((x0 534))
         (orf description-typesetting 
@@ -635,7 +636,9 @@
              (label (and design (cacheobj-derived eta-label-cache))))
         
         (when (run-labelled-button uic (global-label :bold 14 "Shipyard") cx (- bottom 70) :color color1)
-          (activate-panel (make-instance 'shipyard-panel :colony colony) :host panel))
+          ;; Don't reactivate the panel, else we get double "click" noises.
+          (unless (typep (panel-of panel) 'shipyard-panel)
+            (activate-panel (make-instance 'shipyard-panel :colony colony) :host panel)))
         (run-labelled-button uic (global-label  :bold 14 "Defenses") cx (- bottom 40) :color color1)
         (when design
           (draw-img-deluxe thumb cx (- bottom 125) shipyard-color)
@@ -957,7 +960,7 @@
                   (when (run-labelled-button uic (label :colonize) (allot :colonize) y :color color1)
                     (let ((star (star-of fleet)))
                     (establish-colony (owner-of fleet) (fleet-find-colony-ship-for fleet (planet-of star)))
-                    (starmap-select starmap star)))))))))))
+                    (starmap-select starmap star :update-p t)))))))))))
 
 (defun fleet-panel-ready-to-send (panel)
   (with-slots (fleet counts target label-table too-far) panel
