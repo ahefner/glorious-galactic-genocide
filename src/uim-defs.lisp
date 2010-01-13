@@ -21,7 +21,12 @@
 
 ;;; Objects can do resource cleanup here.
 (defgeneric finalize-object (object)
+  (:method (object) (declare (ignore object)))
   (:method ((object dynamic-object)) (declare (ignore object)))
+  (:method :around ((object dynamic-object))
+    (if (object-is-alive object)
+        (call-next-method)
+        (warn "Finalize request for object ~A which is already dead!" object)))
   (:method :after ((object dynamic-object))
     (setf (object-is-alive object) nil)))
 

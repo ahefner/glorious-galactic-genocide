@@ -42,6 +42,7 @@
 
 (defun pop-gadget (gadget)
   (assert (not (null (next-gadget gadget))))
+  (finalize-object *gadget-root*)
   (reactivate-gadget (next-gadget gadget)))
 
 (defun update-modifier-masks (uic last-uic)
