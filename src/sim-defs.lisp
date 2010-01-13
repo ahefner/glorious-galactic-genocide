@@ -176,6 +176,9 @@
    (stacks      :accessor stacks-of      :initform nil :initarg :stacks)
    (speed       :accessor speed-of       :initform 1   :initarg :speed)   
    (initiative  :accessor initiative-of  :initform 0)
+   ;; Displayed location of fleet in space. Decoupled from simulation!
+   ;; True LOC changes discretely between turns. VLOC changes (mostly)
+   ;; continuously, animated in real time.
    (vloc        :accessor vloc :initarg :vloc))
   (:default-initargs :star nil))
 
