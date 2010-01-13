@@ -104,10 +104,10 @@
            (baseline (+ top 50))
            (col2-x 250)
            (col2-width (min 600 (- (uic-width uic) col2-x 40)))
-           (cursor (make-cursor :left 40 :y baseline :color *lighter-color*)))
+           (cursor (make-cursor :left 40 :y baseline :color (lighter-color))))
       (when (< b (uic-height uic))
         (fill-rect 0 b (uic-width uic) (uic-height uic) 20 20 20 244))
-      (draw-img-deluxe (big-name-label-of tech) 16 (+ top 30) *label-color*)
+      (draw-img-deluxe (big-name-label-of tech) 16 (+ top 30) (label-color))
       (unless (eql tech lasttech)
         (setf typeset (typeset-text *word-map* col2-width (description-of tech))))
       (print-tech-stats cursor tech)
@@ -248,7 +248,7 @@
       (cond
         ((not new-techs) (pop-gadget gadget))
         (t         
-         (draw-img-deluxe (global-label :gothic 30 "New Discovery") 10 30 *label-color*)
+         (draw-img-deluxe (global-label :gothic 30 "New Discovery") 10 30 (label-color))
          (run-ui-research-inspector uic (first new-techs) (- (uic-height uic) +research-inspector-height+)))))))
 
 

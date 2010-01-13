@@ -66,7 +66,7 @@
 
 (defun main ()
   ;; Old ECL hacks. Hopefully shouldn't be necessary anymore.
-  #+NIL
+
   (setf system::*lisp-initialized* t
         system::*break-enable* t)
 
@@ -74,15 +74,14 @@
   (ext:trap-fpe 'floating-point-underflow nil)
 
   (handler-bind
-    ((serious-condition 
+    (#+NIL
+     (serious-condition
       (lambda (c)
         ;;(format t "~&~A~%" c)
+        (format t "~&Better luck next time!~%")
         (system::invoke-debugger c)
-        (format t "~&Better luck next time.~%")
         (ext:quit 1))))
     
-    (setf si:*gc-verbose* t)              ; Doesn't work anymore..
-
     (%main)))
 
 (defun %main ()
@@ -112,9 +111,7 @@
  
   (multiple-value-bind (*universe* *player*) (make-test-universe)
     (setf *gameui* (create-gameui *universe*)
-          *gadget-root* *gameui*
-          *label-color* (pstyle-label-color (style-of *player*))
-          *lighter-color* (color-lighten *label-color*))
+          *gadget-root* *gameui*)
     
 ;;    (time (uim-sdl-run))
     #+NIL (repaint (initial-uic))
@@ -124,6 +121,9 @@
 
   (format t "~&Bye!~%")
   (ext:quit))
+
+(defun label-color () (pstyle-label-color (style-of *player*)))
+(defun lighter-color () (color-lighten (label-color)))
 
 ;;;; Runtime recompilation
 

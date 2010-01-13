@@ -9,13 +9,15 @@
 
 (in-package :g1)
 
+;;; Graphics and whatnot. Elimate these.
+
 (defvar *stars00* nil)
 (defvar *stars01* nil)
 (defvar *stars02* nil)
 (defvar *stars03* nil)
-
 (defvar *gamebar-fill* nil)
 (defvar *panel-fill* nil)
+
 
 (defvar *packset* nil)
 
@@ -23,9 +25,6 @@
 (defvar *gameui*)
 (defvar *presentation-stack*)
 (defvar *grab-id* nil)
-
-(defvar *label-color* nil)              ; Set at game initialization.
-(defvar *lighter-color* nil)
 
 ;;; Object currently being inspected by a panel, to highlight in the starmap.
 (defvar *selected-object* nil)
