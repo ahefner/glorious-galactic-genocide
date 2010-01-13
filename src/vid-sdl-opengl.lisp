@@ -4,6 +4,8 @@
 
 (in-package :g1)
 
+(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+
 (ffi:clines "#include \"sys.h\"")
 (ffi:clines "#include <GL/gl.h>")
 (ffi:clines "#include \"text-render.h\"")
@@ -864,6 +866,7 @@ END
                 (gethash name sfx-lookaside) sound)))))
 
 (defun play-sound (sound-effect)
+  (break "sf ~A" sound-effect)
   (setf sound-effect (sound-effect sound-effect))
   (call "play_sound_effect" 
         :pointer-void (sound-effect-pointer sound-effect)

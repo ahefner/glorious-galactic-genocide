@@ -1,5 +1,7 @@
 (in-package :g1)
 
+(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+
 (ffi:clines "#include \"sys.h\"")
 
 (defun child-uic (uic dx dy &key width height (active t))
@@ -284,7 +286,7 @@
 
 (defun activate-panel (new-panel &key (host *gameui*) (update-p nil))
   (with-slots (panel closing-panel) host
-    (when panel 
+    (when panel
       (setf (panel-y-of host) (+ (- (panel-y-of host) (panel-height panel))
                                  (panel-height new-panel)))
       (finalize-object panel))

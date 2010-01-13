@@ -66,7 +66,7 @@
 
 (defun main ()
   ;; Old ECL hacks. Hopefully shouldn't be necessary anymore.
-
+  #+NIL
   (setf system::*lisp-initialized* t
         system::*break-enable* t)
 
