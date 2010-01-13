@@ -552,7 +552,7 @@
 (defun make-test-universe ()
    (let* ((uni (make-instance 'universe))         
           (*universe* uni)
-          (player (make-test-player "Goldfinch")))
+          (player (make-test-player (format nil "Goldfinch ~D" (random 100)))))
      (with-slots (stars min-bound max-bound) uni
        (generate-random-starmap uni 80 4)
        (place-homeworld uni player "Earth")

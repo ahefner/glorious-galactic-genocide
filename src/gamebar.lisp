@@ -3,8 +3,7 @@
 (in-package :g1)
 
 (defclass gameui (gadget panel-host-mixin)
-  ((universe :reader universe-of :initarg :universe)
-   (starmap)))
+  (starmap))
 
 (defmethod panel-height ((gadget gameui))
   (img-height (img :gamebar-left)))
@@ -25,7 +24,7 @@
           (t (gadget-key-released starmap uic keysym)))))
 
 (defun create-gameui (universe)
-  (let* ((gameui (make-instance 'gameui :universe universe))
+  (let* ((gameui (make-instance 'gameui))
          (homeworld (aref (colonies *player*) 0))
          (loc (loc homeworld))
          (camera (vec (v.x loc) (v.y loc) 0.0f0)))
@@ -39,9 +38,9 @@
               next-gadget starmap)))))
 
 (defun client-do-next-turn (gamebar)
-  (with-slots (universe starmap) gamebar
+  (with-slots (starmap) gamebar
     (ui-finish-turn)
-    (next-turn universe)
+    (next-turn *universe*)
     (update-ui-for-new-turn)
     (incf (windup-factor-of starmap) 1.5)))
 

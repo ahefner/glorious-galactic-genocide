@@ -23,8 +23,10 @@
   (print (list :press keysym char))
   (cond
     ((eql keysym (keysym :G))
+     ;; Dubious, even as debugging hack. Create a new starmap instead?
      (setf (values *universe* *player*) (make-test-universe)
-           (slot-value starmap 'universe) *universe*))
+           (slot-value starmap 'universe) *universe*)
+     (printl "New universe." :player *player* :universe *universe*))
     ((eql keysym (keysym :T))
      (printl "Have some techs! Have them all!")
      (maphash (lambda (name tech)

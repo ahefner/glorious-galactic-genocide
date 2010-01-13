@@ -646,7 +646,7 @@
 
 (defun next-turn (universe)  
   (loop for star across (stars universe) do (and.. (planet-of star) (colony-of $) (simulate-colony $)))
-  (loop for fleet in (fleets-in-transit *universe*) do (simulate-fleet fleet))
+  (loop for fleet in (fleets-in-transit universe) do (simulate-fleet fleet))
   (loop for star across (stars universe) do (dolist (fleet (fleets-orbiting star)) (explore-star star (owner-of fleet))))
 
   ;; Note that we can't do research until we've computed final planet budgets.
