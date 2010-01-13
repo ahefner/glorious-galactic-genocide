@@ -122,10 +122,11 @@ static void audio_mixer (void *udata, Sint16 *stream, int len)
             numfx++;
             int playing = effects[i].length - effects[i].position;
             if (playing > nsamples) playing = nsamples;
-            else effects[i].length = 0;
             Sint16 *ptr = effects[i].data + effects[i].position;
             effects[i].position += playing;
             for (int j=0; j<playing; j++) stream[j] += ptr[j];
+            /* Don't retire sounds until after mixing, otherwise we race with the UI thread. */
+            if (effects[i].position == effects[i].length) effects[i].length = 0;
         }
     }
 
