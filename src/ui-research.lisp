@@ -23,9 +23,6 @@
   (:method (cursor tech)
     (declare (ignore cursor tech))))
 
-;;; Some people may call this block names such "hack" or
-;;; "kludge". Philistines, they are.
-
 (macrolet ((cout (label) `(cursor-draw-img cursor ,label))
            (pair (this that)
              `(let ((this ,this) (that ,that))
@@ -197,8 +194,11 @@
     ;; present-tech-ui segue into tech selection itself. This is the
     ;; usual case.
     ((unpresented-techs *player*)
-     (activate-new-gadget (make-instance 'fade-transition-gadget
-                                         :child (make-instance 'present-tech-ui :player *player*))))
+     (activate-new-gadget
+      (make-instance 'present-tech-ui :player *player*)
+      #+NIL
+      (make-instance 'fade-transition-gadget
+                     :child (make-instance 'present-tech-ui :player *player*))))
     ;; Otherwise prompt for research (it will check if it's necessary
     ;; itself). This only occurs at the end of the first turn, when
     ;; there are no new techs, but research hasn't been selected yet.
@@ -239,7 +239,7 @@
   ((player :initarg :player)))
 
 (defmethod gadget-paint ((gadget present-tech-ui) uic)
-  (call-next-method)
+  (call-next-method gadget (child-uic uic :active nil))
   (with-slots (player) gadget
     (let ((new-techs (unpresented-techs player)))
       (when (released? uic (logior +left+ +right+))
@@ -247,12 +247,6 @@
         (pop new-techs))
       (cond
         ((not new-techs) (pop-gadget gadget))
-        (t         
+        (t
          (draw-img-deluxe (global-label :gothic 30 "New Discovery") 10 30 (label-color))
          (run-ui-research-inspector uic (first new-techs) (- (uic-height uic) +research-inspector-height+)))))))
-
-
-
-
-
-

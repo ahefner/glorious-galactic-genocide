@@ -134,8 +134,7 @@
 
 (defclass panel (dynamic-object) 
   ((panel-height :accessor panel-height :initarg :panel-height)
-   (host :accessor host-of :initform nil :initarg :host )
-   (starmap :initarg :starmap)
+   (host :accessor host-of :initform nil :initarg :host )   
    (closing :accessor closing-p :initform nil)))
 
 (defgeneric run-panel (panel uic bottom))

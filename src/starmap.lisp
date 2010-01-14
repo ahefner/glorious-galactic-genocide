@@ -335,10 +335,11 @@
 ;;; the way panels overlap and allocate space bottom-up that foils my
 ;;; notion of how child gadget should behave.
 
+(defclass starmap-panel (panel)
+  ((starmap :initarg :starmap)))
+
 (defgeneric finish-for-turn (object)
   (:method (foo) (declare (ignore foo))))
-
-
 
 ;;; Common panel labels
 
@@ -359,7 +360,7 @@
 (defparameter *planet-panel-col2-left* 372)
 (defparameter *planet-panel-col2-baseline* 121)
 
-(defclass planet-panel (panel)
+(defclass planet-panel (starmap-panel)
   ((planet :accessor planet-of :initarg :planet)
    (name-label :initform nil)
    (class-label :initform nil)
@@ -488,7 +489,7 @@
 
 ;;;; Colony Control Panel
 
-(defclass colony-panel (panel panel-host-mixin)
+(defclass colony-panel (starmap-panel panel-host-mixin)
   ((colony :accessor colony-of :initarg :colony)
    (name-label :initform nil)
    (class-label :initform nil)
@@ -666,7 +667,7 @@
 
 ;;;; Star Panel
 
-(defclass star-panel (panel)
+(defclass star-panel (starmap-panel)
   ((star :initarg :star :accessor star-of)
    (name-label :initform nil)
    (class-label :initform nil)
@@ -730,7 +731,7 @@
 
 ;;;; Fleet panel
 
-(defclass fleet-panel (panel)
+(defclass fleet-panel (starmap-panel)
   ((fleet :accessor fleet-of :initarg :fleet)
    (counts :initform (make-hash-table))
    (target :accessor target-of :initform nil)
