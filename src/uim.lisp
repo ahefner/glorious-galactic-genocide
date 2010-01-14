@@ -4,7 +4,7 @@
 
 (ffi:clines "#include \"sys.h\"")
 
-(defun child-uic (uic dx dy &key width height (active t))
+(defun child-uic (uic &key (dx 0) (dy 0) width height (active t))
   (let ((new (copy-uic uic)))
     (setf (uic-active new) (and active (uic-active uic))) ; Don't override deactivation by a parent.
     (incf (uic-abx new) dx)
@@ -82,6 +82,7 @@
 (defvar *swank-running* nil)
 
 (defun start-swank (background-p)
+  (declare (ignorable background-p))
   (unless *swank-running*
     (setf *swank-running* t)   
     (require :asdf)
@@ -256,7 +257,7 @@
 
 (defun run-hosted-panel (uic host bottom)
   (let* ((pointer-in-host (< (uic-my uic) bottom))
-         (child-uic (child-uic uic 0 0 :active (not pointer-in-host))))
+         (child-uic (child-uic uic :active (not pointer-in-host))))
     (with-slots (panel panel-y closing-panel) host
       (cond 
         (panel

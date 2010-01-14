@@ -128,7 +128,7 @@
       ;; FIXME, framerate-dependent
       (setf alpha (clamp (+ alpha (if (and (zerop unfold) closing?) -13 13)) 0 255))
       (unless (= alpha 255)
-        (gadget-paint (next-gadget gadget) (child-uic uic 0 0 :active nil)))
+        (gadget-paint (next-gadget gadget) (child-uic uic :active nil)))
 
       (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 alpha)
       
@@ -217,7 +217,7 @@
 (defmethod gadget-paint ((gadget fade-transition-gadget) uic)
   (with-slots (child level color state rate) gadget
     (unless (= level 0.0)
-      (call-next-method gadget (child-uic uic 0 0 :active nil)))
+      (call-next-method gadget (child-uic uic :active nil)))
     (setf level (clamp (+ level (* (case state (:out -1.0) (otherwise 1.0))
                                    rate
                                    (max 0.0001 (uic-delta-t uic))))

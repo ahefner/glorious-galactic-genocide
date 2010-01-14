@@ -387,7 +387,7 @@
            (units-to-mm 6)
            (area (reduce #'+ terrains)))
 
-      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+      (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) bottom)))
       (draw-panel-background uic bottom)
       (with-slots (habitability production-modifier) planet
 
@@ -552,9 +552,9 @@
            (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
            (col2 (make-cursor :left *planet-panel-col2-left*)))
 
-      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) (max bottom (panel-y-of panel))))) ; FUX! FIXMES!
+      (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) (max bottom (panel-y-of panel))))) ; FUX! FIXMES!
       (when (panel-of panel)
-        (run-hosted-panel (child-uic uic 0 0 :active (>= (uic-my uic) bottom)) panel bottom))
+        (run-hosted-panel (child-uic uic :active (>= (uic-my uic) bottom)) panel bottom))
       (draw-panel-background uic bottom)
 
       (orf stats-labels
@@ -682,7 +682,7 @@
            (color2 (color-lighten color1))
            (column (make-cursor :left 120 :y (- bottom 85))))
       
-      (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+      (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) bottom)))
       (draw-panel-background uic bottom)
 
       (draw-img (star->image star) 60 (- bottom 60))
@@ -843,7 +843,7 @@
         ;; Run the starmap first. We have to do our own presentation
         ;; query here to handle the ship movement, otherwise we'd just
         ;; call gadget-paint like the other panels do.
-        ;; (gadget-paint starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom)))
+        ;; (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) bottom)))
         
         (let ((*starmap-display-under-hook*
                (lambda ()
@@ -858,7 +858,7 @@
                    (draw-line (fleet-screen-vector (camera-vector-of starmap) fleet) (screen-coord-of target)
                               :color (if too-far #(120 120 120 255) #(255 255 255 255))
                               :pattern-offset (logand (ash (uic-time uic) -15) 31))))))
-          (query-starmap starmap (child-uic uic 0 0 :active (>= (uic-my uic) bottom))
+          (query-starmap starmap (child-uic uic :active (>= (uic-my uic) bottom))
                          :allow-middle-click t
                          :object-clicked (lambda (star)
                                            (cond ((and movable (typep star 'star))
@@ -938,16 +938,10 @@
         ;; Buttons
         (deflabel :send (:face :bold :size 14) "Send Now")
         (let ((y (+ top -20))
-              (button-pad 36)
-              (x (- (uic-width uic) 12)))
+              (button-pad 36))
           (flet ((allot (label)
                    (declare (ignore label))
-                   (- (uic-width uic) 68)
-                   ;; I used to do it this way. New policy: Only one label allowed!
-                   #+NIL
-                   (let ((adj (+ 5 button-pad (img-width (label label)))))
-                     (decf x adj)
-                     (+ x (ash adj -1)))))
+                   (- (uic-width uic) 68)))
             (if (fleet-panel-ready-to-send panel)
                 (when (or (run-labelled-button uic (label :send) (allot :send) y :color color1))
                   (fleet-panel-commit-and-switch panel))
