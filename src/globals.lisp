@@ -48,7 +48,6 @@
 (defvar *debug-show-packset* nil)
 
 (defvar *devmode* t)
-(defvar *program-start-time* (get-universal-time))
 (defparameter *starfield-depth* 200)
 
 (defstruct cacheobj value derived)      ; Nowhere else reasonable to define this..

@@ -99,6 +99,29 @@
           (c :cstring "glGetString(GL_RENDERER)")
           (c :cstring "glGetString(GL_VERSION)")
           (gl-get-integer (cx :int "GL_MAX_TEXTURE_UNITS")))
+
+  (macrolet ((field (name)
+               `(progn
+                  (format t "~&~A: ~:D~%" ,name 
+                   (ffi:c-inline 
+                    () () :int
+                    ,(format nil "{ GLint tmp=-1; glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, (~A), &tmp); @(return 0)=tmp; }" name)
+                    :one-liner nil))
+                  (check-gl-error ,name :warn t))))
+    (field "GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB")
+    (field "GL_MAX_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB")
+    (field "GL_MAX_PROGRAM_NATIVE_TEX_INSTRUCTIONS_ARB")
+    (field "GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB")
+    (field "GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB")
+    (field "GL_MAX_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB")
+    #|
+    (field "GL_MAX_PROGRAM_INSTRUCTIONS_ARB")
+    (field "GL_MAX_PROGRAM_ALU_INSTRUCTIONS_ARB")
+    (field "GL_MAX_PROGRAM_TEX_INSTRUCTIONS_ARB")
+    (field "GL_MAX_PROGRAM_TEMPORARIES_ARB")
+    (field "GL_MAX_PROGRAM_PARAMETERS_ARB")
+    (field "GL_MAX_PROGRAM_TEX_INDIRECTIONS_ARB")|#)
+
   
   (load-assets)
 
@@ -129,11 +152,15 @@
 
 (defvar *compilation-times* (make-hash-table :test 'equal))
 
+(defvar *program-start-time* (get-universal-time))
+
 (defun ensure-source-file (filename)
   (when (> (file-write-date (pathname filename))
-           (gethash filename *compilation-times* *program-start-time*))
-    ;; Another totally irrelevant race condition.
-    (setf (gethash filename *compilation-times*) (file-write-date (pathname filename)))
+           (gethash filename *compilation-times*
+                    (if (find filename (cl-user::lisp-compile-sources))
+                        0
+                        *program-start-time*)))
+    ;; Another totally irrelevant race condition.    
     (format t "~&---- Compiling ~A ----~%" filename)
     (let ((fasl (compile-file filename :print nil :verbose nil
                               ;;:user-cflags (format nil "-I../src/ ~{ ~A~}" (cl-user::cflags))
@@ -141,33 +168,35 @@
                                                    (pathname-name (pathname filename))))))
       (unless fasl
         (format *trace-output* "~&Error compiling ~A~%" filename)
+        (play-sound :chirp)
         (throw 'abort-reload t))
-      (load fasl))))
+      (load fasl)
+      (setf (gethash filename *compilation-times*) (file-write-date (pathname filename))))))
 
 (defun reload-modified-sources ()
-  ;; There's something completely insane about ECL that foils my
-  ;; attempts to hack in a special variable for user CC flags in.
-  #+NIL
-  (setf (symbol-value 'c::*user-cc-flags*)
-        (format nil "-I../src/ ~{ ~A~}" (cl-user::cflags))
-         #+NIL
-         (format nil "GAYNIGGERS ~A~{ ~A~}"
-                 #-HACKWTF" -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -g -O2 -fPIC  -D_THREAD_SAFE -Dlinux"
-                 #+HACKWTF c::*cc-flags* ; Unbound in the executable for whatever reason.
-                 (cl-user::cflags)))
-  ;;(declare (special c::*user-cc-flags*)) ; Seriously, what the fuck is with ECL?
-    ;;(format t "~&CFLAGS should now be: ~A~%" c::*cc-flags*)
-    (catch 'abort-reload 
-      (loop for source-spec in (append (cl-user::lisp-compile-sources) (cl-user::lisp-sources))
-            as filename = (if (listp source-spec)
-                              (first source-spec)
-                              source-spec)
-            as compile-time-deps = (and (listp source-spec) (rest source-spec))
-            do
+  ;; Major limitation - you can't recompile sources that expect to
+  ;; link against C function in the executable (as opposed to
+  ;; functions in dynamic libraries, which work fine).
+  (play-sound :chime-high)
+  (require 'cmp)
+  ;; Yes, we really need to use EVAL here.  
+  (let ((sym (eval (read-from-string "'c::*cc-flags*"))))
+    (printl :old-cc-flags (symbol-value sym)
+            (printl :new-cc-flags (setf (symbol-value sym)
+                                        (format nil "~A -I./src/ ~{ ~A~}" (symbol-value sym) (cl-user::cflags))))))
 
-            (print (list :checking filename :deps compile-time-deps))
-            (mapc #'ensure-source-file compile-time-deps)
-            (ensure-source-file filename))))
+  (catch 'abort-reload
+    (loop for source-spec in (append (cl-user::lisp-compile-sources) (cl-user::lisp-sources))
+          as filename = (if (listp source-spec)
+                            (first source-spec)
+                            source-spec)
+          as compile-time-deps = (and (listp source-spec) (rest source-spec))
+          do
+          
+          (print (list :checking filename :deps compile-time-deps))
+          (mapc #'ensure-source-file compile-time-deps)
+          (ensure-source-file filename)))
+    (play-sound :chime-low))
 
 
 
