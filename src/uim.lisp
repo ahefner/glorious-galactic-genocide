@@ -44,6 +44,7 @@
 
 (defun pop-gadget (gadget)
   (assert (not (null (next-gadget gadget))))
+  (assert (eql gadget *gadget-root*))
   (finalize-object *gadget-root*)
   (reactivate-gadget (next-gadget gadget)))
 
@@ -331,3 +332,73 @@
     (setf (cursor-x cursor) (cursor-left cursor)))
   (setf (cursor-newline-p cursor) nil)
   (incf (cursor-x cursor) advance))
+
+;;;; Gadget to fade out the screen, display a child gadget, then fade
+;;;; back in when the child pops.
+
+(defclass in-and-out ()
+  ((io-level :initform 0.0)
+   (io-state :initform :in)
+   (io-rate  :initform 2.0 :initarg :rate)))
+
+(defclass fade-transition-gadget (gadget in-and-out)
+  ((child :initarg :child)
+   (color :initform #(0 0 0) :initarg :color)))
+
+(defun run-in-and-out (io delta-t)
+  "Run in/out transition state, returning level, state transition (:opened or :closed) and state (:in, t, :out, nil)."
+  (with-slots (io-level io-state io-rate) io
+    (setf io-level (clamp (+ io-level (* (case io-state ((nil :out) -1.0) (otherwise 1.0))
+                                   io-rate
+                                   (max 0.0001 delta-t)))
+                       #|min|# 0.0 #|max|# 1.0))
+    (let ((old-state io-state))
+      (case io-state
+        (:in (when (= io-level 1.0) (setf io-state t)))
+        (:out (when (= io-level 0.0) (setf io-state nil))))
+      (values io-level
+              (and (not (eq old-state io-state))
+                   (if (eq io-state t) :opened :closed))
+              io-state))))
+
+(defun io-request-close (io)
+  (with-slots (io-state) io
+    (when io-state (setf io-state :out))))
+
+(defmethod gadget-paint ((gadget fade-transition-gadget) uic)
+  (with-slots (child color) gadget
+    (multiple-value-bind (level transition state) (run-in-and-out gadget (uic-delta-t uic))
+      (unless (= level 0.0)
+        (call-next-method gadget (child-uic uic :active nil)))
+    
+      (with-vector (c color)
+        (fill-rect 0 0 (uic-width uic) (uic-height uic) c.x c.y c.z (* 255.0 level)))
+      
+      (case transition
+        (:opened (activate-new-gadget child))
+        (:closed (pop-gadget gadget)))
+      
+      (when (and (eql state t) (eql *gadget-root* gadget))
+        (io-request-close gadget)))))
+
+;;;; Modal bottom-panel host gadget.
+
+(defclass modal-bottom-panel-host (gadget in-and-out)
+  ((panel :accessor panel-of :initform nil :initarg :init-panel)
+   (fade :initform 128.0 :initarg :fade)))
+
+(defmethod gadget-paint ((gadget modal-bottom-panel-host) uic)
+  (with-slots (panel io-level fade) gadget
+    (setf (host-of panel) gadget)
+    (unless (< (* fade io-level) 1.0)
+      (call-next-method gadget (child-uic uic :active nil)))
+    (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 (round (* fade io-level)))
+    (multiple-value-bind (level transition state) (run-in-and-out gadget (uic-delta-t uic))
+      (declare (ignorable level state))
+      (when panel
+        (run-panel panel uic (- (uic-height uic) (round (* (expt io-level (if (eql state :out) 2 0.5)) 
+                                                           (panel-height panel)))))
+        (when (eql transition :closed)
+          (finalize-object panel)
+          (setf panel nil)
+          (pop-gadget gadget))))))

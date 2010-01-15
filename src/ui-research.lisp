@@ -46,18 +46,20 @@
         (flush-table cursor))
 
       (defmethod print-tech-stats (cursor tech)
-        (declare (ignore tech))
+        (declare (ignore tech cursor))
         (pair "Type" "Other"))
 
       (defmethod print-tech-stats (cursor (tech special-tech))
-        (declare (ignore tech))
+        (declare (ignore tech cursor))
         (pair "Type" "Ship Equipment"))
 
       (defmethod print-tech-stats (cursor (tech engine))
+        (declare (ignore cursor))
         (pair "Type" "Engine")
         (pair "Maximum Speed" (gtxt (format nil "~F LY/turn" (engine-speed tech)))))
 
       (defmethod print-tech-stats (cursor (tech weapon))
+        (declare (ignore cursor))
         (pair "Type" (etypecase tech
                        (beam "Beam Weapon")
                        (particle-weapon "Particle Weapon")
@@ -77,16 +79,19 @@
           (pair "Shield Bypass" (gtxt (format nil "~F" (shield-scaling-of tech))))))
   
       (defmethod print-tech-stats (cursor (tech fuel))
+        (declare (ignore cursor))
         (pair "Type" "Power Source")
         (pair "Range" (gtxt (format nil "~D LY" (range-bonus tech)))))
 
       (defmethod print-tech-stats (cursor (tech hull))
+        (declare (ignore cursor))
         (pair "Type" (if (typep tech 'armor) "Armored Hull" "Hull"))
         (unless (zerop (armor-level-of tech))
           (pair "Absorbtion" (gtxt (write-to-string (armor-level-of tech)))))
         (pair "Hull Strength" (gtxt (format nil "~Fx" (hull-modifier-of tech)))))
   
       (defmethod print-tech-status (cursor (tech shield))
+        (declare (ignore cursor))
         (pair "Type" "Shield")
         (pair "Absorbtion" (gtxt (write-to-string (shield-level-of tech))))))))
 
@@ -94,21 +99,27 @@
 
 (let ((typeset nil)
       (lasttech nil))
-  (defun run-ui-research-inspector (uic tech top &key (panel t))
-    (when panel
-      (draw-bar* (img :upanel-left) (img :upanel-right) (texture :upanel-fill) 0 top (uic-width uic)))
+  (defun run-ui-research-inspector (uic tech top &key (panel t) new-discovery)
     (let* ((b (+ top 64))
            (baseline (+ top 50))
            (col2-x 250)
            (col2-width (min 600 (- (uic-width uic) col2-x 40)))
            (cursor (make-cursor :left 40 :y baseline :color (lighter-color))))
-      (when (< b (uic-height uic))
-        (fill-rect 0 b (uic-width uic) (uic-height uic) 20 20 20 244))
-      (draw-img-deluxe (big-name-label-of tech) 16 (+ top 30) (label-color))
-      (unless (eql tech lasttech)
-        (setf typeset (typeset-text *word-map* col2-width (description-of tech))))
-      (print-tech-stats cursor tech)
-      (draw-typeset-text typeset col2-x baseline #(255 255 255 255)))))
+      (when panel
+        (draw-bar* (img :upanel-left) (img :upanel-right) (texture :upanel-fill) 0 top (uic-width uic))
+        (when (< b (uic-height uic))
+          (fill-rect 0 b (uic-width uic) (uic-height uic) 20 20 20 244)))
+      (when tech
+        (let ((x 16))
+          (when new-discovery
+            (let ((label (global-label :gothic 20 "New Discovery: ")))
+              (draw-img-deluxe label x (+ top 30) (label-color))
+              (incf x (+ 6 (img-width label)))))
+          (draw-img-deluxe (big-name-label-of tech) x (+ top 30) (label-color)))
+        (unless (eql tech lasttech)
+          (setf typeset (typeset-text *word-map* col2-width (description-of tech))))
+        (print-tech-stats cursor tech)
+        (draw-typeset-text typeset col2-x baseline #(255 255 255 255))))))
 
 (defmethod gadget-paint ((gadget research-ui) uic)
   (with-slots (player alpha alpha-target 
@@ -195,58 +206,36 @@
     ;; usual case.
     ((unpresented-techs *player*)
      (activate-new-gadget
-      (make-instance 'present-tech-ui :player *player*)
+      (make-instance 'modal-bottom-panel-host
+                     :init-panel (make-instance 'present-techs-panel :player *player*)))
+      #+NIL (make-instance 'present-tech-ui :player *player*)
       #+NIL
       (make-instance 'fade-transition-gadget
-                     :child (make-instance 'present-tech-ui :player *player*))))
+                     :child (make-instance 'present-tech-ui :player *player*)))
     ;; Otherwise prompt for research (it will check if it's necessary
     ;; itself). This only occurs at the end of the first turn, when
     ;; there are no new techs, but research hasn't been selected yet.
     (t (prompt-for-research))))
 
 
-;;;;
 
-(defclass fade-transition-gadget (gadget)
-  ((child :initarg :child)
-   (level :initform 0.0)
-   (color :initform #(0 0 0) :initarg :color)
-   (state :initform :in)
-   (rate  :initform 500 :initarg rate)))
-
-(defmethod gadget-paint ((gadget fade-transition-gadget) uic)
-  (with-slots (child level color state rate) gadget
-    (unless (= level 0.0)
-      (call-next-method gadget (child-uic uic :active nil)))
-    (setf level (clamp (+ level (* (case state (:out -1.0) (otherwise 1.0))
-                                   rate
-                                   (max 0.0001 (uic-delta-t uic))))
-                       #|min|# 0.0 #|max|# 255.0))
-    (with-vector (c color)
-      (fill-rect 0 0 (uic-width uic) (uic-height uic) c.x c.y c.z (round level)))
-    (cond
-      ((and (eq state :in) (> level 254.0))
-       (setf state t)
-       (activate-new-gadget child))
-      ((and (eq state t) (eq *gadget-root* gadget))
-       (setf state :out))
-      ((and (eq state :out) (< level 1.0))
-       (pop-gadget gadget)))))
 
 ;;;; Present new tech
 
-(defclass present-tech-ui (gadget)
+(defclass present-techs-panel (panel)
   ((player :initarg :player)))
 
-(defmethod gadget-paint ((gadget present-tech-ui) uic)
-  (call-next-method gadget (child-uic uic :active nil))
-  (with-slots (player) gadget
+(defmethod panel-height ((panel present-techs-panel)) 
+  (declare (ignore panel))
+  +research-inspector-height+)
+
+(defmethod run-panel ((panel present-techs-panel) uic top)
+  (with-slots (player) panel
     (let ((new-techs (unpresented-techs player)))
       (when (released? uic (logior +left+ +right+))
         (setf (gethash (first new-techs) (presented-technologies-of *player*)) t)
         (pop new-techs))
-      (cond
-        ((not new-techs) (pop-gadget gadget))
-        (t
-         (draw-img-deluxe (global-label :gothic 30 "New Discovery") 10 30 (label-color))
-         (run-ui-research-inspector uic (first new-techs) (- (uic-height uic) +research-inspector-height+)))))))
+      (when (not new-techs)
+        (io-request-close (host-of panel)))
+
+      (run-ui-research-inspector uic (first new-techs) top :new-discovery t))))

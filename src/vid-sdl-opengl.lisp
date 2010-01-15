@@ -76,7 +76,9 @@
       (call "SDL_FreeSurface" :pointer-void surface))))
 
 (defun set-color* (r g b a)
-  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a))
+  (call "glColor4ub"
+        :unsigned-byte (round r) :unsigned-byte (round g)
+        :unsigned-byte (round b) :unsigned-byte (round a)))
 
 (defun set-color (v)
   (call "glColor4ub" 
@@ -426,7 +428,7 @@
 ;;;; Various utilities
 
 (defun fill-rect (x0 y0 x1 y1 r g b a)
-  (call "glColor4ub" :unsigned-byte r :unsigned-byte g :unsigned-byte b :unsigned-byte a)
+  (set-color* r g b a)
   (c "glDisable(GL_TEXTURE_2D)")
   (c "glBegin(GL_QUADS)")
   (ffi:c-inline (x0 y0 x1 y1) (:int :int :int :int) (values)
