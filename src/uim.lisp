@@ -54,9 +54,6 @@
     (setf (uic-modifiers-pressed  uic) (logand now  (logxor now then))
           (uic-modifiers-released uic) (logand then (logxor now then)))))
 
-(defun gettime ()
-  (call :unsigned-int "usectime"))
-
 ;;;; Mouse grabbing semantics: Grabbing is only intended to last the
 ;;;; duration that the left button is held. Once you've grabbed the
 ;;;; mouse, the global UIC is deactivated until the grab (or the
@@ -94,6 +91,8 @@
     (flet ((run () (eval (read-from-string "(swank:create-server :port 0)"))))
       (if background-p (mp:process-run-function 'swank-process #'run) (run)))))
 
+(defun gettime ()
+  (call :unsigned-int "usectime"))
 
 (defun uim-sdl-run ()
   (loop named runloop 
@@ -337,7 +336,7 @@
 ;;;; back in when the child pops.
 
 (defclass in-and-out ()
-  ((io-level :initform 0.0)
+  ((io-level :reader level-of :initform 0.0)
    (io-state :initform :in)
    (io-rate  :initform 2.0 :initarg :rate)))
 
@@ -349,13 +348,14 @@
   "Run in/out transition state, returning level, state transition (:opened or :closed) and state (:in, t, :out, nil)."
   (with-slots (io-level io-state io-rate) io
     (setf io-level (clamp (+ io-level (* (case io-state ((nil :out) -1.0) (otherwise 1.0))
-                                   io-rate
-                                   (max 0.0001 delta-t)))
-                       #|min|# 0.0 #|max|# 1.0))
+                                         io-rate
+                                         (max 0.0001 delta-t)))
+                          #|min|# 0.0 #|max|# 1.0))
+    ;;(printl io io-state io-level)
     (let ((old-state io-state))
       (case io-state
-        (:in (when (= io-level 1.0) (setf io-state t)))
-        (:out (when (= io-level 0.0) (setf io-state nil))))
+        (:in (when (> io-level 0.9999) (setf io-state t)))
+        (:out (when (< io-level 0.001) (setf io-state nil))))
       (values io-level
               (and (not (eq old-state io-state))
                    (if (eq io-state t) :opened :closed))
@@ -363,12 +363,13 @@
 
 (defun io-request-close (io)
   (with-slots (io-state) io
-    (when io-state (setf io-state :out))))
+    (when io-state
+      (setf io-state :out))))
 
 (defmethod gadget-paint ((gadget fade-transition-gadget) uic)
   (with-slots (child color) gadget
     (multiple-value-bind (level transition state) (run-in-and-out gadget (uic-delta-t uic))
-      (unless (= level 0.0)
+      (unless (< level 0.001)
         (call-next-method gadget (child-uic uic :active nil)))
     
       (with-vector (c color)
@@ -383,22 +384,40 @@
 
 ;;;; Modal bottom-panel host gadget.
 
-(defclass modal-bottom-panel-host (gadget in-and-out)
+(defclass modal-bottom-panel-host (gadget)
   ((panel :accessor panel-of :initform nil :initarg :init-panel)
-   (fade :initform 128.0 :initarg :fade)))
+   (child-queue :initform nil :initarg :child-queue)
+   (fade :initform 128.0 :initarg :fade)
+   (fade-io  :initform (make-instance 'in-and-out))
+   (panel-io :initform (make-instance 'in-and-out))))
+
+;; I didn't bother making a generic API for panels to request close.
+
+(defun bottom-panel-request-close (panel)
+  (with-slots (child-queue fade-io panel-io) (host-of panel)    
+    (io-request-close panel-io)
+    (when (null child-queue)
+      (io-request-close fade-io))))
 
 (defmethod gadget-paint ((gadget modal-bottom-panel-host) uic)
-  (with-slots (panel io-level fade) gadget
-    (setf (host-of panel) gadget)
-    (unless (< (* fade io-level) 1.0)
-      (call-next-method gadget (child-uic uic :active nil)))
-    (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 (round (* fade io-level)))
-    (multiple-value-bind (level transition state) (run-in-and-out gadget (uic-delta-t uic))
-      (declare (ignorable level state))
-      (when panel
-        (run-panel panel uic (- (uic-height uic) (round (* (expt io-level (if (eql state :out) 2 0.5)) 
-                                                           (panel-height panel)))))
-        (when (eql transition :closed)
+  (with-slots (panel fade fade-io panel-io child-queue) gadget    
+    (multiple-value-bind (fade-level fade-transition) (run-in-and-out fade-io (uic-delta-t uic))
+      (unless (< (* fade fade-level) 1.0)
+        (call-next-method gadget (child-uic uic :active nil)))
+      (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 (round (* fade fade-level)))      
+      (multiple-value-bind (p-level p-transition p-state) (run-in-and-out panel-io (uic-delta-t uic))
+        (when panel
+          (setf (host-of panel) gadget)
+          (run-panel panel uic 
+                     (- (uic-height uic) 
+                        (round (* (expt p-level (if (eql p-state :out) 2 0.5))
+                                  (panel-height panel)))))
+        (when (eql p-transition :closed)
           (finalize-object panel)
           (setf panel nil)
+          (when child-queue
+            (setf panel (pop child-queue)
+                  panel-io (make-instance 'in-and-out)))))
+
+        (when (eql fade-transition :closed)
           (pop-gadget gadget))))))

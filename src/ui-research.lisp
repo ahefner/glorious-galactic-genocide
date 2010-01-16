@@ -225,7 +225,7 @@
 (defclass present-techs-panel (panel)
   ((player :initarg :player)))
 
-(defmethod panel-height ((panel present-techs-panel)) 
+(defmethod panel-height ((panel present-techs-panel))
   (declare (ignore panel))
   +research-inspector-height+)
 
@@ -235,7 +235,12 @@
       (when (released? uic (logior +left+ +right+))
         (setf (gethash (first new-techs) (presented-technologies-of *player*)) t)
         (pop new-techs))
-      (when (not new-techs)
-        (io-request-close (host-of panel)))
-
+      (when (not new-techs)             ; Out of new techs to show? Prompt for new research.
+        (cond
+          #+NIL
+          ((potential-techs-of player)  ; Wrong.. I think?
+           ;; This panel don't create anything, so there's no need to call finalize-object.
+           (enqueue-next-panel (host-of panel) (make-instance 'select-research-panel :player player)))
+          (t (bottom-panel-request-close panel))))
       (run-ui-research-inspector uic (first new-techs) top :new-discovery t))))
+
