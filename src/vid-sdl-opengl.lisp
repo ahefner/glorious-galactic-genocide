@@ -20,11 +20,13 @@
     (#x0503                       :GL_STACK_OVERFLOW)
     (#x0504                      :GL_STACK_UNDERFLOW)
     (#x0505                        :GL_OUT_OF_MEMORY)))
-    
-(defun check-gl-error (&optional (context ""))
+
+(defun check-gl-error (&optional (context "?") &key warn)
   (let ((err (c :int "glGetError()")))
     (unless (zerop err)
-      (cerror "Fuck it" "OpenGL error 0x~X (~A) ~A" err (gl-error-to-string err) context))))
+      (if warn
+          (warn "OpenGL error 0x~X (~A) [~A]" err (gl-error-to-string err) context)
+          (cerror "Fuck it" "OpenGL error 0x~X (~A) [~A]" err (gl-error-to-string err) context)))))
 
 (defstruct gltexobj texid width height)
 
@@ -664,10 +666,10 @@
 
 ;;;; Shader test
 
-(defun gl-get-integer (enum)
+(defun gl-get-integer (enum &optional (ctx "glGetInteger"))
   (prog1 (ffi:c-inline (enum) (:int) :int "{ GLint tmp; glGetIntegerv((GLenum)#0, &tmp); @(return 0) = tmp; }"
                        :one-liner nil)
-    (check-gl-error)))
+    (check-gl-error ctx)))
 
 (defun alloc-program-id ()
   (ffi:c-inline () () :unsigned-int
