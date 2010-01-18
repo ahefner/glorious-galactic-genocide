@@ -79,6 +79,7 @@
       (lambda (c)
         ;;(format t "~&~A~%" c)
         (format t "~&Better luck next time!~%")
+        (play-sound :chirp)
         (system::invoke-debugger c)
         (ext:quit 1))))
     

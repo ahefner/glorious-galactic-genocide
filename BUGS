@@ -2,13 +2,15 @@ Serious issues:
 
 
 Medium issues:
-
+* Further improve packset allocation (reclaim freed blocks, chain packstacks, random eviction?)
 
 
 
 Minor issues:
 * Improve text layout
-
+* Space and Enter should also step through modal contexts where left click is used presently
+* Escape should close panels
+* Better art for bottom panels
 
 
 

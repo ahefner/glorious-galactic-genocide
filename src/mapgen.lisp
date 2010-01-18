@@ -518,8 +518,15 @@
          (remaining-techs (remove 0 all-techs :key #'level-of)))
     (loop for tech in initial-techs do 
           (grant-tech player tech)
+          ;; TEMPORARY HACK show initial techs after first turn!
           #+HACKHACK (setf (gethash tech (presented-technologies-of player)) t))
-    (setf (potential-techs-of player) remaining-techs)))
+    (setf (potential-techs-of player) remaining-techs
+          (available-techs-of player) (subseq remaining-techs
+                                              0
+                                              (min (initial-research-choices-of (race-of player))
+                                                   (length remaining-techs))))
+    ;; HACK TEMPORARY!!!
+    (setf (available-techs-of player) remaining-techs)))
 
 (defun add-initial-ships-and-designs (player)
   (let ((designs (ship-designs-of player))

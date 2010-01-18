@@ -70,14 +70,20 @@
                         :initform (vector 5 0 1 0)
                         :initarg :habitability)
    (base-growth-costs   :reader base-growth-costs-of
-                        :initform (vector 5 50 20 100))))
+                        :initform (vector 5 50 20 100))
+   (initial-research-choices :reader initial-research-choices-of
+                             :initform 6
+                             :initarg initial-research-choices)))
 
 (defclass player (named perishable)
   ((explored-stars :reader explored-stars-of :initform (make-hash-table :test 'eq))
    (race :reader race-of :initarg :race)
    (technologies :accessor technologies-of :initform nil)
    (presented-technologies :reader presented-technologies-of :initform (make-hash-table))
+   ;; Potential techs: All the techs the player will ever be allowed to research, chosen at the beginning of the game.
    (potential-techs :accessor potential-techs-of :initform nil)
+   ;; Available techs: Available for research immediately.
+   (available-techs :accessor available-techs-of :initform nil)
    (style :accessor style-of :initarg :style :initform nil)
    (ship-designs-of :reader ship-designs-of :initform (make-array 9))
    (research-projects :accessor research-projects-of :initform (make-array 2))

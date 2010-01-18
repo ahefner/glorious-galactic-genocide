@@ -259,7 +259,6 @@
                                          io-rate
                                          (max 0.0001 delta-t)))
                           #|min|# 0.0 #|max|# 1.0))
-    ;;(printl io io-state io-level)
     (let ((old-state io-state))
       (case io-state
         (:in (when (> io-level 0.9999) (setf io-state t)))
@@ -301,11 +300,19 @@
 
 ;; I didn't bother making a generic API for panels to request close.
 
-(defun bottom-panel-request-close (panel)
-  (with-slots (child-queue fade-io panel-io) (host-of panel)    
+(defun enqueue-next-panel (bottom-panel-host panel)
+  (with-slots (child-queue) bottom-panel-host    
+    (setf child-queue (append child-queue (list panel))))
+  (bottom-panel-host-request-close bottom-panel-host))
+
+(defun bottom-panel-host-request-close (panel-host)
+  (with-slots (child-queue fade-io panel-io) panel-host
     (io-request-close panel-io)
     (when (null child-queue)
       (io-request-close fade-io))))
+
+(defun bottom-panel-request-close (panel)
+  (bottom-panel-host-request-close (host-of panel)))
 
 (defmethod gadget-paint ((gadget modal-bottom-panel-host) uic)
   (with-slots (panel fade fade-io panel-io child-queue) gadget    
