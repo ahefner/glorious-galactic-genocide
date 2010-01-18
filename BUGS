@@ -30,7 +30,9 @@ Resolved minor issues:
 * Slow convergence when scrolling/zooming (clamp, or add small linear component)
 * After founding new colony, switch to colony panel.
 * Star exploration stops working in subsequent games using debug key 'G'
+* Don't allow selecting ships within fleets you don't control
 ? Intermittent INVALID_OPERATION errors on fglrx that seem bogus. Kludge around and ignore it.
+
 
 ---------------------------------
 

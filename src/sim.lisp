@@ -610,9 +610,16 @@
 (defun grant-tech (player tech)
   (pushnew tech (technologies-of player))
   (deletef (potential-techs-of player) tech)
+  (deletef (available-techs-of player) tech)
+  ;; Remove from ongoing research projects
+  (loop for index upfrom 0 for project across (research-projects-of player)
+        when (and project (eql tech (researching-tech project)))
+        do (setf (aref (research-projects-of player) index) nil))
+  ;; Add linked techs
   (loop for linked being the hash-values of *name->tech*
         when (eql tech (linked-to linked)) 
         do (grant-tech player linked))
+  ;; Recompute cached attributes
   (update-player-attributes player))
 
 (defun tech-level-cost (level) (* 100 (round (expt level 1.6))))
@@ -620,12 +627,21 @@
 (defun tech-cost (tech) (tech-level-cost (level-of tech)))
 
 (defun progress-research-project (player project investment)
+  (printl :research-progress (researching-tech project) investment)
   (incf (researching-spent project) investment)
   (if (>= (researching-spent project) (tech-cost (researching-tech project)))
-      (prog1 t 
+      (prog1 t
         (grant-tech player (researching-tech project))
-        (new-player-event player :tech (researching-tech project)))
+        (new-player-event player 'new-tech-event :tech (researching-tech project)))
       nil))
+
+(defun begin-research-project (player tech)
+  (let ((pos (position nil (research-projects-of player))))
+    (assert (not (null pos)))
+    (setf (aref (research-projects-of player) pos)
+          (make-researching :tech tech :spent 0))
+    (deletef (available-techs-of player) tech)))
+
 
 ;;;; Designs
 

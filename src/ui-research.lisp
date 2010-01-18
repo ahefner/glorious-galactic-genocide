@@ -1,6 +1,6 @@
 (in-package :g1)
 
-(defclass research-ui (gadget)
+(defclass browse-techs-ui (gadget)
   ((player :initarg :player)
    (unfold-rate :initform nil)
    (unfold :initform 0)
@@ -138,7 +138,7 @@
 ;;;; FIXME: Could be simplified using the new fade in-and-out
 ;;;; gadget. Already works, not making the effort.
 
-(defmethod gadget-paint ((gadget research-ui) uic)
+(defmethod gadget-paint ((gadget browse-techs-ui) uic)
   (with-slots (player alpha alpha-target 
                unfold unfolded unfold-rate 
                inspector-tech inspector-y close-inspector) gadget

@@ -12,7 +12,7 @@
   (with-slots (starmap panel closing-panel) gadget
     (cond 
       ((and (eql char #\r) (no-modifiers uic))
-       (activate-new-gadget (make-instance 'research-ui :player *player*)))
+       (activate-new-gadget (make-instance 'browse-techs-ui :player *player*)))
       ((and (eql char #\Space) (no-modifiers uic))
        (client-do-next-turn gadget))
       ((and panel (not closing-panel)) (gadget-key-pressed panel uic keysym char))
@@ -33,11 +33,11 @@
       (with-slots (starmap next-gadget) gameui
         (setf starmap (make-instance 'debug-starmap :universe universe
                                      :camera camera
-                                     :camera-target (vscale camera 1.0)) ; Copy.. don't ask..
+                                     :camera-target (vscale camera 1.0)) ; Must copy.. don't ask..
               (parent-gadget starmap) gameui
               next-gadget starmap)))))
 
-(defun client-do-next-turn (gamebar)  
+(defun client-do-next-turn (gamebar)
   (with-slots (starmap) gamebar
     (ui-finish-turn)
     (next-turn *universe*)

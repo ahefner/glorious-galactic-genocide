@@ -336,3 +336,17 @@
 
         (when (eql fade-transition :closed)
           (pop-gadget gadget))))))
+
+;;;; Sequencer gadget - runs a list of functions, which may do
+;;;; processing or choose to invoke modal UIs. If a function modifies
+;;;; the UI root, subsequent functions will be delayed until the
+;;;; sequencer-gadget becomes the UI root again.
+
+(defclass sequencer-gadget (gadget)
+  ((functions :initarg :functions :accessor functions-of)))
+
+(defmethod gadget-paint ((gadget sequencer-gadget) uic)
+  (loop while (and (functions-of gadget) (eq *gadget-root* gadget))
+        do (funcall (pop (functions-of gadget))))
+  (unless (functions-of gadget) (pop-gadget gadget)))
+

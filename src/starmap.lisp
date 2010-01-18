@@ -927,7 +927,7 @@
                 (draw-img (label stack) x (+ y 50))
                 (when movable
                   (setnum (draw-adjust-buttons uic x (+ y 67) num-sending num-total)))
-                (when (and (clicked? uic +left+) (pointer-in-img-rect uic thumb x y))
+                (when (and movable (clicked? uic +left+) (pointer-in-img-rect uic thumb x y))
                   (invalidate-label stack)
                   (setf highlighted-stars nil)
                   (cond

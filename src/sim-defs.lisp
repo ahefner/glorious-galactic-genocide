@@ -71,6 +71,7 @@
                         :initarg :habitability)
    (base-growth-costs   :reader base-growth-costs-of
                         :initform (vector 5 50 20 100))
+   ;; Number of research choices a race receives initially.
    (initial-research-choices :reader initial-research-choices-of
                              :initform 6
                              :initarg initial-research-choices)))
