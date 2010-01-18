@@ -69,7 +69,7 @@
     "Ablative armor provides advanced defense against beam weapons.")
 
 (deftech (12 hull plasteel-hull :armor-level 2 :hull-modifier 1.50)
-    "A plasteel hull offers suitable protection for ships in combat, without the weight or cost of heavy armor.")
+    "A plasteel hull provides protection for ships in combat, without the cost or weight of heavy armor.")
 
 (deftech (12 armor plasteel-armor :armor-level 4 :hull-modifier 2.00 :linked-to (find-tech 'plasteel-hull))
     "Plasteel armor can protect our heaviest warships in the thick of combat.")
@@ -172,7 +172,7 @@
     "Heavy lasers provide the punch necessary to penetrate heavy armor.")
 
 (deftech (1 beam pulse-laser :damage (range 2 6) :costmod 1.2)
-    "Pulse lasers are an incremental improvement on basic laser beam technology, able to inflict slightly more damage.")
+    "Pulse lasers are an incremental improvement on basic laser beam technology, able to inflict more damage.")
 
 (deftech (3 projectile mass-driver :damage (range 2 8) :sizemod 1.4)
     "Mass drivers launch high-velocity slugs capable of tearing through heavy armor.")
@@ -220,7 +220,7 @@
     "A fearsome heavy particle weapon weapon developed for the largest warships.")
 
 (deftech (29 projectile neutronium-rail-gun :damage (range 10 60) :costmod 9.0 :sizemod 5.0 :range 4)
-    "The railgun fires a heavy slug of ultra-dense neutronium, striking with devastating damage at up to four times standard firing range.")
+    "The railgun fires a slug of ultra-dense neutronium, striking with devastating damage at up to four times standard firing range.")
 
 (deftech (31 beam phasor :damage (range 15 25) :sizemod 1.1 :costmod 1.1)
     "A powerful and versatile beam weapon, the phasor combines high firepower with modest space and power requirements.")
