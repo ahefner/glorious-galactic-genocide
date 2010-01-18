@@ -53,7 +53,7 @@
    (incf total-frames)
 
    (paint-begin)
-   (gadget-paint *gadget-root* uic)
+   (gadget-run *gadget-root* uic)
    (check-gl-error)
    
    (paint-finish)))

@@ -29,11 +29,11 @@
   (:method (gadget uic keysym)
     (declare (ignore gadget uic keysym))))
 
-(defgeneric gadget-paint (gadget uic)
+(defgeneric gadget-run (gadget uic)
   (:method ((gadget null) uic)
     (declare (ignore gadget uic)))
   (:method ((gadget gadget) uic)
-    (gadget-paint (next-gadget gadget) uic)))
+    (gadget-run (next-gadget gadget) uic)))
 
 (defun reactivate-gadget (gadget)
   (setf *gadget-root* gadget))
@@ -182,7 +182,7 @@
              (setf panel nil
                    panel-y 0
                    closing-panel nil))))
-        (t (gadget-paint (next-gadget host) child-uic))))))
+        (t (gadget-run (next-gadget host) child-uic))))))
 
 (defun close-panels (&optional (host *gameui*))
   (with-slots (panel closing-panel) host
@@ -273,7 +273,7 @@
     (when io-state
       (setf io-state :out))))
 
-(defmethod gadget-paint ((gadget fade-transition-gadget) uic)
+(defmethod gadget-run ((gadget fade-transition-gadget) uic)
   (with-slots (child color) gadget
     (multiple-value-bind (level transition state) (run-in-and-out gadget (uic-delta-t uic))
       (unless (< level 0.001)
@@ -314,7 +314,7 @@
 (defun bottom-panel-request-close (panel)
   (bottom-panel-host-request-close (host-of panel)))
 
-(defmethod gadget-paint ((gadget modal-bottom-panel-host) uic)
+(defmethod gadget-run ((gadget modal-bottom-panel-host) uic)
   (with-slots (panel fade fade-io panel-io child-queue) gadget    
     (multiple-value-bind (fade-level fade-transition) (run-in-and-out fade-io (uic-delta-t uic))
       (unless (< (* fade fade-level) 1.0)
@@ -345,7 +345,7 @@
 (defclass sequencer-gadget (gadget)
   ((functions :initarg :functions :accessor functions-of)))
 
-(defmethod gadget-paint ((gadget sequencer-gadget) uic)
+(defmethod gadget-run ((gadget sequencer-gadget) uic)
   (loop while (and (functions-of gadget) (eq *gadget-root* gadget))
         do (funcall (pop (functions-of gadget))))
   (unless (functions-of gadget) (pop-gadget gadget)))

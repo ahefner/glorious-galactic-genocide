@@ -63,7 +63,7 @@
             ;; Otherwise report the map location where the user clicked.
             (coordinate (funcall background-click (presentation-object coordinate)))))))))
 
-(defmethod gadget-paint ((gadget starmap) uic)
+(defmethod gadget-run ((gadget starmap) uic)
   (query-starmap gadget uic
    :object-clicked
    (lambda (object)
@@ -388,7 +388,7 @@
            (units-to-mm 6)
            (area (reduce #'+ terrains)))
 
-      (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) bottom)))
+      (gadget-run starmap (child-uic uic :active (>= (uic-my uic) bottom)))
       (draw-panel-background uic bottom)
       (with-slots (habitability production-modifier) planet
 
@@ -553,7 +553,7 @@
            (col1 (make-cursor :left *planet-panel-col1-left* :y (- bottom *planet-panel-col1-baseline*)))
            (col2 (make-cursor :left *planet-panel-col2-left*)))
 
-      (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) (max bottom (panel-y-of panel))))) ; FUX! FIXMES!
+      (gadget-run starmap (child-uic uic :active (>= (uic-my uic) (max bottom (panel-y-of panel))))) ; FUX! FIXMES!
       (when (panel-of panel)
         (run-hosted-panel (child-uic uic :active (>= (uic-my uic) bottom)) panel bottom))
       (draw-panel-background uic bottom)
@@ -683,7 +683,7 @@
            (color2 (color-lighten color1))
            (column (make-cursor :left 120 :y (- bottom 85))))
       
-      (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) bottom)))
+      (gadget-run starmap (child-uic uic :active (>= (uic-my uic) bottom)))
       (draw-panel-background uic bottom)
 
       (draw-img (star->image star) 60 (- bottom 60))
@@ -818,7 +818,7 @@
 
       ;; This branch can run briefly as the (now empty) panel closes when all the ships have been dispatched.
       (unless fleet
-        (gadget-paint starmap uic)
+        (gadget-run starmap uic)
         (draw-panel-background uic bottom)
         (close-panels)
         (return-from run-panel))
@@ -843,8 +843,8 @@
 
         ;; Run the starmap first. We have to do our own presentation
         ;; query here to handle the ship movement, otherwise we'd just
-        ;; call gadget-paint like the other panels do.
-        ;; (gadget-paint starmap (child-uic uic :active (>= (uic-my uic) bottom)))
+        ;; call gadget-run like the other panels do.
+        ;; (gadget-run starmap (child-uic uic :active (>= (uic-my uic) bottom)))
         
         (let ((*starmap-display-under-hook*
                (lambda ()

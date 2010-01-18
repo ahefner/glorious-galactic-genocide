@@ -138,7 +138,7 @@
 ;;;; FIXME: Could be simplified using the new fade in-and-out
 ;;;; gadget. Already works, not making the effort.
 
-(defmethod gadget-paint ((gadget browse-techs-ui) uic)
+(defmethod gadget-run ((gadget browse-techs-ui) uic)
   (with-slots (player alpha alpha-target 
                unfold unfolded unfold-rate 
                inspector-tech inspector-y close-inspector) gadget
@@ -153,7 +153,7 @@
       ;; FIXME, framerate-dependent
       (setf alpha (clamp (+ alpha (if (and (zerop unfold) closing?) -13 13)) 0 255))
       (unless (= alpha 255)
-        (gadget-paint (next-gadget gadget) (child-uic uic :active nil)))
+        (gadget-run (next-gadget gadget) (child-uic uic :active nil)))
 
       (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 alpha)
       

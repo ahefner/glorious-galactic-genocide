@@ -55,7 +55,7 @@
                               (format nil "Pop: ~:D mil" (reduce #'+ (colonies *player*) :key #'population-of)))))
               (list 0 112)))))
 
-(defmethod gadget-paint ((gadget gameui) uic)
+(defmethod gadget-run ((gadget gameui) uic)
   ;; Run inferior UI elements first, because we have to draw on top of them.
   (let ((bottom (panel-height gadget)))
     (run-hosted-panel uic gadget bottom)
