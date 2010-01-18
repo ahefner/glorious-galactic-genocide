@@ -26,6 +26,7 @@
         "src/text-layout.lisp"
         "src/uim-defs.lisp"
         '("src/uim.lisp"         #|depends on:|# "src/uim-defs.lisp" "src/math.lisp")
+        '("src/event-loop.lisp"  #|depends on:|# "src/uim-defs.lisp")
         "src/star-names.lisp"
         '("src/sim-defs.lisp"    #|depends on:|# "src/math.lisp")
         '("src/sim.lisp"         #|depends on:|# "src/sim-defs.lisp" "src/math.lisp")
