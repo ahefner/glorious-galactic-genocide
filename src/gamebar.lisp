@@ -52,8 +52,9 @@
               (cachef (labels (year-of *universe*) :delete (lambda (list) (dolist (img list) (free-img img))))
                 (mapcar (lambda (x) (render-label gameui :gothic 20 x))
                         (list (format nil "Year ~D" (year-of *universe*))
-                              (format nil "Pop: ~:D mil" (reduce #'+ (colonies *player*) :key #'population-of)))))
-              (list 0 112)))))
+                              (format nil "Pop: ~:D m" (round (reduce #'+ (colonies *player*) :key #'population-of)))
+                              (format nil "Prod: ~:D BC" (round (reduce #'+ (colonies *player*) :key #'production-of))))))
+              (list 0 112 240)))))
 
 (defmethod gadget-run ((gadget gameui) uic)
   ;; Run inferior UI elements first, because we have to draw on top of them.
@@ -66,7 +67,7 @@
 
     (let* ((game-label (global-label :bold 14 "Game"))
            (turn-label (global-label :bold 14 "Next Turn"))
-           (research-label (global-label :bold 14 "Research"))
+           ;;(research-label (global-label :bold 14 "Research"))
            (color (pstyle-label-color (style-of *player*)))
            ;; Button states:
            (clicked-game (run-labelled-button uic game-label 16 3 :center-x nil :color color))
