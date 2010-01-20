@@ -293,7 +293,7 @@
 
 (defclass modal-bottom-panel-host (gadget)
   ((panel :accessor panel-of :initform nil :initarg :init-panel)
-   (child-queue :initform nil :initarg :child-queue)
+   (child-queue :reader child-queue-of :initform nil :initarg :child-queue)
    (fade :initform 128.0 :initarg :fade)
    (fade-io  :initform (make-instance 'in-and-out))
    (panel-io :initform (make-instance 'in-and-out))))
@@ -301,9 +301,10 @@
 ;; I didn't bother making a generic API for panels to request close.
 
 (defun enqueue-next-panel (bottom-panel-host panel)
-  (with-slots (child-queue) bottom-panel-host    
-    (setf child-queue (append child-queue (list panel))))
-  (bottom-panel-host-request-close bottom-panel-host))
+  (with-slots (child-queue) bottom-panel-host
+    (setf child-queue (append child-queue (list panel)))))
+
+;; (bottom-panel-host-request-close bottom-panel-host)
 
 (defun bottom-panel-host-request-close (panel-host)
   (with-slots (child-queue fade-io panel-io) panel-host
@@ -315,7 +316,8 @@
   (bottom-panel-host-request-close (host-of panel)))
 
 (defmethod gadget-run ((gadget modal-bottom-panel-host) uic)
-  (with-slots (panel fade fade-io panel-io child-queue) gadget    
+  (with-slots (panel fade fade-io panel-io child-queue) gadget
+    (when (null panel) (setf panel (pop child-queue)))     
     (multiple-value-bind (fade-level fade-transition) (run-in-and-out fade-io (uic-delta-t uic))
       (unless (< (* fade fade-level) 1.0)
         (call-next-method gadget (child-uic uic :active nil)))
@@ -327,12 +329,12 @@
                      (- (uic-height uic) 
                         (round (* (expt p-level (if (eql p-state :out) 2 0.5))
                                   (panel-height panel)))))
-        (when (eql p-transition :closed)
-          (finalize-object panel)
-          (setf panel nil)
-          (when child-queue
-            (setf panel (pop child-queue)
-                  panel-io (make-instance 'in-and-out)))))
+          (when (eql p-transition :closed)
+            (finalize-object panel)
+            (setf panel nil)
+            (when child-queue
+              (setf panel (pop child-queue)
+                    panel-io (make-instance 'in-and-out)))))
 
         (when (eql fade-transition :closed)
           (pop-gadget gadget))))))
@@ -346,7 +348,9 @@
   ((functions :initarg :functions :accessor functions-of)))
 
 (defmethod gadget-run ((gadget sequencer-gadget) uic)
+  (call-next-method gadget (child-uic uic :active nil))
   (loop while (and (functions-of gadget) (eq *gadget-root* gadget))
         do (funcall (pop (functions-of gadget))))
-  (unless (functions-of gadget) (pop-gadget gadget)))
+  (when (and (eq *gadget-root* gadget) (not (functions-of gadget)))
+    (pop-gadget gadget)))
 

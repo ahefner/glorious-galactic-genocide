@@ -1,18 +1,22 @@
 Serious issues:
+* Packset repack thrashing
 
 
 Medium issues:
 * Further improve packset allocation (reclaim freed blocks, chain packstacks, random eviction?)
-
+* Starmap select choice when multiple objects under cursor
+* Starmap uncomfortable at minimum screen resolution (center on click? Scale down icons?)
 
 
 Minor issues:
 * Improve text layout
 * Space and Enter should also step through modal contexts where left click is used presently
 * Escape should close panels
-* Better art for bottom panels
+* Deflect ships from each other?
 
 
+
+------------------------------------------------------------------------------------------------
 
 Resolved serious issues:
 * Starmap floating point underflow
@@ -34,7 +38,7 @@ Resolved minor issues:
 ? Intermittent INVALID_OPERATION errors on fglrx that seem bogus. Kludge around and ignore it.
 
 
----------------------------------
+------------------------------------------------------------------------------------------------
 
 TODO, High priority:
 * Free per-game (nonglobal) resources at end of a game
@@ -43,5 +47,7 @@ TODO, Medium priority:
 * Sliding selection of ship quantity in fleet panel
 
 TODO, Low priority:
+* Better inferno planet graphic
+* Better art for bottom panels
 
 

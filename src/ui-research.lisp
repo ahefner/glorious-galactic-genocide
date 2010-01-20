@@ -202,40 +202,10 @@
         (when inspector-tech
           (run-ui-research-inspector uic inspector-tech (round inspector-y)))))))
 
-(defun prompt-for-research ()
-  (when (some #'null (research-projects-of *player*))
-    (printl "Imagine the game has just nagged you to select new research projects.")))
-
 (defun unpresented-techs (player)
   (loop for tech in (technologies-of player)
         unless (gethash tech (presented-technologies-of player))
         collect tech))
-
-(defun present-new-techs ()
-  ;; TEMPORARY HACK:
-  #+NIL
-  (setf (gethash (find-tech 'ion-drive) (presented-technologies-of *player*)) nil
-        (gethash (find-tech 'laser-beam) (presented-technologies-of *player*)) nil)
- 
-  (cond
-    ;; If there are unpresented techs, present them, and let the
-    ;; present-tech-ui segue into tech selection itself. This is the
-    ;; usual case.
-    ((unpresented-techs *player*)
-     (activate-new-gadget
-      (make-instance 'modal-bottom-panel-host
-                     :init-panel (make-instance 'present-techs-panel :player *player*)))
-      #+NIL (make-instance 'present-tech-ui :player *player*)
-      #+NIL
-      (make-instance 'fade-transition-gadget
-                     :child (make-instance 'present-tech-ui :player *player*)))
-    ;; Otherwise prompt for research (it will check if it's necessary
-    ;; itself). This only occurs at the end of the first turn, when
-    ;; there are no new techs, but research hasn't been selected yet.
-    (t (prompt-for-research))))
-
-
-
 
 ;;;; Present new tech
 
@@ -255,12 +225,8 @@
         (setf (gethash (first new-techs) (presented-technologies-of *player*)) t)
         (pop new-techs))
       (when new-techs (setf last-tech (first new-techs)))
-      (when (not new-techs)             ; Out of new techs to show? Prompt for new research.
-        (cond
-          ((and (not enqueued-successor) (available-techs-of player))
-           (setf enqueued-successor t)
-           (enqueue-next-panel (host-of panel) (make-instance 'select-research-panel :player player)))
-          (t (bottom-panel-request-close panel))))
+      (when (not new-techs)             
+        (bottom-panel-request-close panel))
       (run-ui-research-inspector uic last-tech top :new-discovery t))))
 
 ;;;; Select research
@@ -283,7 +249,7 @@
             with y = (+ top 52)
             for tech in available
             as label = (small-name-label-of tech) do
-            (draw-img label x y)
+            (draw-img-deluxe label x y (if (eql tech inspector-tech) (label-color) #(255 255 255 255)))
             (when (and (pointer-in-img-rect uic label x y)
                        (clicked? uic +left+)) ; FIXME: implicit active check
               (snd-click)
@@ -299,6 +265,11 @@
                                    (- (uic-width uic) 74)
                                    (+ top (- (panel-height panel) 31))
                                    :color (label-color))
-          (printl :now-researching inspector-tech)
+          ;; TODO
+          (begin-research-project player inspector-tech)
           (bottom-panel-request-close panel))))))
 
+(defun add-research-choice-panels (host)
+  (loop for project across (research-projects-of *player*)
+        when (null project) 
+        do (enqueue-next-panel host (make-instance 'select-research-panel :player *player*))))

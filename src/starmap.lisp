@@ -20,7 +20,6 @@
 
 (defmethod gadget-key-pressed ((starmap debug-starmap) uic keysym char)
   (declare (ignorable starmap uic))
-  (print (list :press keysym char))
   (cond
     ((eql keysym (keysym :G))
      ;; Dubious, even as debugging hack. Create a new starmap instead?
@@ -37,10 +36,6 @@
     ((eql keysym (keysym :E))
      (print "Exploring the universe!")
      (loop for star across (stars *universe*) do (explore-star star *player*)))))
-
-(defmethod gadget-key-released ((starmap debug-starmap) uic keysym)
-  (declare (ignore starmap uic))
-  (print (list :release keysym)))
 
 (defun query-starmap (starmap uic &key 
                       (query-fn (constantly :accept))
@@ -1005,13 +1000,30 @@
 (defun ui-finish-turn ()
   (with-slots (panel) *gameui*
     (finish-for-turn panel)
-    (prompt-for-research)))
+    (when (player-needs-new-research *player*)
+      (let ((host (make-instance 'modal-bottom-panel-host)))
+        (activate-new-gadget host)
+        (add-research-choice-panels host)))))
 
 (defun update-ui-for-new-turn ()
-  ;; If there are panels open, update them. Also, present completed research and prompt for new research.
-  (present-new-techs)
+
   (with-slots (panel closing-panel starmap) *gameui*
-    ;; If there are events, show the events.
+    ;; If there are events, show the events in a modal UI panel.
+    (let ((host (make-instance 'modal-bottom-panel-host)))
+      ;; First, present discovered techs.
+      (when (unpresented-techs *player*)
+        (enqueue-next-panel host (make-instance 'present-techs-panel :player *player*)))
+      ;; Next, prompt for new research.
+      (add-research-choice-panels host)
+      ;; Finally, add panels for modal events.
+      (loop for event in (event-list-of *player*)
+            when (typep event 'modal-event)
+            do (create-modal-event-panel event host))
+      (setf (event-list-of *player*)
+            (delete-if (iftype 'modal-event) (event-list-of *player*)))
+      ;; If there are any panels to display, activate the panel host.
+      (when (child-queue-of host)
+        (activate-new-gadget host)))
 
     ;; Play sound events.
     (let ((sounds 
@@ -1024,13 +1036,12 @@
     (setf (event-list-of *player*)
           (delete-if (lambda (ev) (typep ev 'sound-event)) (event-list-of *player*)))
 
-    ;; Testing bullshit: Print events then delete them.
-    (when (event-list-of *player*)
-      ;; HACK!
-      (loop for event in (event-list-of *player*)
-            do (format t "~&~A~%" (summary-of event)))
-      ;; HACK!
-      (setf (event-list-of *player*) nil))
+    ;; Testing bullshit: Print remaining events then delete them.
+    (loop for event in (event-list-of *player*)
+          do (format t "~&Leftover event: ~A~%" (summary-of event)))
+    
+    ;; Delete any remaining events.
+    (setf (event-list-of *player*) nil)
 
     ;; Update open panel.
     (unless closing-panel

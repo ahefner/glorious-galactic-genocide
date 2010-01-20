@@ -366,6 +366,14 @@
 (defclass sound-event (non-ui-event)
   ((name :initform nil :initarg :name)))
 
+;;; Modal events are displayed at the beginning of the turn as
+;;; bottom-panels.  Methods on this function are responsible for
+;;; enqueueing the panels for display.
+(defgeneric create-modal-event-panel (event host)
+  (:method (event host)
+    (declare (ignore host))
+    (break "Modal event ~A doesn't implement create-modal-event-panel!" event)))
+
 ;;; Concrete event types:
 
 (defclass new-tech-event (non-ui-event)

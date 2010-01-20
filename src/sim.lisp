@@ -627,7 +627,9 @@
 (defun tech-cost (tech) (tech-level-cost (level-of tech)))
 
 (defun progress-research-project (player project investment)
-  (printl :research-progress (researching-tech project) investment)
+  (printl :research-progress (researching-tech project)
+          :spent (researching-spent project)
+          :investing investment)
   (incf (researching-spent project) investment)
   (if (>= (researching-spent project) (tech-cost (researching-tech project)))
       (prog1 t
@@ -642,6 +644,8 @@
           (make-researching :tech tech :spent 0))
     (deletef (available-techs-of player) tech)))
 
+(defun player-needs-new-research (player)
+  (some #'null (research-projects-of player)))
 
 ;;;; Designs
 

@@ -739,7 +739,7 @@ DP3 tmp, surfnorm, light;             # Diffuse coefficient
 #MUL tmp, tmp, tmp;
 ADD tmp, tmp, tmp;                    # (correct range of inputs)
 ADD tmp, tmp, tmp;                    # (correct range of inputs)
-MUL tmp, tmp, color;
+MUL tmp, tmp, color.ggba;
 
 MOV tmp.a, surfnorm.a;
 MOV outColor, tmp;

@@ -6,6 +6,8 @@
   (starmap))
 
 (defmethod panel-height ((gadget gameui))
+  (declare (ignore gadget))
+  ;; This is perverse. Gameui isn't a panel!
   (img-height (img :gamebar-left)))
 
 (defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
@@ -39,10 +41,21 @@
 
 (defun client-do-next-turn (gamebar)
   (with-slots (starmap) gamebar
-    (ui-finish-turn)
-    (next-turn *universe*)
-    (update-ui-for-new-turn)
-    (incf (windup-factor-of starmap) 1.5)))
+    (activate-new-gadget
+     (make-instance 'sequencer-gadget
+      :functions
+      (list
+       ;; At the end of a turn:
+       ;;  * Finish-for-turn on an open panel (needed to send fleets on their way)
+       ;;  * Prompt-for-research (needed for first turn research choices)
+       #'ui-finish-turn
+       (lambda () (incf (windup-factor-of starmap) 1.5))
+       (lambda () (next-turn *universe*))
+       ;; At the beginning of the next turn:
+       ;;  * Compute sequence of modal UI panels and open the bottom-panel-host if needed.
+       ;;  * Play event sounds
+       ;;  * Update open starmap panels
+       #'update-ui-for-new-turn)))))
 
 (let (labels)
   (defun draw-status-bar (gameui x0)

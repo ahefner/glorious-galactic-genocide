@@ -75,3 +75,5 @@ error if SEQUENCE is not a proper sequence."
 
 (defun pretty-sym (symbol)
   (string-capitalize (substitute #\Space #\- (symbol-name symbol))))
+
+(defun iftype (type) (lambda (object) (typep object type)))
