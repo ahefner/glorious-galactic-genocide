@@ -302,6 +302,8 @@
     ("Lalla")
     ("Talos")
     ("Sargon")
+    ("Megalon")
+    ("Zylox")
 ))
 
 (defun constellation-name-list ()
