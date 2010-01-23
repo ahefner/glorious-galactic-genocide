@@ -739,7 +739,7 @@ DP3 tmp, surfnorm, light;             # Diffuse coefficient
 #MUL tmp, tmp, tmp;
 ADD tmp, tmp, tmp;                    # (correct range of inputs)
 ADD tmp, tmp, tmp;                    # (correct range of inputs)
-MUL tmp, tmp, color.ggba;
+MUL tmp, tmp, color.rgba;             # Multiply by color, swizzle per player
 
 MOV tmp.a, surfnorm.a;
 MOV outColor, tmp;
@@ -779,8 +779,8 @@ END
       int x = #0, y = #1, width = #2, height = #3;
       int tx = 0, ty = 0;
       float cx = x, cy = y, hw = zoom * width * 0.5f, hh = zoom * height * 0.5f;
-      float adx = hw *  cos(angle), ady = hh * sin(angle);     
-      float idx = hw * -sin(angle), idy = hh * cos(angle);
+      float adx = hw *  cos(angle), ady = hw * sin(angle);     
+      float idx = hh * -sin(angle), idy = hh * cos(angle);
 
       glMultiTexCoord2i(GL_TEXTURE0, tx, ty);
       glMultiTexCoord2i(GL_TEXTURE1, tx, ty);
@@ -803,20 +803,22 @@ END
 
 (defun run-shader-test (uic)
   (ensure-shader-test-init)
-  (let* ((x0 360)
-         (y0 300)
+  (let* ((x0 760)
+         (y0 700)
          (angle (/ (uic-mx uic) 200.0))
          (zoom (/ (+ 1.0 (/ (max 0 (- (uic-my uic) 100)) 300.0))))
          (pz 10)
-         (light (unorm (vec (single (* -140 (cos angle))) (single (* -140 (sin angle))) (single 70)))))
+         (light (unorm (vec (single (* -140 (cos angle))) 
+                            (single (* -140 (sin angle)))
+                            (single 70)))))
     ;;(printl :angle angle :zoom zoom :light light)
     (with-vector (l light)
       (call "glColor3f" :float l.x :float l.y :float l.z))
     (c "glEnable(GL_FRAGMENT_PROGRAM_ARB)")
     (check-gl-error "enable fragment program")
-    (let ((nm  (texture :scout-normals :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
-          (tex (texture :scout-texture :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
-          (lights (texture :scout-lights :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR"))))
+    (let ((nm     (texture :interceptor-normals :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
+          (tex    (texture :interceptor-texture :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
+          (lights #+NIL (texture :interceptor-lights  :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR"))))
       (bind-texobj tex :unit 0)
       (bind-texobj nm  :unit 1)
       (c "glBegin(GL_QUADS)")
@@ -825,12 +827,14 @@ END
       (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")
       (c "glActiveTexture(GL_TEXTURE1)")
       (c "glDisable(GL_TEXTURE_2D)")
-      (bind-texobj lights :unit 0)
-      (set-color* 255 255 255 255)
-      (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE)")
-      (c "glBegin(GL_QUADS)")
-      (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
-      (c "glEnd()"))
+      (when lights
+        (bind-texobj lights :unit 0)
+        (set-color* 255 255 255 255)
+        (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE)")
+        (c "glBegin(GL_QUADS)")
+        (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
+        (c "glEnd()")))
+    (c "glActiveTexture(GL_TEXTURE0)")
    
     (check-gl-error)))
 
