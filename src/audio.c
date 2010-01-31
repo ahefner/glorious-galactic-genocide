@@ -33,7 +33,7 @@ void music_init (void)
 
     for (int i=0; i<(sizeof(songs) / sizeof(songs[0])); i++) {
         if (ov_fopen(songs[i].filename, &songs[i].file)) {
-            fprintf(stderr, "Error opening track %i: %s\n", songs[i].filename);
+            fprintf(stderr, "Error opening track %i: %s\n", i, songs[i].filename);
         } else {
             songs[i].init = 1;
         }
