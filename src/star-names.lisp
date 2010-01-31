@@ -304,6 +304,8 @@
     ("Sargon")
     ("Megalon")
     ("Zylox")
+    ("Magmetheus")
+    ("Estros")
 ))
 
 (defun constellation-name-list ()
