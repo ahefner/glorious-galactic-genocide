@@ -47,6 +47,7 @@
 
 (defvar *debug-show-packset* nil)
 
+(defvar *total-frames* 0)
 (defvar *devmode* t)
 (defparameter *starfield-depth* 200)
 
