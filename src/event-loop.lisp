@@ -20,15 +20,27 @@
 (defun gettime ()
   (call :unsigned-int "usectime"))
 
-(defun uim-sdl-run ()
+(defun uim-sdl-run () 
   (loop named runloop 
         with *grab-id* = nil
         with please-set-video-mode = nil
         with last-uic = (initial-uic)
+        with idle = nil
         as *presentation-stack* = nil
         as uic = (copy-uic last-uic)
         as gadget = *gadget-root*
-        do #| Gather events and build new UIC |#
+        do
+
+        #| If not visible, idle. If idling, block waiting for an event. |#
+        (unless (zerop (c :int "SDL_GetAppState() & SDL_APPACTIVE"))
+          (setf idle t))
+        ;;; ISSUE: A problem for netplay, where we don't want to block
+        ;;; without polling the socket...
+        (when idle
+          (c "SDL_WaitEvent(NULL)"))
+
+        #| Gather events and build new UIC |#
+
         (setf (uic-width uic)  (cx :int "window_width")
               (uic-height uic) (cx :int "window_height")
               (uic-buttons-pressed uic) 0
@@ -98,4 +110,7 @@
           (setf please-set-video-mode nil))
         (when (released? uic +left+) (setf *grab-id* nil))
         (repaint uic)
+        ;; We should have some way of asking the gadgets if they are idle. We don't, so unidle:
+        (setf idle nil)
+        ;;(incf *total-frames*)
         (setf last-uic uic)))
