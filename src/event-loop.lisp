@@ -32,7 +32,8 @@
         do
 
         #| If not visible, idle. If idling, block waiting for an event. |#
-        (unless (zerop (c :int "SDL_GetAppState() & SDL_APPACTIVE"))
+        (when (zerop (c :int "SDL_GetAppState() & SDL_APPACTIVE"))
+          (printl :idle)
           (setf idle t))
         ;;; ISSUE: A problem for netplay, where we don't want to block
         ;;; without polling the socket...

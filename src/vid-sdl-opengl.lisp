@@ -708,16 +708,19 @@
     
     
 
-(let ((init nil)
-      (id nil))
-  (defun ensure-shader-test-init ()
+(let ((swizzles (make-hash-table :test 'equal)))      
+  (defun ensure-sprite-shader (swizzle)
     (check-gl-error)
-    (unless init
-      (setf init t
-            id (alloc-program-id))
+    (let ((id (gethash swizzle swizzles))
+          (need-program nil))
+      (unless id
+        (setf id (alloc-program-id)
+              need-program t
+              (gethash swizzle swizzles) id))
       (c "glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, #0)" :unsigned-int id)
       (check-gl-error "bind fragment program")
-      (let ((shader-src
+      (when need-program
+        (let ((shader-src (format nil
 "!!ARBfp1.0
 # Normal mapped sprite shader
 OPTION ARB_precision_hint_fastest;
@@ -739,17 +742,40 @@ DP3 tmp, surfnorm, light;             # Diffuse coefficient
 #MUL tmp, tmp, tmp;
 ADD tmp, tmp, tmp;                    # (correct range of inputs)
 ADD tmp, tmp, tmp;                    # (correct range of inputs)
-MUL tmp, tmp, color.rgba;             # Multiply by color, swizzle per player
+MUL tmp, tmp, color.~A;               # Multiply by color, swizzle per player
 
 MOV tmp.a, surfnorm.a;
 MOV outColor, tmp;
-
-
     
 END
-"))
-        (program-shader shader-src)
-))))
+" swizzle)))
+          (program-shader shader-src))))))
+
+(let ((swizzles (make-hash-table :test 'equal)))
+  (defun ensure-swizzle-shader (swizzle)
+    (check-gl-error)
+    (let ((id (gethash swizzle swizzles))
+          (need-program nil))
+      (unless id
+        (setf id (alloc-program-id)
+              need-program t
+              (gethash swizzle swizzles) id))
+      (c "glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, #0)" :unsigned-int id)
+      (check-gl-error "bind fragment program")
+      (when need-program
+        (let ((shader-src (format nil
+"!!ARBfp1.0
+# Swizzle channels shader
+OPTION ARB_precision_hint_fastest;
+ATTRIB tc = fragment.texcoord;          # first set of texture coordinates
+OUTPUT outColor = result.color;
+TEMP tmp;
+TEX tmp, tc, texture[0], 2D;
+MOV outColor, tmp.~A;
+END
+" swizzle)))
+          (program-shader shader-src))))))
+
       
       
 (defun unorm (vector)
@@ -802,7 +828,7 @@ END
    :one-liner nil))
 
 (defun run-shader-test (uic)
-  (ensure-shader-test-init)
+  (ensure-sprite-shader (pstyle-swizzle (style-of *player*)))
   (let* ((x0 760)
          (y0 700)
          (angle (/ (uic-mx uic) 200.0))
@@ -816,15 +842,15 @@ END
       (call "glColor3f" :float l.x :float l.y :float l.z))
     (c "glEnable(GL_FRAGMENT_PROGRAM_ARB)")
     (check-gl-error "enable fragment program")
-    (let ((nm     (texture :interceptor-normals :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
-          (tex    (texture :interceptor-texture :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
-          (lights #+NIL (texture :interceptor-lights  :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR"))))
+    (let ((nm     (texture :battleship-normals :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
+          (tex    (texture :battleship-texture :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
+          (lights (texture :battleship-lights  :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR"))))
       (bind-texobj tex :unit 0)
       (bind-texobj nm  :unit 1)
       (c "glBegin(GL_QUADS)")
       (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
       (c "glEnd()")
-      (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")
+      (ensure-swizzle-shader (pstyle-swizzle (style-of *player*)))
       (c "glActiveTexture(GL_TEXTURE1)")
       (c "glDisable(GL_TEXTURE_2D)")
       (when lights
@@ -834,6 +860,8 @@ END
         (c "glBegin(GL_QUADS)")
         (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
         (c "glEnd()")))
+    (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
+    (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")    
     (c "glActiveTexture(GL_TEXTURE0)")
    
     (check-gl-error)))

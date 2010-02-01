@@ -113,12 +113,12 @@
 ;;;;
 
 (defun get-player-styles ()
-  (list (make-pstyle :label-color #(255  90  90) :fill-color #(180   0   0) :primary-color #(255   0   0))
-        (make-pstyle :label-color #(255 134   0) :fill-color #(167 106   0) :primary-color #(255 160   0))
-        (make-pstyle :label-color #(255 255  90) :fill-color #(131 127  55) :primary-color #(255 255   0))
-        (make-pstyle :label-color #(170 224 108) :fill-color #( 86 140  22) :primary-color #(  0 255   0))
-        (make-pstyle :label-color #( 40 160 255) :fill-color #(  0  64 128) :primary-color #(  0 200 255))
-        (make-pstyle :label-color #(190 116 255) :fill-color #( 64  64 128) :primary-color #(255   0 255))))
+  (list (make-pstyle :label-color #(255  90  90) :fill-color #(180   0   0) :primary-color #(255   0   0) :swizzle "gbba")
+        (make-pstyle :label-color #(255 134   0) :fill-color #(167 106   0) :primary-color #(255 160   0) :swizzle "grba")
+        (make-pstyle :label-color #(255 255  90) :fill-color #(131 127  55) :primary-color #(255 255   0) :swizzle "ggba")
+        (make-pstyle :label-color #(170 224 108) :fill-color #( 86 140  22) :primary-color #(  0 255   0) :swizzle "rgba")
+        (make-pstyle :label-color #( 40 160 255) :fill-color #(  0  64 128) :primary-color #(  0 200 255) :swizzle "brga")
+        (make-pstyle :label-color #(190 116 255) :fill-color #( 64  64 128) :primary-color #(255   0 255) :swizzle "gbga")))
 
 ;;;; Planetary economy
 
@@ -651,9 +651,9 @@
 
 (defun design-techs (design) (remove nil (design-tech-slots design)))
 
-(defun make-design (name size cost &rest args)
-  (apply #'make-instance 'design :name name :size size :cost cost 
-                 :techs (map 'vector (constantly nil) (elt *design-slot-names* size))
+(defun make-design (name type cost &rest args)
+  (apply #'make-instance 'design :name name :type type :cost cost 
+                 :techs (map 'vector (constantly nil) (elt *design-slot-names* type)) ; FIXME TEMP HACK
                  args))
 
 ;;; Compute derived attributes (cost, speed, etc.) from a design, and set those slots.

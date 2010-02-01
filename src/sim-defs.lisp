@@ -108,7 +108,7 @@
    ;; convenience.
    (colonies :reader colonies :initform (make-array 0 :adjustable t :fill-pointer 0))))
 
-(defstruct pstyle label-color fill-color primary-color)
+(defstruct pstyle label-color fill-color primary-color swizzle)
 
 (defclass planet (named at-star)
   ((planet-type :reader planet-type-of :initarg :planet-type)
@@ -224,7 +224,7 @@
       "Starboard Accessory Bay")))
 
 (defclass design (named)
-  ((size  :accessor size-of  :initform 0 :initarg :size)
+  ((type :accessor design-type :initarg :type)
    (techs :accessor design-tech-slots :initarg :techs)
    (engine :accessor engine-of :initform nil :initarg :engine)
    (range-bonus :accessor range-bonus-of :initform 0)   
@@ -385,3 +385,20 @@
 
 (defmethod event-supercedes? ((this explored-event) (that colony-ship-arrived-event))
   (eql (star-of this) (star-of that)))
+
+;;;; Ship Design Templates
+
+(defclass ship-type (named)
+  ((space :reader space-of :initarg :space)
+   (cost  :reader cost-of  :initarg :cost)
+   (space-multiplier :reader space-multiplier-of :initarg :space-multiplier)
+   (maneuverability :reader maneuverability-of :initarg :maneuverability)
+   (weapon-mounts :reader weapon-mounts :initarg :weapon-mounts)
+   (special-mounts :reader special-mounts :initarg :special-mounts)))
+
+(defclass small-type  (ship-type) () (:default-initargs :space   100 :cost   20 :space-multiplier 1  :maneuverability 6))
+(defclass medium-type (ship-type) () (:default-initargs :space   500 :cost  100 :space-multiplier 3  :maneuverability 3))
+(defclass large-type  (ship-type) () (:default-initargs :space  1500 :cost  450 :space-multiplier 10 :maneuverability 2))
+(defclass huge-type   (ship-type) () (:default-initargs :space  4500 :cost 1800 :space-multiplier 20 :maneuverability 1))
+
+

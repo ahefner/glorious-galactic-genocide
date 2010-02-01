@@ -317,16 +317,16 @@
 
 (defmethod gadget-run ((gadget modal-bottom-panel-host) uic)
   (with-slots (panel fade fade-io panel-io child-queue) gadget
-    (when (null panel) (setf panel (pop child-queue)))     
+    (when (null panel) (setf panel (pop child-queue)))
     (multiple-value-bind (fade-level fade-transition) (run-in-and-out fade-io (uic-delta-t uic))
       (unless (< (* fade fade-level) 1.0)
         (call-next-method gadget (child-uic uic :active nil)))
-      (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 (round (* fade fade-level)))      
+      (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 (round (* fade fade-level)))
       (multiple-value-bind (p-level p-transition p-state) (run-in-and-out panel-io (uic-delta-t uic))
         (when panel
           (setf (host-of panel) gadget)
-          (run-panel panel uic 
-                     (- (uic-height uic) 
+          (run-panel panel uic
+                     (- (uic-height uic)
                         (round (* (expt p-level (if (eql p-state :out) 2 0.5))
                                   (panel-height panel)))))
           (when (eql p-transition :closed)

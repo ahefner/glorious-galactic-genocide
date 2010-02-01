@@ -531,16 +531,16 @@
 (defun add-initial-ships-and-designs (player)
   (let ((designs (ship-designs-of player))
         (homeworld (aref (colonies player) 0))
-        (scout (make-design "Scout" 0 100 
+        (scout (make-design "Scout" 0 100 ; FIXME, SHIP TYPE
                             :thumbnail :showfleet-lame
                             :slot-num 0
                             :engine (find-tech 'ion-drive)))
-        (colony-ship (make-design "Colony Ship" 2 2500
+        (colony-ship (make-design "Colony Ship" 2 2500 ; FIXME, SHIP TYPE
                                   :slot-num 1
                                   :thumbnail :sh-colony
                                   :engine (find-tech 'ion-drive))))
 
-    (setf (aref (design-tech-slots scout) 2) (find-tech 'reserve-tanks))
+    (setf (aref (design-tech-slots scout) 2) (find-tech 'reserve-tanks)) ; FIXME!!!
     (setf (aref (design-tech-slots colony-ship) 5) (find-tech 'colony-base))
 
     (analyze-design scout)
