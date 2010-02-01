@@ -72,11 +72,13 @@
 
 (defun load-texture-file (filename &key min-filter mag-filter)
   (let ((surface (call :pointer-void "IMG_Load" :cstring filename)))
-    (prog1 (make-texture :texid (upload-sdl-surface surface :min-filter min-filter :mag-filter mag-filter)
-                         :width  (c :int "((SDL_Surface *)#0)->w" :pointer-void surface)
-                         :height (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))
-      (call "SDL_FreeSurface" :pointer-void surface))))
-
+    (and (not (ffi:null-pointer-p surface))
+         (unwind-protect 
+              (make-texture :texid (upload-sdl-surface surface :min-filter min-filter :mag-filter mag-filter)
+                            :width  (c :int "((SDL_Surface *)#0)->w" :pointer-void surface)
+                            :height (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))
+           (call "SDL_FreeSurface" :pointer-void surface)))))
+  
 (defun set-color* (r g b a)
   (call "glColor4ub"
         :unsigned-byte (round r) :unsigned-byte (round g)
@@ -248,14 +250,16 @@
   (let* ((surface (call :pointer-void "IMG_Load" :cstring filename))
          (width  (cx :int "((SDL_Surface *)#0)->w" :pointer-void surface))
          (height (cx :int "((SDL_Surface *)#0)->h" :pointer-void surface)))
-    (make-img :width width
-              :height height
-              :resident-p nil
-              :x-offset (or x-offset (round width 2))
-              :y-offset (or y-offset (round height 2))
-              :surface surface
-              :pixels (cx :pointer-void "((SDL_Surface *)#0)->pixels" :pointer-void surface)
-              :name filename)))
+    (and (not (ffi:null-pointer-p surface))
+         (make-img :width width
+                   :height height
+                   :resident-p nil
+                   :x-offset (or x-offset (round width 2))
+                   :y-offset (or y-offset (round height 2))
+                   :surface surface
+                   :pixels (cx :pointer-void "((SDL_Surface *)#0)->pixels" 
+                               :pointer-void surface)
+                   :name filename))))
 
 (let ((img-lookaside (make-hash-table))           ; Absurdly premature optimization
       (img-hash (make-hash-table :test 'equal)))
@@ -781,24 +785,6 @@ END
 (defun unorm (vector)
   (v+ (vec 0.5 0.5 0.5) (vscaleto vector 0.5)))
 
-#+NIL
-(defun do-draw-ship-sprite (x0 y0 x1 y1 tx ty)
-  (ffi:c-inline (x0 y0 x1 y1 tx ty) (:int :int :int :int :int :int) (values)
-   "{ int x0 = #0, y0 = #1, x1 = #2, y1 = #3, tx = #4, ty = #5, width = x1-x0, height = y1-y0;
-      glMultiTexCoord2i(GL_TEXTURE0, tx, ty);
-      glMultiTexCoord2i(GL_TEXTURE1, tx, ty);
-      glVertex2i(x0, y0);
-      glMultiTexCoord2i(GL_TEXTURE0, tx+width, ty);
-      glMultiTexCoord2i(GL_TEXTURE1, tx+width, ty);
-      glVertex2i(x0+width, y0);
-      glMultiTexCoord2i(GL_TEXTURE0, tx+width, ty+height);
-      glMultiTexCoord2i(GL_TEXTURE1, tx+width, ty+height);
-      glVertex2i(x0+width, y0+height);
-      glMultiTexCoord2i(GL_TEXTURE0, tx, ty+height);
-      glMultiTexCoord2i(GL_TEXTURE1, tx, ty+height);
-      glVertex2i(x0, y0+height); }"
-   :one-liner nil))
-
 (defun do-draw-ship-sprite (x y tw th angle zoom)
   (ffi:c-inline (x y tw th angle zoom) (:int :int :int :int :float :float) (values)
    "{ float angle = #4, zoom = #5;
@@ -827,47 +813,59 @@ END
     }"
    :one-liner nil))
 
-(defun run-shader-test (uic)
-  (ensure-sprite-shader (pstyle-swizzle (style-of *player*)))
-  (let* ((x0 760)
-         (y0 700)
-         (angle (/ (uic-mx uic) 200.0))
-         (zoom (/ (+ 1.0 (/ (max 0 (- (uic-my uic) 100)) 300.0))))
-         (pz 10)
-         (light (unorm (vec (single (* -140 (cos angle))) 
+(defun ensure-ship-type-textures (ship-type)
+  (with-slots (texture-map normal-map light-map) ship-type
+    (unless colormap
+      (flet ((loadmap (map-name)
+               (texture (format nil "~A/~A.png" (name-of ship-type) map-name)
+                        :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST")
+                        :mag-filter (cx :int "GL_LINEAR"))))
+        (assert (not (or normal-map light-map)))
+        (setf texture-map (loadmap "texture")
+              normal-map  (loadmap "normals")
+              light-map   (loadmap "lights"))))))
+
+(defun draw-ship-sprite (ship-type x0 y0 angle zoom)  
+  (let* ((light (unorm (vec (single (* -140 (cos angle))) 
                             (single (* -140 (sin angle)))
                             (single 70)))))
-    ;;(printl :angle angle :zoom zoom :light light)
-    (with-vector (l light)
-      (call "glColor3f" :float l.x :float l.y :float l.z))
-    (c "glEnable(GL_FRAGMENT_PROGRAM_ARB)")
-    (check-gl-error "enable fragment program")
-    (let ((nm     (texture :battleship-normals :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
-          (tex    (texture :battleship-texture :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR")))
-          (lights (texture :battleship-lights  :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST") :mag-filter (cx :int "GL_LINEAR"))))
-      (bind-texobj tex :unit 0)
-      (bind-texobj nm  :unit 1)
+    (ensure-sprite-shader (pstyle-swizzle (style-of *player*)))
+    (ensure-ship-type-textures ship-type)
+    (with-slots (texture-map normal-map light-map) ship-type
+      (with-vector (l light)
+        (call "glColor3f" :float l.x :float l.y :float l.z))
+      (c "glEnable(GL_FRAGMENT_PROGRAM_ARB)")
+      (check-gl-error "enable fragment program")
+
+      (bind-texobj texture-map :unit 0)
+      (bind-texobj normal-map  :unit 1)
       (c "glBegin(GL_QUADS)")
-      (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
+      (do-draw-ship-sprite x0 y0 (gltexobj-width texture-map) (gltexobj-height texture-map) angle zoom)
       (c "glEnd()")
-      (ensure-swizzle-shader (pstyle-swizzle (style-of *player*)))
       (c "glActiveTexture(GL_TEXTURE1)")
       (c "glDisable(GL_TEXTURE_2D)")
-      (when lights
-        (bind-texobj lights :unit 0)
+      (when light-map
+        (ensure-swizzle-shader (pstyle-swizzle (style-of *player*)))
+        (bind-texobj light-map :unit 0)
         (set-color* 255 255 255 255)
         (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE)")
         (c "glBegin(GL_QUADS)")
-        (do-draw-ship-sprite x0 y0 (gltexobj-width tex) (gltexobj-height tex) angle zoom)
-        (c "glEnd()")))
-    (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
-    (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")    
-    (c "glActiveTexture(GL_TEXTURE0)")
+        (do-draw-ship-sprite x0 y0 (gltexobj-width texture-map) (gltexobj-height texture-map) angle zoom)
+        (c "glEnd()"))
+      (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
+      (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")    
+      (c "glActiveTexture(GL_TEXTURE0)")
    
-    (check-gl-error)))
+      (check-gl-error))))
 
+(defun run-shader-test (uic)
+  (let* ((x0 760)
+         (y0 700)
+         (angle (/ (uic-mx uic) 200.0))
+         (zoom (/ (+ 1.0 (/ (max 0 (- (uic-my uic) 100)) 300.0)))))
+    (draw-ship-sprite 'FIXME x0 y0 angle zoom)))
 
-;;;; I might as well put the audio code here too.
+;;;; I might as well put the audio glue code here too.
 
 (defstruct sound-effect name pointer length)
 

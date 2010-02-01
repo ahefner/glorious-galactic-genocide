@@ -394,7 +394,11 @@
    (space-multiplier :reader space-multiplier-of :initarg :space-multiplier)
    (maneuverability :reader maneuverability-of :initarg :maneuverability)
    (weapon-mounts :reader weapon-mounts :initarg :weapon-mounts)
-   (special-mounts :reader special-mounts :initarg :special-mounts)))
+   (special-mounts :reader special-mounts :initarg :special-mounts)
+
+   ;; Cache slots, set at runtime:
+   color-map normal-map light-map 
+))
 
 (defclass small-type  (ship-type) () (:default-initargs :space   100 :cost   20 :space-multiplier 1  :maneuverability 6))
 (defclass medium-type (ship-type) () (:default-initargs :space   500 :cost  100 :space-multiplier 3  :maneuverability 3))
