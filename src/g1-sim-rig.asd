@@ -15,5 +15,6 @@
      (:file "sim")
      (:file "mapgen")
      (:file "techs")
+     (:file "ships")
 ))
 

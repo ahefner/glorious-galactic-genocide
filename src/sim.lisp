@@ -653,11 +653,12 @@
 
 (defun make-design (name type cost &rest args)
   (apply #'make-instance 'design :name name :type type :cost cost 
-                 :techs (map 'vector (constantly nil) (elt *design-slot-names* type)) ; FIXME TEMP HACK
+                 :techs (map 'vector (constantly nil) (slots-of type))
                  args))
 
 ;;; Compute derived attributes (cost, speed, etc.) from a design, and set those slots.
 ;;; May be called multiple times when the designer UI is running.
+;;; TODO: Compute cost (don't specify in make-design, that's dumb)
 (defun analyze-design (design)
   (setf (speed-of design) (engine-speed (engine-of design)))
   (setf (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus)))
@@ -688,4 +689,5 @@
 
 (defun new-player-event (player event-type &rest args)
   (enqueue-player-event player (apply #'make-instance event-type :owner player args)))
+
 

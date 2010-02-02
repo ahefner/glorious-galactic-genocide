@@ -72,12 +72,14 @@
 
 (defun load-texture-file (filename &key min-filter mag-filter)
   (let ((surface (call :pointer-void "IMG_Load" :cstring filename)))
-    (and (not (ffi:null-pointer-p surface))
-         (unwind-protect 
+    (cond 
+      ((ffi:null-pointer-p surface)
+       (warn "load-texture-file failed: ~W" filename))
+      (t (unwind-protect 
               (make-texture :texid (upload-sdl-surface surface :min-filter min-filter :mag-filter mag-filter)
                             :width  (c :int "((SDL_Surface *)#0)->w" :pointer-void surface)
                             :height (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))
-           (call "SDL_FreeSurface" :pointer-void surface)))))
+           (call "SDL_FreeSurface" :pointer-void surface))))))
   
 (defun set-color* (r g b a)
   (call "glColor4ub"
@@ -247,10 +249,13 @@
 
 (defun load-image-file (filename &optional x-offset y-offset)
   ;;(format t "~&Loading ~A~%" filename)
-  (let* ((surface (call :pointer-void "IMG_Load" :cstring filename))
-         (width  (cx :int "((SDL_Surface *)#0)->w" :pointer-void surface))
-         (height (cx :int "((SDL_Surface *)#0)->h" :pointer-void surface)))
-    (and (not (ffi:null-pointer-p surface))
+  (let ((surface (call :pointer-void "IMG_Load" :cstring filename)))
+    (cond
+      ((ffi:null-pointer-p surface)
+       (warn "load-image-file failed: ~W" filename))
+      (t 
+       (let ((width  (cx :int "((SDL_Surface *)#0)->w" :pointer-void surface))
+             (height (cx :int "((SDL_Surface *)#0)->h" :pointer-void surface)))
          (make-img :width width
                    :height height
                    :resident-p nil
@@ -259,7 +264,7 @@
                    :surface surface
                    :pixels (cx :pointer-void "((SDL_Surface *)#0)->pixels" 
                                :pointer-void surface)
-                   :name filename))))
+                   :name filename))))))
 
 (let ((img-lookaside (make-hash-table))           ; Absurdly premature optimization
       (img-hash (make-hash-table :test 'equal)))
@@ -267,8 +272,8 @@
     (or (gethash name img-lookaside)
         (let ((img (or (gethash name img-hash)
                        (load-image-file (apath name)))))
-          (setf (img-owner img) *global-owner*
-                (gethash name img-hash) img                
+          (when img (setf (img-owner img) *global-owner*))
+          (setf (gethash name img-hash) img                
                 (gethash name img-lookaside) img)))))
 
 (let ((tex-lookaside (make-hash-table))           ; More Absurdly premature optimization
@@ -815,7 +820,7 @@ END
 
 (defun ensure-ship-type-textures (ship-type)
   (with-slots (texture-map normal-map light-map) ship-type
-    (unless colormap
+    (unless texture-map
       (flet ((loadmap (map-name)
                (texture (format nil "~A/~A.png" (name-of ship-type) map-name)
                         :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST")
@@ -825,11 +830,11 @@ END
               normal-map  (loadmap "normals")
               light-map   (loadmap "lights"))))))
 
-(defun draw-ship-sprite (ship-type x0 y0 angle zoom)  
+(defun draw-ship-sprite (style ship-type x0 y0 angle zoom)  
   (let* ((light (unorm (vec (single (* -140 (cos angle))) 
                             (single (* -140 (sin angle)))
                             (single 70)))))
-    (ensure-sprite-shader (pstyle-swizzle (style-of *player*)))
+    (ensure-sprite-shader (pstyle-swizzle style))
     (ensure-ship-type-textures ship-type)
     (with-slots (texture-map normal-map light-map) ship-type
       (with-vector (l light)
@@ -863,7 +868,9 @@ END
          (y0 700)
          (angle (/ (uic-mx uic) 200.0))
          (zoom (/ (+ 1.0 (/ (max 0 (- (uic-my uic) 100)) 300.0)))))
-    (draw-ship-sprite 'FIXME x0 y0 angle zoom)))
+    (draw-ship-sprite (style-of *player*) 
+                      (find-ship-type "Battleship") 
+                      x0 y0 angle zoom)))
 
 ;;;; I might as well put the audio glue code here too.
 

@@ -35,6 +35,7 @@
         '("src/gamebar.lisp"     #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
         '("src/starmap.lisp"     #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
         '("src/ui-research.lisp" #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
+        '("src/ships.lisp")
         "src/main.lisp"))
 
 (defun shared-libraries ()

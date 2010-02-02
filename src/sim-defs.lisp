@@ -193,36 +193,6 @@
 
 (defparameter *size-list* #("Shuttle" "Destroyer" "Cruiser" "Dreadnought"))
 
-(defparameter *design-slot-names*
-  #(#("Port Mount"
-      "Starboard Mount"
-      "Accessory Compartment")
-
-    #("Central Mount"
-      "Port Mount"
-      "Starboard Mount"
-      "Port Compartment"
-      "Starboard Compartment")
-  
-    #("First Foreward Battery"
-      "Second Foreward Battery"
-      "Stern Battery"
-      "Port Battery"
-      "Starboard Battery"
-      "Cargo Bay"
-      "Port Accessory Bay"
-      "Starboard Accessory Bay")
-
-    #("First Foreward Battery"
-      "Second Foreward Battery"
-      "Stern Battery"
-      "Port Battery"
-      "Starboard Battery"
-      "Sensor Bay"
-      "Cargo Bay"
-      "Port Accessory Bay"
-      "Starboard Accessory Bay")))
-
 (defclass design (named)
   ((type :accessor design-type :initarg :type)
    (techs :accessor design-tech-slots :initarg :techs)
@@ -393,16 +363,26 @@
    (cost  :reader cost-of  :initarg :cost)
    (space-multiplier :reader space-multiplier-of :initarg :space-multiplier)
    (maneuverability :reader maneuverability-of :initarg :maneuverability)
-   (weapon-mounts :reader weapon-mounts :initarg :weapon-mounts)
-   (special-mounts :reader special-mounts :initarg :special-mounts)
+   (slots :reader slots-of :initarg :slots)
 
    ;; Cache slots, set at runtime:
-   color-map normal-map light-map 
-))
+   (thumbnail :initform nil)
+   (texture-map :initform nil)
+   (normal-map :initform nil)
+   (light-map :initform nil) ))
 
-(defclass small-type  (ship-type) () (:default-initargs :space   100 :cost   20 :space-multiplier 1  :maneuverability 6))
-(defclass medium-type (ship-type) () (:default-initargs :space   500 :cost  100 :space-multiplier 3  :maneuverability 3))
-(defclass large-type  (ship-type) () (:default-initargs :space  1500 :cost  450 :space-multiplier 10 :maneuverability 2))
-(defclass huge-type   (ship-type) () (:default-initargs :space  4500 :cost 1800 :space-multiplier 20 :maneuverability 1))
+(defclass small-ship  (ship-type) () (:default-initargs :space   100 :cost   20 :space-multiplier 1  :maneuverability 6))
+(defclass medium-ship (ship-type) () (:default-initargs :space   500 :cost  100 :space-multiplier 3  :maneuverability 3))
+(defclass large-ship  (ship-type) () (:default-initargs :space  1500 :cost  450 :space-multiplier 10 :maneuverability 2))
+(defclass huge-ship   (ship-type) () (:default-initargs :space  4500 :cost 1800 :space-multiplier 20 :maneuverability 1))
 
+(defclass hardpoint (named) 
+  ((tech :accessor tech-of :initform nil :initarg :tech)))
 
+;;;; Hardpoint types: 
+;;;;  weapon-mount: Holds a single weapon.
+;;;;  battery-mount: Holds multiple weapons, limited only by available space.
+;;;;  special-mount: Holds a special tech.
+(defclass weapon-mount (hardpoint) ())
+(defclass battery-mount (hardpoint) ())
+(defclass special-mount (hardpoint) ())

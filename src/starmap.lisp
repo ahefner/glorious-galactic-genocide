@@ -714,7 +714,11 @@
 ;;;; Stuffs
 
 (defun design-thumbnail (design)
-  (or (img (slot-value design 'thumbnail)) (img :showfleet-sq-default)))
+  (let ((type (design-type design)))
+    (with-slots (thumbnail) type
+      (or thumbnail
+          (setf thumbnail (or (img (format nil "~A/thumb.png" (name-of type)))
+                              (img :showfleet-sq-default)))))))
 
 (defmethod name-label-of :around ((this design))
   (or (call-next-method)
