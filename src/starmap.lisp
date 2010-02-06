@@ -8,6 +8,9 @@
 
 (ffi:clines "#include \"sys.h\"")
 
+;;;; Hack for drawing a layer below the stars (but above the space background).
+(defvar *starmap-display-under-hook* (constantly nil))
+
 ;;;; Starmap UI
 
 (defclass starmap (gadget)
@@ -17,6 +20,14 @@
    (camera-target :accessor camera-target-of :initform (vec 0 0 0) :initarg :camera-target)))
 
 (defclass debug-starmap (starmap) ())
+
+(defmethod gadget-key-pressed ((starmap starmap) uic keysym char)
+  (when (no-modifiers uic)
+    (cond
+      ((eql char #\r)
+       (activate-new-gadget (make-instance 'browse-techs-ui :player *player*)))
+      ((eql char #\d)
+       (open-designer-ui)))))
 
 (defmethod gadget-key-pressed ((starmap debug-starmap) uic keysym char)
   (declare (ignorable starmap uic))
@@ -35,7 +46,8 @@
     ((eql char #\P) (setf *debug-show-packset* (not *debug-show-packset*)))
     ((eql keysym (keysym :E))
      (print "Exploring the universe!")
-     (loop for star across (stars *universe*) do (explore-star star *player*)))))
+     (loop for star across (stars *universe*) do (explore-star star *player*)))
+    (t (call-next-method))))
 
 (defun query-starmap (starmap uic &key 
                       (query-fn (constantly :accept))
@@ -1088,7 +1100,14 @@
                 (draw-img-deluxe (name-label-of design) (- x (ash (img-width (name-label-of design)) -1)) (+ y 50) lighter)
                 (when (and (pointer-in-img-rect uic thumb x y) (released? uic +left+))
                   (setf (building-design-of colony) design)))))
-      (when (run-labelled-button uic (global-label :bold 14 "Idle Shipyard") (- (uic-width uic) 80) (- bottom 33) 
+      (when (run-labelled-button uic (global-label :bold 14 "New Design")
+                                 (- (uic-width uic) 215)
+                                 (- bottom 33)
+                                 :color color)
+        (open-designer-ui))
+      (when (run-labelled-button uic (global-label :bold 14 "Idle Shipyard") 
+                                 (- (uic-width uic) 80)
+                                 (- bottom 33) 
                                  :color color)
         (setf (building-design-of colony) nil)
         (close-panels (host-of panel))))))

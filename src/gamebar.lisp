@@ -12,9 +12,7 @@
 
 (defmethod gadget-key-pressed ((gadget gameui) uic keysym char)
   (with-slots (starmap panel closing-panel) gadget
-    (cond 
-      ((and (eql char #\r) (no-modifiers uic))
-       (activate-new-gadget (make-instance 'browse-techs-ui :player *player*)))
+    (cond      
       ((and (eql char #\Space) (no-modifiers uic))
        (client-do-next-turn gadget))
       ((and panel (not closing-panel)) (gadget-key-pressed panel uic keysym char))
@@ -30,7 +28,6 @@
          (homeworld (aref (colonies *player*) 0))
          (loc (loc homeworld))
          (camera (vec (v.x loc) (v.y loc) 0.0f0)))
-
     (prog1 gameui
       (with-slots (starmap next-gadget) gameui
         (setf starmap (make-instance 'debug-starmap :universe universe
@@ -74,7 +71,7 @@
   (let ((bottom (panel-height gadget)))
     (run-hosted-panel uic gadget bottom)
     
-    (draw-bar* (img :gamebar-left) (img :gamebar-right) *gamebar-fill* 0 0 (uic-width uic))
+    (draw-bar* (img :gamebar-left) (img :gamebar-right) (texture :gamebar-fill) 0 0 (uic-width uic))
     (draw-img (imgblock :status-bar) 99 0)
     (draw-status-bar gadget 125)
 
@@ -94,7 +91,7 @@
     
     (when *debug-show-packset* (debug-show-packset))
 
-    (run-shader-test uic)
+    ;;(run-shader-test uic)
     
     (values)))
 

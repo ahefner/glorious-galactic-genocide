@@ -89,6 +89,7 @@
    (ship-designs-of :reader ship-designs-of :initform (make-array 9))
    (research-projects :accessor research-projects-of :initform (make-array 2))
    (event-list :accessor event-list-of :initform nil)
+   (working-design :accessor working-design-of :initform nil)
 
    ;;; Dubious runtime bullshit:
    (owned-images :accessor owned-images-of :initform (make-hash-table))

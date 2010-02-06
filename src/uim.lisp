@@ -43,6 +43,8 @@
         *gadget-root* gadget))
 
 (defun pop-gadget (gadget)
+  ;; Maybe this is a stupid check, and we ought to pop everything
+  ;; ahead of the gadget as well.
   (assert (not (null (next-gadget gadget))))
   (assert (eql gadget *gadget-root*))
   (finalize-object *gadget-root*)
@@ -86,13 +88,13 @@
 ;;;; Helper functions - Clicked/Released are edge-triggered and the
 ;;;; mask is a disjunction. Held mask is a conjunction.
 
-;;;; Would it be helpful for clicked/released (and maybe held) to check if the UIC is active? Probably..
-
 (defun clicked? (uic &optional (button-mask +left+))
-  (not (zerop (logand (uic-buttons-pressed uic) button-mask))))
+  (and (uic-active uic)
+       (not (zerop (logand (uic-buttons-pressed uic) button-mask)))))
 
 (defun released? (uic &optional (button-mask +left+))
-  (not (zerop (logand (uic-buttons-released uic) button-mask))))
+  (and (uic-active uic)
+       (not (zerop (logand (uic-buttons-released uic) button-mask)))))
 
 (defun held? (uic button-mask)
   (= button-mask (logand (uic-buttons uic) button-mask)))
@@ -141,7 +143,7 @@
 (defun run-slider (id uic x y value range &optional disable)
   (let ((fill (min 160 (round (* 160 (if (zerop range) 0 (/ value range))))))
         (in (pointer-in-rect* uic x y (+ x 160) (+ y 17))))
-    (bind-texobj *slider160*)
+    (bind-texobj (texture :slider-160))
     (draw-tile x y (+ x fill) (+ y 17) 0 0 (if disable #(150 150 150) #(255 255 255)))
     (draw-tile (+ x fill) y (+ x 160) (+ y 17) fill 0 (if disable #(100 100 100) #(190 190 190)))
     (when (and id in (clicked? uic +left+)) (grab-mouse id))
@@ -160,7 +162,7 @@
   (let* ((left (img :panel-left))
          (right (img :panel-right))
          (edge-top (- bottom (img-height left))))
-    (draw-bar* left right *panel-fill* 0 edge-top (uic-width uic))
+    (draw-bar* left right (texture :panel-fill) 0 edge-top (uic-width uic))
     (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
 
 (defun run-hosted-panel (uic host bottom)
@@ -268,8 +270,9 @@
                    (if (eq io-state t) :opened :closed))
               io-state))))
 
-(defun io-request-close (io)
-  (with-slots (io-state) io
+(defun io-request-close (io &optional new-rate)
+  (with-slots (io-state io-rate) io
+    (setf io-rate (or new-rate io-rate))
     (when io-state
       (setf io-state :out))))
 

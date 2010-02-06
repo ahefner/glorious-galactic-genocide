@@ -3,7 +3,7 @@
 (pushnew :with-gui *features*)
 
 ;;(declaim (optimize (debug 0) (speed 3) (safety 2)))
-(declaim (optimize (debug 3) (speed 0) (safety 2) (space 0)))
+(proclaim '(optimize (debug 3) (speed 0) (safety 2) (space 0)))
 
 ;;;; Load system definition
 

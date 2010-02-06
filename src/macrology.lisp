@@ -2,11 +2,12 @@
 
 ;;;; FFI Sugar
 
-(defun c-inline-get-inputs (list)
-  (loop for name in (rest list) by #'cddr collect name))
-
-(defun c-inline-get-types (list)
-  (loop for name in list by #'cddr collect name))
+(eval-when (:compile-toplevel)
+  (defun c-inline-get-inputs (list)
+    (loop for name in (rest list) by #'cddr collect name))
+  
+  (defun c-inline-get-types (list)
+    (loop for name in list by #'cddr collect name)))
 
 #+ecl
 (defmacro c (expr-or-return-type &rest args)
@@ -119,7 +120,6 @@
 
 ;;;; Simple cache utility.. should've added this earlier..
 
-
 (defmacro cachef ((place value-form &key (test 'equal) (delete 'identity)) 
                   &body derived-forms)
   `(flet ((value-fn () ,value-form)
@@ -132,3 +132,4 @@
                             ,place)
                            (t (,delete (cacheobj-derived ,place))
                               (setf ,place (make-cacheobj :value value :derived (derived-fn)))))))))
+

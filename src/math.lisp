@@ -56,7 +56,10 @@
       (- (v2.y a) (v2.y b))))
 (defun square (x) (* x x))
 (defun v2normsq (vector) (+ (square (v2.x vector)) (square (v2.y vector))))
-(defun v2len (vector) (sqrt (normsq vector)))
+(defun v2len (vector) (sqrt (v2normsq vector)))
+(defun v2angle (angle scale)
+  (v2 (round (* scale (cos angle)))
+      (round (* scale (sin angle)))))
 
 
 
@@ -93,6 +96,8 @@
            (elt v 1) (float ,y 0.0f0)
            (elt v 2) (float ,z 0.0f0))
      v))
+
+(defun v2->v3 (v2) (vec (single (v2.x v2)) (single (v2.y v2)) 0.0f0))
 
 (declaim (inline v.x v.y v.z))
 
@@ -201,3 +206,8 @@
 
 (defun vdist<= (a b dist)
   (<= (vnormsq (v- a b)) (square dist)))
+
+(defun v3angle-xy (z scale angle)
+  (vec (* scale (cos angle))
+       (* scale (sin angle))
+       z))

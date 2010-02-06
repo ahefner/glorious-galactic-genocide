@@ -14,23 +14,15 @@
                     extension))))
 
 (defun load-assets ()
-  (setf *stars00* (load-texture-file (apath "stars00.png"))
-        *stars01* (load-texture-file (apath "stars01.png"))
-        *stars02* (load-texture-file (apath "stars02.png"))
-        *stars03* (load-texture-file (apath "stars03.png"))
-        *slider160* (load-texture-file (apath "slider-160.png"))
-        *gamebar-fill* (load-texture-file (apath "gamebar-fill.png"))
-        *panel-fill* (load-texture-file (apath "panel-fill.png"))
- 
-        *button-a* (make-button-style
+  (setf *button-a* (make-button-style
                     :baseline 16
                     :pressed (make-bar-style :left  (img :button-a-pressed-left)
                                              :right (img :button-a-pressed-right)
-                                             :fill  (load-texture-file (apath "button-a-pressed-fill.png")))
+                                             :fill  (texture :button-a-pressed-fill))
                     :released (make-bar-style :left  (img :button-a-released-left)
                                               :right (img :button-a-released-right)
-                                              :fill  (load-texture-file (apath "button-a-released-fill.png"))))
- ))
+                                              :fill  (texture :button-a-released-fill)))
+        ))
 
 (defun diffvec (vector)
   (let ((v (make-array (1- (length vector)))))
@@ -46,7 +38,7 @@
             (max (reduce #'max times))
             (fps (/ (length times) 1.0 (/ (- max min) internal-time-units-per-second))))
        ;;(print (diffvec times))
-       ;;(format t "~&Frames per second: ~D~%" fps)
+       (format t "~&Frames per second: ~D~%" fps)
        #+NIL (throw 'bailout :byebye)))
    (setf (aref times (mod *total-frames* (length times))) (get-internal-real-time))
    (incf *total-frames*)

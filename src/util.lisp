@@ -57,6 +57,9 @@ error if SEQUENCE is not a proper sequence."
   (macrolet ((f (x) `(ash (+ ,x 255) -1)))
     (vector (f (aref color 0)) (f (aref color 1)) (f (aref color 2)))))
 
+(defun color-with-alpha (color alpha)
+  (vector (aref color 0) (aref color 1) (aref color 2) alpha))
+
 ;;; Like delete-if, but guaranteed to modify vector in place and
 ;;; adjust fill pointer.. that you can't rely on CL:DELETE* functions
 ;;; in this case is idiotic beyond belief.

@@ -1,4 +1,4 @@
-;;;; Global variables and random bits.
+;;;; Global definitions.
 
 ;;;; We have to put them here and define them during compilation,
 ;;;; otherwise the compiler will warn when compiling files that use
@@ -10,14 +10,6 @@
 (in-package :g1)
 
 ;;; Graphics and whatnot. Elimate these.
-
-(defvar *stars00* nil)
-(defvar *stars01* nil)
-(defvar *stars02* nil)
-(defvar *stars03* nil)
-(defvar *gamebar-fill* nil)
-(defvar *panel-fill* nil)
-
 
 (defvar *packset* nil)
 
@@ -37,10 +29,6 @@
 (defvar *universe*)
 
 (defvar *button-a* nil)                     ; Standard button-style
-(defvar *slider160* nil)                    ; 160px slider texture with bevelled ends
-
-;; Stupid hack for drawing a layer below the stars (but above the space background).
-(defvar *starmap-display-under-hook* (constantly nil))
 
 ;; Really, you need one of these per text style. This will be for the "default" text style (:sans 11)
 (defvar *word-map* (make-hash-table :test 'equal))
@@ -51,5 +39,14 @@
 (defvar *devmode* t)
 (defparameter *starfield-depth* 200)
 
+;;;; ...
+
 (defstruct cacheobj value derived)      ; Nowhere else reasonable to define this..
+
+;;;; Inline functions
+
+(declaim (inline f->b))
+
+(defun f->b (f)
+  (clamp (round (* f 255)) 0 255))
 

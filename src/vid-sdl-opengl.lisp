@@ -111,6 +111,25 @@
   (do-draw-tile x0 y0 x1 y1 tx ty)
   (c "glEnd()"))
 
+(defun do-draw-tile-scaled (x0 y0 x1 y1 tx0 ty0 tx1 ty1)
+  (let ((width (- x1 x0))
+        (height (- y1 y0)))
+    (call "glTexCoord2i" :int tx0 :int ty0)
+    (call "glVertex2i" :int x0 :int y0)
+    (call "glTexCoord2i" :int tx1 :int ty0)
+    (call "glVertex2i" :int x1 :int y0)
+    (call "glTexCoord2i" :int tx1 :int ty1)
+    (call "glVertex2i" :int x1 :int y1)
+    (call "glTexCoord2i" :int tx0 :int ty1)
+    (call "glVertex2i" :int x0 :int y1)))
+
+(defun draw-tile-scaled (x0 y0 x1 y1 tx0 ty0 tx1 ty1 &optional (color #(255 255 255 255)))
+  (set-color color)
+  (c "glBegin(GL_QUADS)")
+  (do-draw-tile-scaled x0 y0 x1 y1 tx0 ty0 tx1 ty1)
+  (c "glEnd()"))
+
+
 (defun do-dual-draw-tile (x0 y0 x1 y1 u0 v0 u1 v1)
   (ffi:c-inline (x0 y0 x1 y1 u0 v0 u1 v1) (:int :int :int :int :int :int :int :int) (values)
    "{ int x0 = #0, y0 = #1, x1 = #2, y1 = #3, u0 = #4, v0 = #5, u1 = #6, v1 = #7, width = x1-x0, height = y1-y0;
@@ -149,40 +168,47 @@
       glVertex2i(x0, y0+height); }"
    :one-liner nil))
 
+(defun set-blend-mode (mode)
+  (ecase mode
+    (:replace (c "glBlendFunc(GL_ONE, GL_ZERO)"))
+    (:replace-alpha (c "glBlendFunc(GL_SRC_ALPHA, GL_ZERO)"))
+    (:add-rgb (c "glBlendFunc(GL_ONE, GL_ONE)"))
+    (:add     (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE)"))
+    (:blend   (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)"))))
 
 (defun render-starfield-opengl (x y)
   ;;; Vanilla OpenGL starfield renderer
   (c "glEnable(GL_TEXTURE_2D)")
   (c "glColor3f(1.0f, 1.0f, 1.0f)")
-  (bind-texobj *stars00*)
-  (c "glBlendFunc(GL_ONE, GL_ZERO)")
+  (bind-texobj (texture :stars00))
+  (set-blend-mode :replace)
   (draw-tile 0 0 (c :int "window_width") (c :int "window_height") (ash x -1) (ash y -1))
 
-  (bind-texobj *stars03*)
-  (c "glBlendFunc(GL_ONE, GL_ONE)")
+  (bind-texobj (texture :stars03))
+  (set-blend-mode :add-rgb)
   (draw-tile 0 0 (c :int "window_width") (c :int "window_height") (round (* 0.58 x)) (round (* 0.58 (+ y -25))))
 
-  (bind-texobj *stars01*)
-  (c "glBlendFunc(GL_ONE, GL_ONE)")
+  (bind-texobj (texture :stars01))
+  (set-blend-mode :add-rgb)
   (draw-tile 0 0 (c :int "window_width") (c :int "window_height") (round (* 0.666 x)) (round (* 0.666 y))))
 
 (defun render-starfield-multitex (x y)
   ;;; Render starfield using multiple texture units
   (c "glActiveTexture(GL_TEXTURE0)")
-  (bind-texobj *stars00* :unit 0)
+  (bind-texobj (texture :stars00) :unit 0)
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)")
 
   (c "glActiveTexture(GL_TEXTURE1)")
-  (bind-texobj *stars03* :unit 1)
+  (bind-texobj (texture :stars03) :unit 1)
   (c "glEnable(GL_TEXTURE_2D)")
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD)")
 
   (c "glActiveTexture(GL_TEXTURE2)") 
-  (bind-texobj *stars01* :unit 2)
+  (bind-texobj (texture :stars01) :unit 2)
   (c "glEnable(GL_TEXTURE_2D)")
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD)")
 
-  (c "glBlendFunc(GL_ONE, GL_ZERO)")
+  (set-blend-mode :replace)
   (c "glBegin(GL_QUADS)")
   (do-triple-draw-tile 0 0 (c :int "window_width") (c :int "window_height")
                      (ash x -1) (ash y -1)
@@ -212,7 +238,7 @@
   (c "glDisable(GL_CULL_FACE)")
   (c "glShadeModel(GL_FLAT)")
   (c "glEnable(GL_BLEND)")
-  (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
+  (set-blend-mode :blend)
   (c "glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)")
 
   (c "glMatrixMode(GL_PROJECTION)")
@@ -285,6 +311,11 @@
           (setf (gethash name tex-hash) tex
                 (gethash name tex-lookaside) tex)))))
 
+(defun filtered-texture (name)
+  (texture name
+           :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST")
+           :mag-filter (cx :int "GL_LINEAR")))
+
 (defun imgblock (name)
   (let ((img (img name)))
     (prog1 img
@@ -305,7 +336,7 @@
   ;;; FIXME: Check whether the damn thing is on screen before we consider uploading a texture.
   (bind-texobj *packset*)
   (packset-ensure *packset* img)
-  (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
+  (set-blend-mode :blend)
   ;; TODO: Clamp and set border color. 
   ;;(c "glTexParameter(GL_TEXTURE_2D, TEXTURE_BORDER_COLOR, whatever))
 
@@ -332,24 +363,23 @@
 (defun draw-img-deluxe (img x y color)
   (draw-img-deluxe* img x y (aref color 0) (aref color 1) (aref color 2) (if (= 4 (length color)) (aref color 3) 255)))
 
-(defun draw-line (u v &key (pattern-offset 0) (color #(255 255 255 255)))
-  (let ((texture (texture :line-dashed
-                          :mag-filter (cx :int "GL_LINEAR")
-                          ;; On fglrx, we need GL_LINEAR on the min filter to get a smooth line.
-                          :min-filter (cx :int "GL_LINEAR"))))
-    (bind-texobj texture)
-    (set-color color)
-    (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
-    (ffi:c-inline ((v2.x u) (v2.y u) (v2.x v) (v2.y v)
-                   (texture-width texture) (texture-height texture)
-                   pattern-offset)
-                  (:int :int :int :int :int :int :int)
-                  (values)
-;; Sure, I could do this in lisp, and it'd be less code, but ECL's
-;; compiler is a joke, and I bitterly resent avoidable runtime
-;; dispatch and float consing, even when performance is completely
-;; irrelevant.
-"
+(defun draw-line (u v &key
+                  (pattern-offset 0) 
+                  (color #(255 255 255 255))
+                  (texture (filtered-texture :line-dashed)))  
+  (bind-texobj texture)
+  (set-color color)
+  (set-blend-mode :blend)
+  (ffi:c-inline ((v2.x u) (v2.y u) (v2.x v) (v2.y v)
+                 (texture-width texture) (texture-height texture)
+                 pattern-offset)
+                (:int :int :int :int :int :int :int)
+                (values)
+                ;; Sure, I could do this in lisp, and it'd be less code, but ECL's
+                ;; compiler is a joke, and I bitterly resent avoidable runtime
+                ;; dispatch and float consing, even when performance is completely
+                ;; irrelevant.
+                "
 {
    int texwidth = #4, texheight = #5, pattern_offset = #6;
    float x0 = #0, y0 = #1, x1 = #2, y1 = #3;
@@ -373,7 +403,84 @@
      glEnd();
    }
 }
-")))
+"))
+
+;;; Draw a continuous line as a series of segments. 
+;;; Cut and paste, whatever, I don't give a shit.
+(let ((pattern-x 0)
+      nx ny
+      line-radius
+      line-texture
+      prev-vertex
+      prev2-vertex)
+ (defun line-begin (&key
+                    (pattern-offset 0.0)
+                    (color #(255 255 255 255))
+                    (thickness 8)
+                    (texture (filtered-texture :line-dashed)))
+   (setf pattern-x (single pattern-offset)
+         line-radius (single (/ thickness 2.0))
+         line-texture texture
+         prev-vertex nil
+         prev2-vertex nil)
+   (bind-texobj texture)
+   (set-color color)
+   ;(c "glDisable(GL_TEXTURE_2D)")
+   (c "glBegin(GL_QUAD_STRIP)"))
+ (defun %line-emit-vertex (vertex)
+   (call "glTexCoord2f" :float pattern-x :float 0.0)
+   (call "glVertex2f" :float (+ (v.x vertex) nx) :float (+ (v.y vertex) ny))
+   (call "glTexCoord2f" :float pattern-x :float (single (texture-height line-texture)))
+   (call "glVertex2f" :float (- (v.x vertex) nx) :float (- (v.y vertex) ny)))
+ (defun line-add-vertex (vertex)
+   (when (consp vertex)
+     (setf vertex (v2->v3 vertex)))
+   (cond
+     ;; Nth vertex (N>2)
+     (prev2-vertex
+      #+NIL
+      (printl :dot (dot (normalize (v- vertex prev-vertex))
+                        (normalize (v- prev-vertex prev2-vertex)))
+              :angle (* 360 (/ 0.5 pi)
+                        (acos (min 1.0 
+                                   (dot (normalize (v- vertex prev-vertex))
+                                        (normalize (v- prev-vertex prev2-vertex)))))))
+      (let* ((vector (v- vertex prev2-vertex))
+             (len (len vector))
+             (rescale (/ line-radius
+                         ;; Um.. fixme?
+                         #+NIL
+                         (print (sin (* 0.5 (acos (dot (normalize (v- vertex prev-vertex))
+                                                       (normalize (v- prev-vertex prev2-vertex)))))))
+                         len)))
+        (setf nx (* -1.0 rescale (v.y vector))
+              ny (* rescale (v.x vector)))
+        (incf pattern-x (len (v- prev-vertex prev2-vertex)))
+        (%line-emit-vertex prev-vertex)
+        (shiftf prev2-vertex prev-vertex vertex)))
+     ;; Second vertex.
+     (prev-vertex
+      (shiftf prev2-vertex prev-vertex vertex)
+      (let* ((vector (v- prev-vertex prev2-vertex))
+             (len (len vector))
+             (rescale (/ line-radius len)))
+        (setf prev-vertex vertex
+              nx (* -1.0 rescale (v.y vector))
+              ny (* rescale (v.x vector)))
+        (%line-emit-vertex prev2-vertex)))
+     
+     ;; First vertex.
+     (t (setf prev-vertex vertex))))
+ (defun line-end ()
+   (incf pattern-x (len (v- prev-vertex prev2-vertex)))
+   (let* ((vector (v- prev-vertex prev2-vertex))
+             (len (len vector))
+             (rescale (/ line-radius len)))
+        (setf nx (* -1.0 rescale (v.y vector))
+              ny (* rescale (v.x vector)))
+        (%line-emit-vertex prev-vertex))
+   (c "glEnd()")
+   (check-gl-error)))
 
 #+NIL
 (defun simple-draw-line (u v)
@@ -818,13 +925,14 @@ END
     }"
    :one-liner nil))
 
+(defun ship-asset-path (ship-type asset-type)
+  (format nil "~A/~A.png" (name-of ship-type) asset-type))
+
 (defun ensure-ship-type-textures (ship-type)
   (with-slots (texture-map normal-map light-map) ship-type
     (unless texture-map
       (flet ((loadmap (map-name)
-               (texture (format nil "~A/~A.png" (name-of ship-type) map-name)
-                        :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST")
-                        :mag-filter (cx :int "GL_LINEAR"))))
+               (filtered-texture (ship-asset-path ship-type map-name))))
         (assert (not (or normal-map light-map)))
         (setf texture-map (loadmap "texture")
               normal-map  (loadmap "normals")
@@ -853,11 +961,11 @@ END
         (ensure-swizzle-shader (pstyle-swizzle (style-of *player*)))
         (bind-texobj light-map :unit 0)
         (set-color* 255 255 255 255)
-        (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE)")
+        (set-blend-mode :add)
         (c "glBegin(GL_QUADS)")
         (do-draw-ship-sprite x0 y0 (gltexobj-width texture-map) (gltexobj-height texture-map) angle zoom)
         (c "glEnd()"))
-      (c "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)")
+      (set-blend-mode :blend)
       (c "glDisable(GL_FRAGMENT_PROGRAM_ARB)")    
       (c "glActiveTexture(GL_TEXTURE0)")
    
