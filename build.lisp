@@ -1,9 +1,7 @@
 ;;(require 'asdf)
 
-(pushnew :with-gui *features*)
-
-;;(declaim (optimize (debug 0) (speed 3) (safety 2)))
-(proclaim '(optimize (debug 3) (speed 0) (safety 2) (space 0)))
+(proclaim '(optimize (debug 3) (speed 0) (safety 3) (space 0)))
+;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
 
 ;;;; Load system definition
 
@@ -36,9 +34,6 @@ for comparison. Accepts and produces only lists."
 
 (compile 'fail)
 
-;;; BEWARE! This only works by accident. This isn't always bound, and
-;;; ECL seems to fuck with itself at other times, although I can't
-;;; find where this occurs.
 (setf c::*cc-flags* (format nil "~A~{ ~A~}" c::*cc-flags* (cflags)))
 
 (defun object-pathname (filename)
@@ -51,14 +46,20 @@ for comparison. Accepts and produces only lists."
            (file-write-date filename))))
 
 (defun newer? (file1 file2)
-  (and (probe-file file1)
-       (probe-file file2)
-       (>= (file-write-date file1) (file-write-date file2))))
+  ;; (format t "~&newer? ~A vs ~A~%" (file-write-date file1) (file-write-date file2))
+  (cond
+   ((not (probe-file file2))
+    (format t "~&~W doesn't exist!~%" file2))
+   ((not (probe-file file1)) nil)
+   (t (>= (file-write-date file1) (file-write-date file2)))))
 
 (defun read-unescaping (stream)
   (with-output-to-string (out)
     (loop as char = (read-char stream nil)
-          when (eql char #\\) do (setf char (read-char stream nil))
+          ;;do (format t "~&  read ~W~%" char)
+          when (and (eql char #\\)
+                    (eql #\Return (peek-char nil stream)))
+          do (setf char (read-char stream nil))
           when (null char) do (return)
           do (write-char char out))))
 
@@ -75,16 +76,21 @@ for comparison. Accepts and produces only lists."
         unless index do (return (nreverse accum))))
 
 (defun c-object-deps (filename)
-  (let ((stream (ext:run-program "cpp" 
-                                 (append (cflags)
-                                         (list "-M" (namestring filename)))
-                                 :input nil :output :stream :error *error-output*)))
+  (let* ((args (append (cflags) (list "-M" (namestring filename))))
+         (stream (ext:run-program "cpp" args
+                                  :input nil :output :stream :error *error-output*)))
     (handler-case 
         (progn
-          (loop until (eql (read-char stream) #\:))
+          (loop as char = (read-char stream nil)
+		until (eql char #\:)
+		when (null char)
+		;; This fails on a certain file in Windows. I'm not
+		;; sure why, but easiest to work around it here:
+		do (warn "Problem reading CPP output!") (return-from c-object-deps (list filename)))
           (peek-char t stream nil)
           (split-string (read-unescaping stream)))
       (serious-condition (err)
+        (format t "~&~A ~{~A~^ ~}~%" "cpp" args)
         (format t "~&Error computing dependencies of ~A:~% ~A~%" filename err)
         (fail)))))
 
@@ -111,23 +117,21 @@ for comparison. Accepts and produces only lists."
                                              (pathname-name (pathname filename)))))
     (setf (gethash filename *compiler-sources*) t)))
 
-
-
 (defun load-compiler-sources ()
   (format t "~&~%--------------- ESTABLISHING COMPILE-TIME ENVIRONMENT ---------------~%~%")
   (loop for filename in (lisp-compile-sources)
         do (ensure-compiler-source filename)))
 
 ;(trace changed-dependencies)
+;(trace read-unescaping)
 ;(trace object-pathname)
 ;(trace c::compiler-cc)
 ;(trace newer?)
 
-(defvar *use-colors* t)
+(defvar *use-colors* #-win32 t #+win32 nil)
 (defun sgr (&rest modes)
+  "Print ANSI color codes. Doesn't work in the Windows console."
   (when *use-colors* (format t "~C[~{~D~^;~}m" #\Esc modes)))
-
-
 
 (loop with compiler-sources-loaded = nil
       for source-spec in (append (c-sources) (lisp-sources))
@@ -192,9 +196,10 @@ for comparison. Accepts and produces only lists."
 (defun source-names->object-names (sources)
   (mapcar #'object-pathname sources))
 
-(c:build-program "g1"
+(c:build-program #+win32 "g1.exe" #-win32 "g1"
                   :lisp-files (source-names->object-names (lisp-linked-sources))
                   :ld-flags (append (mapcar #'namestring (source-names->object-names (c-sources)))
+				    (ld-flags)
                                     (mapcar (lambda (x) (format nil "-l~A" x)) (shared-libraries)))
                   :epilogue-code '(eval (read-from-string "(g1:main)")))
 

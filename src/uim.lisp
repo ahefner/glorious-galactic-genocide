@@ -1,6 +1,6 @@
 (in-package :g1)
 
-(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+;;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
 
 (ffi:clines "#include \"sys.h\"")
 

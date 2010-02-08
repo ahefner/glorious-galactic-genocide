@@ -4,10 +4,11 @@
 
 (in-package :g1)
 
-(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
 
 (ffi:clines "#include \"sys.h\"")
-(ffi:clines "#include <GL/gl.h>")
+;;(ffi:clines "#include <GL/gl.h>")
+(ffi:clines "#include <GL/glew.h>")
 (ffi:clines "#include \"text-render.h\"")
 (ffi:clines "#include <SDL/SDL_image.h>")
 
@@ -375,10 +376,11 @@
                  pattern-offset)
                 (:int :int :int :int :int :int :int)
                 (values)
-                ;; Sure, I could do this in lisp, and it'd be less code, but ECL's
-                ;; compiler is a joke, and I bitterly resent avoidable runtime
-                ;; dispatch and float consing, even when performance is completely
-                ;; irrelevant.
+                ;; Sure, I could do this in lisp, and it'd be less
+                ;; code, but don't think ECL can do unboxed float
+                ;; arithmetic, and I bitterly resent avoidable runtime
+                ;; dispatch and float consing, even when performance
+                ;; is completely irrelevant.
                 "
 {
    int texwidth = #4, texheight = #5, pattern_offset = #6;
@@ -448,10 +450,11 @@
       (let* ((vector (v- vertex prev2-vertex))
              (len (len vector))
              (rescale (/ line-radius
-                         ;; Um.. fixme?
-                         #+NIL
-                         (print (sin (* 0.5 (acos (dot (normalize (v- vertex prev-vertex))
-                                                       (normalize (v- prev-vertex prev2-vertex)))))))
+                         ;; FIXME! WTF!
+			 #+NIL
+                         (print (sin (* 0.5 (acos (min 1.0
+						       (dot (normalize (v- vertex prev-vertex))
+							    (normalize (v- prev-vertex prev2-vertex))))))))
                          len)))
         (setf nx (* -1.0 rescale (v.y vector))
               ny (* rescale (v.x vector)))

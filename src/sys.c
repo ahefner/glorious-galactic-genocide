@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
-#include <GL/gl.h>
+
+// #include <GL/gl.h>
+#include <GL/glew.h>
 
 SDL_Surface *window_surface;
 int window_width = 0;
@@ -27,6 +30,12 @@ int sys_setvideomode (void)
     SDL_Flip(window_surface);
     SDL_ShowCursor(SDL_ENABLE);
     SDL_EnableUNICODE(1);
+
+    if (GLEW_OK != glewInit()) {
+      printf("OpenGL init error.\n");
+    }
+
+    if (!GL_VERSION_1_4) printf("OpenGL is too old (need version 1.4 or newer). This will end badly.\n");
 
     glViewport(0, 0, window_width, window_height);
     if (glGetError() != GL_NO_ERROR) {
@@ -58,12 +67,12 @@ int sys_init (char *title)
 //        window_height = vinf->current_h - 90;
         
         // Minimum supported resolution:
-        window_width = 800;
-        window_height = 480;
+      //window_width = 800;
+      // window_height = 480;
 
         // Expected typical resolution:
-        //window_width = 1280;
-        //window_height = 800;
+        window_width = 1280;
+        window_height = 800;
     }   
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);

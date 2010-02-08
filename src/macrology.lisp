@@ -133,3 +133,12 @@
                            (t (,delete (cacheobj-derived ,place))
                               (setf ,place (make-cacheobj :value value :derived (derived-fn)))))))))
 
+;;;; Moved here from math.lisp:
+
+(defun suffix (symbol suffix)
+  (intern (format nil "~A~A" (string symbol) (string suffix))))
+
+(defun symbol-xyz-list (symbol)
+  (list (suffix symbol '#:.x)
+	(suffix symbol '#:.y)
+	(suffix symbol '#:.z)))

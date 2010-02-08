@@ -4,7 +4,7 @@
 
 (in-package :g1)
 
-(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
 
 (ffi:clines "#include \"sys.h\"")
 
@@ -71,7 +71,7 @@
                  (c "window_width = cur_event.resize.w")
                  (c "window_height = cur_event.resize.h")
                  (setf please-set-video-mode t)
-                 (sleep 0.1))           ; Stupid Linux/X11 hack.
+                 #+linux (sleep 0.1))           ; Stupid Linux/X11 hack.
                 
                 ((eql type (cx :int "SDL_MOUSEMOTION"))
                  (setf (uic-amx uic) (cx :int "cur_event.motion.x")

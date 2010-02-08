@@ -1,7 +1,7 @@
 (in-package :g1)
 
 (ffi:clines "#include \"sys.h\"")
-(ffi:clines "#include \"GL/gl.h\"")
+(ffi:clines "#include \"GL/glew.h\"")
 
 (defun asset-base () ".")                ; TODO FIXME!!
 

@@ -1,12 +1,8 @@
 (in-package :g1)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun suffix (symbol suffix)
-    (intern (format nil "~A~A" (string symbol) (string suffix))))
-  (defun symbol-xyz-list (symbol)
-    (list (suffix symbol '#:.x)
-          (suffix symbol '#:.y)
-          (suffix symbol '#:.z))))
+;;; There were previously a couple functions used in macro expansions
+;;; defined here, but I moved them to macrology.lisp while flailing
+;;; around investigating build failures.
 
 ;;; Trivial math utilities, defined here as inline functions,
 ;;; in case there are nonportable ways to rephrase them which

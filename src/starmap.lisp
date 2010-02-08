@@ -1,6 +1,6 @@
 ;;;; -*- Coding: latin-1 -*-
 
-(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
 
 ;;;; Starmap
 
@@ -984,9 +984,6 @@
       ((stacks-of fleet) (values))
       ;; Nobody left? Close the panel.
       (t (setf fleet nil) (close-panels)))))
-  
-  
-
 
 (defun fleet-panel-commit (panel)
   ;; Returns new fleet!!
@@ -1074,7 +1071,7 @@
         ((typep panel 'fleet-panel)
          (update-panel (make-instance 'fleet-panel :starmap starmap :fleet (fleet-of panel))))))))
 
-;;;; AUGH
+;;;; One last panel:
 
 (defclass shipyard-panel (panel)
   ((colony :accessor colony-of :initarg :colony)

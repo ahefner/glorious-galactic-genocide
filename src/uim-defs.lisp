@@ -108,9 +108,8 @@
 
 ;;;; Regions
 
-;;; If circle is inlined, any half-decent CL ought to optimize the
-;;; closure creation away. ECL doesn't, because it's a goddamned sorry
-;;; piece of shit excuse for a Lisp compiler.
+;;; If circle is inlined, any serious CL compiler ought to optimize
+;;; the closure creation away. ECL doesn't, which pisses me off.
 
 (declaim (inline circle))
 
