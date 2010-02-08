@@ -1,0 +1,4 @@
+#!/bin/sh
+
+ecl.exe -norc -q -eval "(progn (load \"build.lisp\") (quit))"
+
