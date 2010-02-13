@@ -87,7 +87,7 @@
    (available-techs :accessor available-techs-of :initform nil)
    (style :accessor style-of :initarg :style :initform nil)
    (ship-designs-of :reader ship-designs-of :initform (make-array 9))
-   (research-projects :accessor research-projects-of :initform (make-array 2))
+   (research-projects :accessor research-projects-of :initform (make-array 2 :initial-element nil))
    (event-list :accessor event-list-of :initform nil)
    (working-design :accessor working-design-of :initform nil)
 
