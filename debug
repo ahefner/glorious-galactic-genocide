@@ -1,0 +1,2 @@
+#!/bin/sh
+gdb ./g1 -x run
