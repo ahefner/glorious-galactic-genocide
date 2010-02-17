@@ -4,6 +4,9 @@
 
 (ffi:clines "#include \"sys.h\"")
 
+(defun uic-mouse-vector (uic)
+  (v2 (uic-mx uic) (uic-my uic)))
+
 (defun child-uic (uic &key (dx 0) (dy 0) width height (active t))
   (let ((new (copy-uic uic)))
     (setf (uic-active new) (and active (uic-active uic))) ; Don't override deactivation by a parent.
@@ -72,16 +75,19 @@
 
 (defvar *swank-running* nil)
 
-(defun start-swank (background-p)
+(defun start-swank (&optional background-p)
   (declare (ignorable background-p))
-  (unless *swank-running*
-    (setf *swank-running* t)   
+  (unless (or *swank-running* (not *devmode*))    
     (require :asdf)
     (eval (read-from-string 
            "(push '(MERGE-PATHNAMES \".sbcl/systems/\" (USER-HOMEDIR-PATHNAME)) asdf:*central-registry*)"))
     (eval (read-from-string "(asdf:oos 'asdf:load-op :swank)"))
-    #+NIL
-    (flet ((run () (eval (read-from-string "(swank:create-server :port 0)"))))
+    (flet ((run ()
+             (setf *swank-running* t)
+             (format t "~&------------ STARTING SWANK SERVER -----------~%")
+             (eval (read-from-string "(swank:create-server :port 0)"))))
+      #-threads (run)
+      #+threads
       (if background-p (mp:process-run-function 'swank-process #'run) (run)))))
 
 

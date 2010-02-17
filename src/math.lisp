@@ -94,6 +94,10 @@
      v))
 
 (defun v2->v3 (v2) (vec (single (v2.x v2)) (single (v2.y v2)) 0.0f0))
+(defun ->v3 (vector) 
+  (etypecase vector
+    (cons (vec (single (v2.x vector)) (single (v2.y vector)) 0.0f0))
+    (v3 vector)))
 
 (declaim (inline v.x v.y v.z))
 
@@ -178,6 +182,10 @@
       vector
       (vscale vector (* new-length (x^-1/2 (dot vector vector))))))
 
+(defun safe-normalize (vector)
+  (declare (type v3 vector))
+  (safe-vscaleto vector 1.0))
+
 (defun stp (a b c)
   (declare (type v3 a b c))
   (dot a (cross b c)))
@@ -207,3 +215,9 @@
   (vec (* scale (cos angle))
        (* scale (sin angle))
        z))
+
+(defun midpoint (a b) (vscale (v+ a b) 0.5))
+
+(defun v3normxy (v)
+  (with-vector (v)
+    (vec (- v.y) v.x v.z)))

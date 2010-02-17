@@ -86,7 +86,7 @@
    ;; Available techs: Available for research immediately.
    (available-techs :accessor available-techs-of :initform nil)
    (style :accessor style-of :initarg :style :initform nil)
-   (ship-designs-of :reader ship-designs-of :initform (make-array 9))
+   (ship-designs-of :reader ship-designs-of :initform (make-array 9 :initial-element nil))
    (research-projects :accessor research-projects-of :initform (make-array 2 :initial-element nil))
    (event-list :accessor event-list-of :initform nil)
    (working-design :accessor working-design-of :initform nil)
@@ -198,15 +198,15 @@
   ((type :accessor design-type :initarg :type)
    (techs :accessor design-tech-slots :initarg :techs)
    (engine :accessor engine-of :initform nil :initarg :engine)
-   (range-bonus :accessor range-bonus-of :initform 0)   
+   
+   (slot-num :accessor design-slot-num :initform nil :initarg :slot-num)
    ;; Derived attributes:
+   (range-bonus :accessor range-bonus-of :initform 0)
    (speed :accessor speed-of :initform 1 :initarg :speed)
    (cost  :accessor cost-of  :initarg :cost) ; Derived from the above, but fixed at design time.
    (armor-level :accessor armor-level-of :initform 0)
    ;; Runtime bullshit:
-   (thumbnail :initform nil :initarg :thumbnail)
-   #+NIL (serial :reader design-serial :initform (get-new-design-serial))
-   (slot-num :accessor design-slot-num :initform 0 :initarg :slot-num)
+
    (name-label :accessor name-label-of :initform nil))) ;; DON'T FORGET TO FREE THESE!! ...
 
 ;;;; Technologies
@@ -273,6 +273,7 @@
    
    
    ;; --- Runtime bullshit ---
+   ;; FIXME: Why the fuck is this cached here? Let global-label do this shit.
    (small-name-label :accessor small-name-label-of :initform nil)
    (big-name-label :accessor big-name-label-of :initform nil)))
 
@@ -378,7 +379,9 @@
 (defclass huge-ship   (ship-type) () (:default-initargs :space  4500 :cost 1800 :space-multiplier 20 :maneuverability 1))
 
 (defclass hardpoint (named) 
-  ((tech :accessor tech-of :initform nil :initarg :tech)))
+  ((tech :accessor tech-of :initform nil :initarg :tech)
+   (empty-string :accessor empty-string-of :initarg :empty))
+  (:default-initargs :empty "(empty)"))
 
 ;;;; Hardpoint types: 
 ;;;;  weapon-mount: Holds a single weapon.

@@ -4,10 +4,7 @@
 
 (in-package :g1)
 
-;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
-
 (ffi:clines "#include \"sys.h\"")
-;;(ffi:clines "#include <GL/gl.h>")
 (ffi:clines "#include <GL/glew.h>")
 (ffi:clines "#include \"text-render.h\"")
 (ffi:clines "#include <SDL/SDL_image.h>")
@@ -31,7 +28,7 @@
 
 (defstruct gltexobj texid width height)
 
-(let ((texobjs (make-array 8)))
+(let ((texobjs (make-array 8 :initial-element nil)))
   (defun bind-texobj (obj &key (unit 0) force)
     (cond
       ((and (not force) (eq (aref texobjs unit) obj))
@@ -317,6 +314,11 @@
            :min-filter (cx :int "GL_LINEAR_MIPMAP_NEAREST")
            :mag-filter (cx :int "GL_LINEAR")))
 
+(defun line-style (name)
+  (texture name
+           :min-filter (cx :int "GL_LINEAR")
+           :mag-filter (cx :int "GL_LINEAR")))
+
 (defun imgblock (name)
   (let ((img (img name)))
     (prog1 img
@@ -367,7 +369,7 @@
 (defun draw-line (u v &key
                   (pattern-offset 0) 
                   (color #(255 255 255 255))
-                  (texture (filtered-texture :line-dashed)))  
+                  (texture (line-style :line-dashed)))  
   (bind-texobj texture)
   (set-color color)
   (set-blend-mode :blend)
@@ -409,6 +411,10 @@
 
 ;;; Draw a continuous line as a series of segments. 
 ;;; Cut and paste, whatever, I don't give a shit.
+
+;;; Note that this doesn't work right when the angle between segments
+;;; is greater than 90 degrees.
+
 (let ((pattern-x 0)
       nx ny
       line-radius
@@ -419,7 +425,7 @@
                     (pattern-offset 0.0)
                     (color #(255 255 255 255))
                     (thickness 8)
-                    (texture (filtered-texture :line-dashed)))
+                    (texture (line-style :line-dashed)))
    (setf pattern-x (single pattern-offset)
          line-radius (single (/ thickness 2.0))
          line-texture texture
@@ -427,7 +433,8 @@
          prev2-vertex nil)
    (bind-texobj texture)
    (set-color color)
-   ;(c "glDisable(GL_TEXTURE_2D)")
+   ;;(c "glDisable(GL_TEXTURE_2D)")
+   ;;(c "glBegin(GL_LINES)")
    (c "glBegin(GL_QUAD_STRIP)"))
  (defun %line-emit-vertex (vertex)
    (call "glTexCoord2f" :float pattern-x :float 0.0)
@@ -440,22 +447,24 @@
    (cond
      ;; Nth vertex (N>2)
      (prev2-vertex
-      #+NIL
+      #+DEBUGVERBOSE
       (printl :dot (dot (normalize (v- vertex prev-vertex))
                         (normalize (v- prev-vertex prev2-vertex)))
               :angle (* 360 (/ 0.5 pi)
                         (acos (min 1.0 
                                    (dot (normalize (v- vertex prev-vertex))
-                                        (normalize (v- prev-vertex prev2-vertex)))))))
+                                        (normalize (v- prev-vertex prev2-vertex))))))
+              :correction (sin (* 0.5 (- pi (acos (min 1.0
+                                                       (dot (normalize (v- vertex prev-vertex))
+                                                            (normalize (v- prev-vertex prev2-vertex))))))))
+              :alt (sqrt (* 0.5 (+ 1.0 (min 1.0 (dot (normalize (v- vertex prev-vertex))
+                                                     (normalize (v- prev-vertex prev2-vertex))))))))
       (let* ((vector (v- vertex prev2-vertex))
              (len (len vector))
              (rescale (/ line-radius
-                         ;; FIXME! WTF!
-			 #+NIL
-                         (print (sin (* 0.5 (acos (min 1.0
-						       (dot (normalize (v- vertex prev-vertex))
-							    (normalize (v- prev-vertex prev2-vertex))))))))
-                         len)))
+                         (sqrt (* 0.5 (+ 1.0 (min 1.0 (dot (normalize (v- vertex prev-vertex))
+                                                           (normalize (v- prev-vertex prev2-vertex)))))))
+                         len)))        
         (setf nx (* -1.0 rescale (v.y vector))
               ny (* rescale (v.x vector)))
         (incf pattern-x (len (v- prev-vertex prev2-vertex)))
@@ -495,6 +504,61 @@
   (c "glEnd()")
   (c "glEnable(GL_TEXTURE_2D)")
   (check-gl-error))
+
+(defun nicer-angle (radians)
+  (cond
+    ((> radians pi) (single (- radians (* 2 pi))))
+    ((< radians (- pi)) (single (+ pi pi radians)))
+    (t radians)))
+
+;;; Beware: This routine doesn't attempt to handle the cases where the
+;;; bevel can't fit, and it goes a bit crazy.
+(defun draw-flexiline (point-list 
+                       &key (radius 35) (texture (line-style :line-solid)) (thickness 8)
+                       #|&aux kludge|#)
+  (setf point-list (map 'list #'->v3 point-list))
+  (line-begin :texture texture :thickness thickness)
+  (line-add-vertex (first point-list))
+  (setf *print-right-margin* 138)
+  (cond
+    ((null (first point-list)))
+    ((null (second point-list)))
+    ((null (third point-list))
+     (line-add-vertex (second point-list)))
+    (t
+     (loop for (a b c not-last) on point-list
+           as ab = (safe-normalize (v- b a))
+           as bc = (safe-normalize (v- c b))
+           as degenerate = (or (vzerop ab) (vzerop bc))
+           unless degenerate do
+           (let* ((cos.phi (min 1.0 (dot ab bc)))
+                  (phi (acos cos.phi))
+                  (altitude (/ radius (cos (/ phi 2))))
+                  (angle-ab (atan (v.y ab) (v.x ab)))
+                  (angle-bc (atan (v.y bc) (v.x bc)))
+                  (real-sweep (- angle-bc angle-ab))
+                  (sweep (nicer-angle real-sweep))
+                  (outer (signum sweep))
+                  (center (v+ b (vscaleto (v3normxy (v- c a)) (* outer altitude)))))
+             #+NIL (setf kludge (list a b c center))
+             #+NIL (printl :real-sweep real-sweep :sweep sweep :outer outer :angle-ab angle-ab :angle-bc angle-bc)
+             (loop with num-steps = 20
+                   with step = (/ sweep num-steps)
+                   repeat num-steps
+                   for angle = (- angle-ab (* outer (/ pi 2))) then (+ angle step)
+                   do (line-add-vertex (v+ center (v3angle-xy 0.0f0 radius angle)))))           
+           unless not-last do
+           (line-add-vertex c)
+           (loop-finish))))
+  (line-end)
+  #+NIL
+  (when kludge
+    (loop for point in kludge
+          for n upfrom 1
+          do (draw-img-deluxe (fleet-count-image n)
+                              (round (v.x (->v3 point)))
+                              (round (v.y (->v3 point)))
+                              #(255 0 0 255)))))
 
 ;;;; Text renderer
 
@@ -783,7 +847,7 @@
   (draw-tile 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
 
 
-;;;; Shader test
+;;;; Rendering of ships in combat 
 
 (defun gl-get-integer (enum &optional (ctx "glGetInteger"))
   (prog1 (ffi:c-inline (enum) (:int) :int "{ GLint tmp; glGetIntegerv((GLenum)#0, &tmp); @(return 0) = tmp; }"
@@ -882,7 +946,7 @@ END
       (c "glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, #0)" :unsigned-int id)
       (check-gl-error "bind fragment program")
       (when need-program
-        (let ((shader-src (format nil
+        (let ((shader-src (format nil 
 "!!ARBfp1.0
 # Swizzle channels shader
 OPTION ARB_precision_hint_fastest;
@@ -928,18 +992,21 @@ END
     }"
    :one-liner nil))
 
-(defun ship-asset-path (ship-type asset-type)
-  (format nil "~A/~A.png" (name-of ship-type) asset-type))
+(defun ship-asset-name (ship-type asset-name)
+  (format nil "~A/~A" (name-of ship-type) asset-name))
+
+(defun ship-asset-path (ship-type asset-name)
+  (format nil "data/~A/~A" (name-of ship-type) asset-name))
 
 (defun ensure-ship-type-textures (ship-type)
   (with-slots (texture-map normal-map light-map) ship-type
     (unless texture-map
       (flet ((loadmap (map-name)
-               (filtered-texture (ship-asset-path ship-type map-name))))
+               (filtered-texture (ship-asset-name ship-type map-name))))
         (assert (not (or normal-map light-map)))
-        (setf texture-map (loadmap "texture")
-              normal-map  (loadmap "normals")
-              light-map   (loadmap "lights"))))))
+        (setf texture-map (loadmap "texture.png")
+              normal-map  (loadmap "normals.png")
+              light-map   (loadmap "lights.png"))))))
 
 (defun draw-ship-sprite (style ship-type x0 y0 angle zoom)  
   (let* ((light (unorm (vec (single (* -140 (cos angle))) 
@@ -983,7 +1050,7 @@ END
                       (find-ship-type "Battleship") 
                       x0 y0 angle zoom)))
 
-;;;; I might as well put the audio glue code here too.
+;;;; I might as well put the audio glue here too.
 
 (defstruct sound-effect name pointer length)
 

@@ -54,6 +54,7 @@
   ((next-gadget :accessor next-gadget :initarg :next-gadget :initform nil)
    (parent-gadget :accessor parent-gadget :initarg :parent-gadget :initform nil)))
 
+;;; Note that for this to work, you have to include the SDL header in your lisp file.
 (defmacro keysym (name)
   (declare (ignorable name))
   #+sbcl 666                            ; Dev hack

@@ -80,3 +80,21 @@ error if SEQUENCE is not a proper sequence."
   (string-capitalize (substitute #\Space #\- (symbol-name symbol))))
 
 (defun iftype (type) (lambda (object) (typep object type)))
+
+(defun file (filename)
+  (with-open-file (in filename)
+    (with-standard-io-syntax ()
+      (let ((*read-eval* nil)
+            (*package* (find-package :g1)))
+        (read in)))))
+
+(defun maybe-file (filename)
+  (if (probe-file filename)
+      (values (file filename) t)
+      (values nil nil)))
+
+(defun show (name value)
+  (printl name value)
+  value)
+
+(defun degrees->radians (degrees) (* degrees 2 pi (/ 360)))

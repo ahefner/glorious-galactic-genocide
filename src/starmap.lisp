@@ -505,7 +505,7 @@
    (production-label :initform nil)
    (eta-label-cache :initform nil)
    (shipyard-color :initform nil)
-   (amnt-labels :initform (make-array 4)))  
+   (amnt-labels :initform (make-array 4 :initial-element nil)))  
   (:default-initargs :panel-height 168))
 
 (defun colpanel-cache-amnt (panel idx amount)
@@ -624,7 +624,7 @@
           (item "Tech"     3 :colony-re-slider (budget-research b))
 
           (when design
-            (cachef (eta-label-cache design)
+            (cachef (eta-label-cache design :delete free-img)
               (setf b (colony-compute-budget colony)) ; Recompute with new slider positions..
               (multiple-value-bind (built eta) (estimate-ship-construction colony (budget-ships b))
                 (render-label panel :sans 11 

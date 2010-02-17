@@ -1,7 +1,11 @@
-;;(require 'asdf)
 
-(proclaim '(optimize (debug 3) (speed 0) (safety 3) (space 0)))
-;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
+;;;; Set  global  optimization levels.   I've  learned that  declaimed
+;;;; optimize  levels  leak between  files  with  ECL's compiler,  but
+;;;; declaiming or  proclaiming one here (in interpreted  code) has no
+;;;; effect on  compiled files.  So,  as something of a  hack, declaim
+;;;; them in a file, and compile that file.
+
+(load (compile-file "declaim.lisp"))
 
 ;;;; Load system definition
 
@@ -28,9 +32,7 @@ for comparison. Accepts and produces only lists."
 
 (defun fail ()
   (format t "~&~%BUILD FAILED.~%")
-  (ext:quit 1)
-  ;; Attempt to work around ECL stupidity. Doesn't work.
-  #+NIL  (ffi:c-inline () () (values) "{ cl_shutdown(); _exit(1); }"))
+  (ext:quit 1))
 
 (compile 'fail)
 
@@ -39,17 +41,10 @@ for comparison. Accepts and produces only lists."
 (defun object-pathname (filename)
   (compile-file-pathname filename :type :object))
 
-#+NIL
-(defun up-to-date? (filename)
-  (and (probe-file (object-pathname filename))
-       (>= (file-write-date (object-pathname filename))
-           (file-write-date filename))))
-
 (defun newer? (file1 file2)
-  ;; (format t "~&newer? ~A vs ~A~%" (file-write-date file1) (file-write-date file2))
   (cond
    ((not (probe-file file2))
-    (format t "~&~W doesn't exist!~%" file2))
+    (format t "~&~W doesn't exist! This shouldn't happen.~%" file2))
    ((not (probe-file file1)) nil)
    (t (>= (file-write-date file1) (file-write-date file2)))))
 
@@ -58,7 +53,7 @@ for comparison. Accepts and produces only lists."
     (loop as char = (read-char stream nil)
           ;;do (format t "~&  read ~W~%" char)
           when (and (eql char #\\)
-                    (eql #\Return (peek-char nil stream)))
+                    (member (peek-char nil stream) '(#\Return #\Newline)))
           do (setf char (read-char stream nil))
           when (null char) do (return)
           do (write-char char out))))
@@ -142,6 +137,7 @@ for comparison. Accepts and produces only lists."
       as deps = (changed-dependencies (pathname filename) compile-time-deps)      
       ;;do (print (list :file filename :compile-time-deps compile-time-deps :deps deps))
       when deps
+      ;;; Color-code the compiler warnings.
       do (handler-bind ((c::compiler-note
                          (lambda (condition)
                            (sgr 0)))

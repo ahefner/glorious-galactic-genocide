@@ -49,12 +49,6 @@
    
    (paint-finish)))
 
-(defun start-swank-server ()
-  (require 'asdf)
-  (eval (read-from-string "(push '(MERGE-PATHNAMES \".sbcl/systems/\" (USER-HOMEDIR-PATHNAME)) asdf:*central-registry*)"))
-  (eval (read-from-string "(asdf:oos 'asdf:load-op :swank)"))
-  (eval (read-from-string "(swank:create-server :port 0)")))
-
 (defun main ()
   ;; Old ECL hacks. Hopefully shouldn't be necessary anymore.
   #+NIL
@@ -76,6 +70,8 @@
     
     (%main)))
 
+(defun have-opengl-1.4 () (not (zerop (cx :int "GLEW_VERSION_1_4"))))
+
 (defun %main ()
 
   (setf *global-owner* (make-instance 'global-owner))
@@ -86,11 +82,13 @@
     (print "System init failed. Oh, poo.")
     (ext:quit))
 
-  (format t "~&GL Vendor: ~A~%GL Renderer: ~A~%GL Version: ~A~%~D texture units.~%"
+  (format t "~&GL Vendor: ~A~%GL Renderer: ~A~%GL Version: ~A~%~D texture unit~:P.~%"
           (c :cstring "glGetString(GL_VENDOR)")
           (c :cstring "glGetString(GL_RENDERER)")
           (c :cstring "glGetString(GL_VERSION)")
-          (gl-get-integer (cx :int "GL_MAX_TEXTURE_UNITS")))
+          (if (not (have-opengl-1.4))
+              1
+              (gl-get-integer (cx :int "GL_MAX_TEXTURE_UNITS"))))
 
   (macrolet ((field (name)
                `(progn
@@ -100,20 +98,13 @@
                     ,(format nil "{ GLint tmp=-1; glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, (~A), &tmp); @(return 0)=tmp; }" name)
                     :one-liner nil))
                   (check-gl-error ,name :warn t))))
-    (field "GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB")
-    (field "GL_MAX_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB")
-    (field "GL_MAX_PROGRAM_NATIVE_TEX_INSTRUCTIONS_ARB")
-    (field "GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB")
-    (field "GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB")
-    (field "GL_MAX_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB")
-    #|
-    (field "GL_MAX_PROGRAM_INSTRUCTIONS_ARB")
-    (field "GL_MAX_PROGRAM_ALU_INSTRUCTIONS_ARB")
-    (field "GL_MAX_PROGRAM_TEX_INSTRUCTIONS_ARB")
-    (field "GL_MAX_PROGRAM_TEMPORARIES_ARB")
-    (field "GL_MAX_PROGRAM_PARAMETERS_ARB")
-    (field "GL_MAX_PROGRAM_TEX_INDIRECTIONS_ARB")|#)
-
+    (when (have-opengl-1.4)
+     (field "GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB")
+     (field "GL_MAX_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB")
+     (field "GL_MAX_PROGRAM_NATIVE_TEX_INSTRUCTIONS_ARB")
+     (field "GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB")
+     (field "GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB")
+     (field "GL_MAX_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB")))
   
   (load-assets)
 
@@ -138,8 +129,8 @@
   (format t "~&Bye!~%")
   (ext:quit))
 
-(defun label-color () (pstyle-label-color (style-of *player*)))
-(defun lighter-color () (color-lighten (label-color)))
+(defun label-color (&optional (player *player*)) (pstyle-label-color (style-of player)))
+(defun lighter-color (&optional (player *player*)) (color-lighten (label-color player)))
 
 ;;;; Runtime recompilation
 

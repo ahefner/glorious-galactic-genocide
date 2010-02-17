@@ -142,3 +142,16 @@
   (list (suffix symbol '#:.x)
 	(suffix symbol '#:.y)
 	(suffix symbol '#:.z)))
+
+;;;; Needs to exist at compile-time.
+
+(defsetf file (filename) (object)
+  `(let ((filename ,filename)
+         (object ,object))
+     (when *devmode* (format *trace-output* "~&Writing ~W~%" filename))
+     (with-open-file (out filename :direction :output :if-exists :supersede)
+       (with-standard-io-syntax ()
+         (let ((*print-circle* t)
+               (*print-right-margin* 140)
+               (*package* (find-package :g1)))
+           (pprint object out))))))

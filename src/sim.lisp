@@ -612,7 +612,8 @@
   (deletef (potential-techs-of player) tech)
   (deletef (available-techs-of player) tech)
   ;; Remove from ongoing research projects
-  (loop for index upfrom 0 for project across (research-projects-of player)
+  (loop for index upfrom 0 
+        for project across (research-projects-of player)
         when (and project (eql tech (researching-tech project)))
         do (setf (aref (research-projects-of player) index) nil))
   ;; Add linked techs
@@ -651,15 +652,29 @@
 
 (defun design-techs (design) (remove nil (design-tech-slots design)))
 
-(defun make-design (name type cost &rest args)
-  (apply #'make-instance 'design :name name :type type :cost cost 
+(defun make-design (name type &rest args)
+  (apply #'make-instance 'design :name name :type type
                  :techs (map 'vector (constantly nil) (slots-of type))
                  args))
+
+(defun index-for-new-design (player)
+  (position nil (ship-designs-of player)))
+
+(defun define-new-design (player design)
+  (let ((index (index-for-new-design player)))
+    (unless index (error "No slots left for design (~A)" player))
+    (setf (aref (ship-designs-of player) index) design
+          (design-slot-num design) index)))
+
+(defun get-nth-design (player n) (aref (ship-designs-of player) n))
 
 ;;; Compute derived attributes (cost, speed, etc.) from a design, and set those slots.
 ;;; May be called multiple times when the designer UI is running.
 ;;; TODO: Compute cost (don't specify in make-design, that's dumb)
 (defun analyze-design (design)
+  ;; TODO: COMPUTE COST
+  (unless (cost-of design)
+    (setf (cost-of design) 666))        ; HACK FIXME TODO ETC.
   (setf (speed-of design) (engine-speed (engine-of design)))
   (setf (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus)))
 

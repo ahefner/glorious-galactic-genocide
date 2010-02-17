@@ -6,7 +6,9 @@
 
 ;;(declaim (optimize (debug 3) (speed 0) (safety 3) (space 0)))
 
-(ffi:clines "#include \"sys.h\"")
+(ffi:clines "#include \"sys.h\"
+static SDL_Event cur_event;
+")
 
 (defun initial-uic ()
   (make-uic :abx 0 :aby 0 
@@ -29,14 +31,14 @@
         as *presentation-stack* = nil
         as uic = (copy-uic last-uic)
         as gadget = *gadget-root*
-        do
+        do        
 
         #| If not visible, idle. If idling, block waiting for an event. |#
         (when (zerop (c :int "SDL_GetAppState() & SDL_APPACTIVE"))
           (printl :idle)
           (setf idle t))
-        ;;; ISSUE: A problem for netplay, where we don't want to block
-        ;;; without polling the socket...
+;;; ISSUE: A problem for netplay, where we don't want to block
+;;; without polling the socket...
         (when idle
           (c "SDL_WaitEvent(NULL)"))
 
@@ -59,59 +61,69 @@
                                           1000000.0f0)
                                        0.0f0 0.1f0))
 
-        (loop as pending = (c :int "SDL_PollEvent(&cur_event)")
-              as type = (cx :int "cur_event.type")
-              until (zerop pending)
-              do
-              (cond
-                ((eql type (cx :int "SDL_QUIT"))
-                 (return-from runloop))
+        (tagbody 
+         top
+           (restart-case 
+               (progn
+                 (loop as pending = (c :int "SDL_PollEvent(&cur_event)")
+                       as type = (cx :int "cur_event.type")
+                       until (zerop pending)
+                       do
+                       (cond
+                         ((eql type (cx :int "SDL_QUIT"))
+                          (return-from runloop))
 
-                ((eql type (cx :int "SDL_VIDEORESIZE"))
-                 (c "window_width = cur_event.resize.w")
-                 (c "window_height = cur_event.resize.h")
-                 (setf please-set-video-mode t)
-                 #+linux (sleep 0.1))           ; Stupid Linux/X11 hack.
+                         ((eql type (cx :int "SDL_VIDEORESIZE"))
+                          (c "window_width = cur_event.resize.w")
+                          (c "window_height = cur_event.resize.h")
+                          (setf please-set-video-mode t)
+                          #+linux (sleep 0.1)) ; Stupid Linux/X11 hack.
                 
-                ((eql type (cx :int "SDL_MOUSEMOTION"))
-                 (setf (uic-amx uic) (cx :int "cur_event.motion.x")
-                       (uic-mx  uic) (cx :int "cur_event.motion.x")
-                       (uic-amy uic) (cx :int "cur_event.motion.y")
-                       (uic-my  uic) (cx :int "cur_event.motion.y")))
+                         ((eql type (cx :int "SDL_MOUSEMOTION"))
+                          (setf (uic-amx uic) (cx :int "cur_event.motion.x")
+                                (uic-mx  uic) (cx :int "cur_event.motion.x")
+                                (uic-amy uic) (cx :int "cur_event.motion.y")
+                                (uic-my  uic) (cx :int "cur_event.motion.y")))
                 
-                ((eql type (cx :int "SDL_KEYDOWN"))
-                 (setf (uic-modifiers uic) (cx :int "cur_event.key.keysym.mod"))
-                 (update-modifier-masks uic last-uic)
-                 (let ((char (ignore-errors (code-char (cx :int "(int)cur_event.key.keysym.unicode")))))
-                   (when (and *devmode* (not (zerop (logand +alt-mask+ (uic-modifiers uic)))))
-                     (when (and (eql char #\r))
-                       (reload-modified-sources))
-                     (when (and (eql char #\s))
-                       (start-swank (not (zerop (logand +control-mask+ (uic-modifiers uic)))))))
-                   (gadget-key-pressed gadget uic
-                                       (cx :int "(int)cur_event.key.keysym.sym")
-                                       (and (char/= char #\Nul) char))))
+                         ((eql type (cx :int "SDL_KEYDOWN"))
+                          (setf (uic-modifiers uic) (cx :int "cur_event.key.keysym.mod"))
+                          (update-modifier-masks uic last-uic)
+                          (let ((char (ignore-errors (code-char (cx :int "(int)cur_event.key.keysym.unicode")))))
+                            (when (and *devmode* (not (zerop (logand +alt-mask+ (uic-modifiers uic)))))
+                              (when (and (eql char #\r))
+                                (reload-modified-sources))
+                              (when (and (eql char #\s))
+                                (start-swank (not (zerop (logand +control-mask+ (uic-modifiers uic)))))))
+                            (gadget-key-pressed gadget uic
+                                                (cx :int "(int)cur_event.key.keysym.sym")
+                                                (and (char/= char #\Nul) char))))
 
-                ((eql type (cx :int "SDL_KEYUP"))
-                 (setf (uic-modifiers uic) (cx :int "cur_event.key.keysym.mod"))
-                 (update-modifier-masks uic last-uic)
-                 (gadget-key-released gadget uic (cx :int "(int)cur_event.key.keysym.sym")))
+                         ((eql type (cx :int "SDL_KEYUP"))
+                          (setf (uic-modifiers uic) (cx :int "cur_event.key.keysym.mod"))
+                          (update-modifier-masks uic last-uic)
+                          (gadget-key-released gadget uic (cx :int "(int)cur_event.key.keysym.sym")))
                 
-                ((eql type (cx :int "SDL_MOUSEBUTTONDOWN"))
-                 (logiorf (uic-buttons-pressed uic) (ash 1 (1- (cx :int "cur_event.button.button")))))
+                         ((eql type (cx :int "SDL_MOUSEBUTTONDOWN"))
+                          (logiorf (uic-buttons-pressed uic) (ash 1 (1- (cx :int "cur_event.button.button")))))
                 
-                ((eql type (cx :int "SDL_MOUSEBUTTONUP"))
-                 (logiorf (uic-buttons-released uic) (ash 1 (1- (cx :int "cur_event.button.button")))))
+                         ((eql type (cx :int "SDL_MOUSEBUTTONUP"))
+                          (logiorf (uic-buttons-released uic) (ash 1 (1- (cx :int "cur_event.button.button")))))
                 
-                #+NIL
-                ((eql type (cx :int "SDL_VIDEOEXPOSE"))
-                 (repaint))))
-        (when please-set-video-mode
-          (c "sys_setvideomode()")
-          (setf please-set-video-mode nil))
-        (when (released? uic +left+) (setf *grab-id* nil))
-        (repaint uic)
-        ;; We should have some way of asking the gadgets if they are idle. We don't, so unidle:
-        (setf idle nil)
-        ;;(incf *total-frames*)
-        (setf last-uic uic)))
+                         #+NIL
+                         ((eql type (cx :int "SDL_VIDEOEXPOSE"))
+                          (repaint))))
+                 (when please-set-video-mode
+                   (c "sys_setvideomode()")
+                   (setf please-set-video-mode nil))
+                 (when (released? uic +left+) (setf *grab-id* nil))
+                 (repaint uic)
+                 ;; We should have some way of asking the gadgets if they are idle. We don't, so unidle:
+                 (setf idle nil)
+                 ;;(incf *total-frames*)
+                 
+                 (setf last-uic uic))
+             (retry ()
+               :report (lambda (stream) (format stream "Retry UI loop"))
+               (go top))
+             )))
+)

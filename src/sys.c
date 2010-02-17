@@ -4,15 +4,15 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
 
-// #include <GL/gl.h>
 #include <GL/glew.h>
 
 SDL_Surface *window_surface;
 int window_width = 0;
 int window_height = 0;
 int vid_fullscreen = 0;
-SDL_Event cur_event;
 static char *apptitle = NULL;
+
+/* FIXME! We can't depend on textures (and shaders, etc.) surviving a call to SDL_SetVideoMode! */
 
 int sys_setvideomode (void)
 {
@@ -67,12 +67,12 @@ int sys_init (char *title)
 //        window_height = vinf->current_h - 90;
         
         // Minimum supported resolution:
-      //window_width = 800;
-      // window_height = 480;
+        window_width = 800;
+        window_height = 480;
 
         // Expected typical resolution:
-        window_width = 1280;
-        window_height = 800;
+        //window_width = 1280;
+        //window_height = 800;
     }   
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);

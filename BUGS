@@ -1,5 +1,7 @@
 Serious issues:
 * Packset repack thrashing
+* [WIN] OpenGL context trashed on resize
+* [WIN] Invalid enum, crashes on no GL driver (check renderer = "GDI Generic")
 
 
 Medium issues:
