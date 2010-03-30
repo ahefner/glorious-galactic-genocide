@@ -2,6 +2,7 @@ Serious issues:
 * Packset repack thrashing
 * [WIN] OpenGL context trashed on resize
 * [WIN] Invalid enum, crashes on no GL driver (check renderer = "GDI Generic")
+* Better error handling / recording.
 
 
 Medium issues:
@@ -15,6 +16,8 @@ Minor issues:
 * Space and Enter should also step through modal contexts where left click is used presently
 * Escape should close panels
 * Deflect ships from each other?
+* Fix fringe around normal mapped sprites
+* Who is responsible for freeing ship labels? We should ditch that and add a system of flushable labels, GCed when packset allocation fails. Maybe just make global labels flushable, since they are.
 
 
 
@@ -47,9 +50,13 @@ TODO, High priority:
 
 TODO, Medium priority:
 * Sliding selection of ship quantity in fleet panel
+* Planet planet should display requirements for colonization (how to fit this at at 800x480?)
 
 TODO, Low priority:
 * Better inferno planet graphic
 * Better art for bottom panels
+* Sound effect manager that ensures the same sound isn't played twice simultaneously or in close succession
 
+------------------------------------------------------------------------------------------------
 
+Concerns:

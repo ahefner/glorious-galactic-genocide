@@ -50,12 +50,19 @@
 (defun v2- (a b)
   (v2 (- (v2.x a) (v2.x b))
       (- (v2.y a) (v2.y b))))
+(defun v2scale (v scale)
+  (v2 (round (* (v2.x v) scale))
+      (round (* (v2.y v) scale))))
 (defun square (x) (* x x))
 (defun v2normsq (vector) (+ (square (v2.x vector)) (square (v2.y vector))))
 (defun v2len (vector) (sqrt (v2normsq vector)))
 (defun v2angle (angle scale)
   (v2 (round (* scale (cos angle)))
       (round (* scale (sin angle)))))
+
+(defun v2<= (a b)
+  (and (<= (v2.x a) (v2.x b))
+       (<= (v2.y a) (v2.y b))))
 
 
 

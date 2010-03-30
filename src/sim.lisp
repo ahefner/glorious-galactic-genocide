@@ -411,9 +411,6 @@
 
 ;;;; Fleets, stacks, ships, etc.
 
-;;; Each design gets a serial number for the silly reason of having something unique to sort stacks with.
-(let ((n 0)) (defun get-new-design-serial () (incf n)))
-
 (defun fleet-num-ships (fleet) (reduce #'+ (stacks-of fleet) :key #'stack-count))
 
 (defun minz (x y) (if (and x y) (min x y) (or x y)))
@@ -648,14 +645,54 @@
 (defun player-needs-new-research (player)
   (some #'null (research-projects-of player)))
 
+(defun range-to-string (range)
+  (cond
+    ((< range 1) "Short")
+    ((< range 1.5) "Medium")
+    ((< range 2.0) "Extended")
+    ((<= range 3.5) "Long")
+    (t "Very Long")))
+
+(defmethod designer-description-of ((a weapon))
+  (with-slots (damage range shield-scaling projectile-speed weapon-targetting-bonus) a
+    (with-output-to-string (out)
+      (let ((sep nil))
+        (flet ((sep () 
+                 (when sep (write-string ", " out))
+                 (setf sep t)))
+          (typecase damage
+            (range (sep) (format out "Damage: ~:D-~:D" (range-min damage) (range-max damage))))
+          (unless (= range 1.0)
+            (sep)
+            (format out "~A Range" (range-to-string range)))
+          (unless (= shield-scaling 1.0)
+            (sep)
+            (format out "~D% shield bypass" (round (* 100 (- 1.0 shield-scaling)))))
+          (unless (= projectile-speed 2.0)
+            (sep)
+            (format out "Speed ~Fx" projectile-speed))
+          (unless (= weapon-targetting-bonus 0)
+            (sep)
+            (format out "+~D targetting" weapon-targetting-bonus)))))))
+
 ;;;; Designs
 
 (defun design-techs (design) (remove nil (design-tech-slots design)))
 
+(defmacro latest-model-number (player type)
+  `(getf (model-history-of ,player)
+         (intern (name-of ,type) :keyword) 0))
+
 (defun make-design (name type &rest args)
-  (apply #'make-instance 'design :name name :type type
-                 :techs (map 'vector (constantly nil) (slots-of type))
-                 args))
+  (let ((design 
+         (apply #'make-instance 'design 
+                :name name :type type
+                :techs (map 'vector (constantly nil) (slots-of type))
+                args)))
+    (prog1 design
+      (analyze-design design)
+      (assert (owner-of design))
+      (setf (model-number-of design) (incf (latest-model-number (owner-of design) type))))))
 
 (defun index-for-new-design (player)
   (position nil (ship-designs-of player)))
@@ -668,15 +705,37 @@
 
 (defun get-nth-design (player n) (aref (ship-designs-of player) n))
 
+;;; FIXME/TODO: This gives us base size, but size should miniaturize with advancing tech level too.
+(defgeneric compute-tech-size (design tech)
+  (:method (design tech)
+    (max
+     (minimum-size-of tech)
+     (round
+      (* (1+ (* (size-scaling-of tech)
+                (+ -1 (space-multiplier-of (design-type design)))))
+         (base-size-of tech))))))
+
+(defgeneric compute-tech-weight (design tech)
+  (:method (design tech)    
+    (* 0.3 (compute-tech-size design tech))))
+
 ;;; Compute derived attributes (cost, speed, etc.) from a design, and set those slots.
 ;;; May be called multiple times when the designer UI is running.
 ;;; TODO: Compute cost (don't specify in make-design, that's dumb)
 (defun analyze-design (design)
   ;; TODO: COMPUTE COST
-  (unless (cost-of design)
-    (setf (cost-of design) 666))        ; HACK FIXME TODO ETC.
-  (setf (speed-of design) (engine-speed (engine-of design)))
-  (setf (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus)))
+  (let ((type (design-type design)))
+    (unless (cost-of design)
+      (setf (cost-of design) 666))      ; HACK FIXME TODO ETC.
+    ;; TODO: 
+    ;;  * Cost
+    ;;  * Manuverability
+    ;;  ...
+    (setf (weight-of design) (round
+                              (+ (weight-of type)
+                                 (reduce #'+ (design-techs design) :key (lambda (tech) (compute-tech-weight design tech)))))
+          (speed-of design) (engine-speed (engine-of design))
+          (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus))))
 
 ;;;; Turn cycle
 

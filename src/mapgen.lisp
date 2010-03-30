@@ -532,19 +532,21 @@
   (let ((designs (ship-designs-of player))
         (homeworld (aref (colonies player) 0))
         (scout (make-design "Scout" (find-ship-type "Scout") 
+                            :owner player
                             :cost 100   ; HACK FIXME
                             :engine (find-tech 'ion-drive)))
         (colony-ship (make-design "Colony Ship" (find-ship-type "Modular Cruiser") 
+                                  :owner player
                                   :cost 2500  ; HACK FIXME
                                   :engine (find-tech 'ion-drive))))
     (define-new-design player scout)
     (define-new-design player colony-ship)
 
     (setf (aref (design-tech-slots scout) 3) (find-tech 'reserve-tanks))
-    (setf (aref (design-tech-slots colony-ship) 4) (find-tech 'colony-base))
 
-    (analyze-design scout)
-    (analyze-design colony-ship)
+    (setf (aref (design-tech-slots colony-ship) 4) (find-tech 'colony-base)
+          (aref (design-tech-slots colony-ship) 0) (find-tech 'heavy-laser-beam)
+          (aref (design-tech-slots colony-ship) 1) (find-tech 'heavy-laser-beam))
 
     (setf (aref designs 0) scout
           (aref designs 1) colony-ship

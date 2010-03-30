@@ -5,8 +5,9 @@
 (defun find-ship-type (name) (gethash name *ship-types*))
 
 (defmacro define-ship-type ((class) &rest initargs)
-  `(setf (gethash ,(getf initargs :name) *ship-types*)
-         (make-instance ',class ,@initargs)))
+  `(let ((type (orf (gethash ,(getf initargs :name) *ship-types*)
+                    (make-instance ',class))))
+     (reinitialize-instance type ,@initargs)))
 
 (defun weapon-mount (name) (make-instance 'weapon-mount :name name))
 (defun battery-mount (name) (make-instance 'battery-mount :name name))
@@ -28,12 +29,14 @@
 
 (define-ship-type (large-ship)
     :name "Modular Cruiser"
-    :slots (list (battery-mount "Forward Port Battery")
-                 (battery-mount "Forward Starboard Battery")
-                 (battery-mount "Aft Port Battery")
-                 (battery-mount "Aft Starboard Battery")
+    :meters 442
+    :slots (list (battery-mount "Port Forward Battery")
+                 (battery-mount "Starboard Forward Battery")
+                 (battery-mount "Port Aft Battery")
+                 (battery-mount "Starboard Aft Battery")
                  (special-mount "Equipment Bay")
-                 (special-mount "Secondary Equipment Bay")))
+                 (special-mount "Secondary Equipment Bay"))
+    :schematic-position (v2 162 56))
 
 (define-ship-type (large-ship)
     :name "Cruiser"
@@ -45,12 +48,13 @@
 
 (define-ship-type (huge-ship)
     :name "Battleship"
+    :meters 1065
     :slots (list (battery-mount "Primary Battery")
                  (battery-mount "Aft Battery")
-                 (battery-mount "Forward Port Battery")
-                 (battery-mount "Forward Starboard Battery")
-                 (battery-mount "Aft Port Battery")
-                 (battery-mount "Aft Starboard Battery")
+                 (battery-mount "Port Forward Battery")
+                 (battery-mount "Starboard Forward Battery")
+                 (battery-mount "Port Aft Battery")
+                 (battery-mount "Starboard Aft Battery")
                  (special-mount "Primary Bay")
                  (special-mount "Secondary Bay")
                  (special-mount "Cargo Bay")))

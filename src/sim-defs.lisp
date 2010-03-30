@@ -89,7 +89,10 @@
    (ship-designs-of :reader ship-designs-of :initform (make-array 9 :initial-element nil))
    (research-projects :accessor research-projects-of :initform (make-array 2 :initial-element nil))
    (event-list :accessor event-list-of :initform nil)
+   ;; Current design in the editor. Under no circumstance may this point to a completed design.
    (working-design :accessor working-design-of :initform nil)
+   ;; Property list of ship class names and the number of approved designs which used them.
+   (model-history :accessor model-history-of :initform nil)
 
    ;;; Dubious runtime bullshit:
    (owned-images :accessor owned-images-of :initform (make-hash-table))
@@ -194,25 +197,34 @@
 
 (defparameter *size-list* #("Shuttle" "Destroyer" "Cruiser" "Dreadnought"))
 
-(defclass design (named)
+(defclass design (named owned)
   ((type :accessor design-type :initarg :type)
    (techs :accessor design-tech-slots :initarg :techs)
-   (engine :accessor engine-of :initform nil :initarg :engine)
-   
+   (engine :accessor engine-of :initform nil :initarg :engine)   
    (slot-num :accessor design-slot-num :initform nil :initarg :slot-num)
+   ;; Attributes computed and fixed at creation time:
+   (model-number :accessor model-number-of)
+   (design-date :accessor design-date-of :initform (year-of *universe*) :initarg :design-date)
    ;; Derived attributes:
+   (weight :accessor weight-of :initarg :weight :initform 1234)
    (range-bonus :accessor range-bonus-of :initform 0)
+   (beam-defense :accessor beam-defense-of :initform 0)
+   (target-acc :accessor target-acc-of :initform 1)
+   (ecm-level-of :accessor ecm-level-of :initform 0)
+   (thrust-of :accessor thrust-of :initform 1)
    (speed :accessor speed-of :initform 1 :initarg :speed)
    (cost  :accessor cost-of  :initarg :cost) ; Derived from the above, but fixed at design time.
    (armor-level :accessor armor-level-of :initform 0)
+   
    ;; Runtime bullshit:
-
+   ;; FIXME WTF, this doesn't belong here.
    (name-label :accessor name-label-of :initform nil))) ;; DON'T FORGET TO FREE THESE!! ...
 
 ;;;; Technologies
 
 (defclass tech (named)                  ; holy fuck look at all this bullshit!
   ((description :reader description-of :initform nil :initarg :description)
+   (designer-description :reader designer-description-of :initform nil :initarg :designer)
    (sym :reader sym-of :initarg :sym)
 
    ;; Tech level (used to determine price as 100*(level^1.6)
@@ -248,8 +260,11 @@
    ;; Weapon damage:
    (damage :accessor damage-of :initform nil :initarg :damage)
 
-   ;; Size modifier (base size is computed from tech level unless otherwise specified):
+   ;; Size modifier (total size of tech is the product of this and the base-size):
    (size-modifier :accessor size-modifier-of :initform 1.0 :initarg :sizemod)
+
+   ;; Base size (in space units) of tech
+   (base-size :accessor base-size-of :initarg :base-size)
 
    ;; Cost modifier (base cost is computed from tech level unless otherwise specified):
    (cost-modifier :accessor cost-modifier-of :initform 1.0 :initarg :costmod)
@@ -266,34 +281,61 @@
    ;; List of planet types this tech allows colonization of
    (colonizable :initform nil :initarg :colonizable)
 
+   ;; Degree to which tech size is affected by the starship type's
+   ;; space multiplier. Engines, 1.0 (100%, fully affected, so as to
+   ;; scale up with ship size). For weapons, perhaps zero.
+   (size-scaling :reader size-scaling-of :initform 0.0 :initarg :size-scaling)
+
+   ;; Minimum size of a tech. TODO: If unsupplied, computed as 30% of the base size, rounded up? 
+   (minimum-size :reader minimum-size-of   #|FIXME:|# :initform 5)
+
    ;; If a tech has multiple variations which should be gained
    ;; simultaneously (such as a hull and armor tech), link one to the
    ;; other:
    (linked-to :reader linked-to :initform nil :initarg :linked-to)
-   
    
    ;; --- Runtime bullshit ---
    ;; FIXME: Why the fuck is this cached here? Let global-label do this shit.
    (small-name-label :accessor small-name-label-of :initform nil)
    (big-name-label :accessor big-name-label-of :initform nil)))
 
+;;; TODO/FIXME: What is the 'base size' of a tech?
+#+NIL
+(defmethod minimum-size-of :around (tech)
+  (or (call-next-method) (* 0.3 (base-size-of tech))))
+
 (defclass ship-tech (tech) ())
 
-(defclass special-tech (ship-tech) ())
-(defclass engine (ship-tech) ())
-(defclass hull (ship-tech) ())
-(defclass armor (hull) ())
-(defclass shield (ship-tech) ())
+;;; Abstract classes of ship techs. No defined tech should inherit
+;;; directly from one of these.
 
-(defclass weapon (ship-tech) ())
+;;; Note that non-bomb weapon :sizemods are all applied relative to
+;;; the base-size of the WEAPON class. No subclass should change the
+;;; base-size.
+
+(defclass weapon (ship-tech) () (:default-initargs :base-size 25))
+(defclass missile-weapon (weapon) ())
 (defclass energy-weapon (weapon) ())
+
+;;; Specific classes of ship techs. Every one of these needs to at least supply a base-size.
+
+(defclass special-tech (ship-tech) () (:default-initargs :base-size 100))
+
+(defclass engine (ship-tech) () (:default-initargs :base-size 15 :size-scaling 1.0))
+
+(defclass hull (ship-tech) () (:default-initargs :base-size 15 :size-scaling 0.7))
+(defclass armor (hull) () (:default-initargs :base-size 35 :size-scaling 0.7))
+
+(defclass shield (ship-tech) () (:default-initargs :base-size 20 :size-scaling 1.0))
+
+
 (defclass beam (energy-weapon) ())
 (defclass particle-weapon (energy-weapon) ())
-(defclass missile-weapon (weapon) ())
 (defclass missile (missile-weapon) ())
 (defclass torpedo (missile-weapon) ())
 (defclass projectile (weapon) ())
-(defclass bomb (weapon) ())
+
+(defclass bomb (weapon) () (:default-initargs :base-size 70))
 
 (defclass global-tech (tech) ())
 (defclass fuel (global-tech) ())
@@ -309,14 +351,15 @@
 (defvar *name->tech* (make-hash-table))
 (defun find-tech (name) (gethash name *name->tech*))
 
-(defmacro deftech ((level class name-sym &rest initargs) description)
-    `(progn
-       (setf (gethash ',name-sym *name->tech*)
-             (make-instance ',class 
-                            :sym ',name-sym 
-                            :description ,description
-                            ,@initargs 
-                            :level ,level :name (pretty-sym ',name-sym)))))
+(defmacro deftech ((level class name-sym &rest initargs) description &rest more-initargs)
+  `(progn
+     (let ((tech (orf (gethash ',name-sym *name->tech*) (make-instance ',class))))       
+       (reinitialize-instance 
+        tech
+        :sym ',name-sym
+        :description ,description
+        ,@(append initargs more-initargs)
+        :level ,level :name (pretty-sym ',name-sym)))))
 
 (defstruct researching tech spent)
 
@@ -363,20 +406,35 @@
 (defclass ship-type (named)
   ((space :reader space-of :initarg :space)
    (cost  :reader cost-of  :initarg :cost)
+   (base-hits :reader base-hits-of :initarg :hits)
    (space-multiplier :reader space-multiplier-of :initarg :space-multiplier)
    (maneuverability :reader maneuverability-of :initarg :maneuverability)
    (slots :reader slots-of :initarg :slots)
+   (schematic-position :reader schematic-position-of :initarg :schematic-position)
+   (length-meters :reader length-meters-of :initarg :meters :initform 100)
+   (weight :accessor weight-of :initarg :weight)
 
    ;; Cache slots, set at runtime:
    (thumbnail :initform nil)
    (texture-map :initform nil)
    (normal-map :initform nil)
-   (light-map :initform nil) ))
+   (light-map :initform nil)))
 
-(defclass small-ship  (ship-type) () (:default-initargs :space   100 :cost   20 :space-multiplier 1  :maneuverability 6))
-(defclass medium-ship (ship-type) () (:default-initargs :space   500 :cost  100 :space-multiplier 3  :maneuverability 3))
-(defclass large-ship  (ship-type) () (:default-initargs :space  1500 :cost  450 :space-multiplier 10 :maneuverability 2))
-(defclass huge-ship   (ship-type) () (:default-initargs :space  4500 :cost 1800 :space-multiplier 20 :maneuverability 1))
+(defclass small-ship  (ship-type) () 
+
+  (:default-initargs :space   100 :cost   20 :space-multiplier 1  :maneuverability 6 :weight 120    :hits 10))
+
+(defclass medium-ship (ship-type) () 
+
+  (:default-initargs :space   600 :cost  100 :space-multiplier 3  :maneuverability 3 :weight 6000   :hits 90))
+
+(defclass large-ship  (ship-type) () 
+
+  (:default-initargs :space  2200 :cost  450 :space-multiplier 10 :maneuverability 2 :weight 40000  :hits 350))
+
+(defclass huge-ship   (ship-type) () 
+
+  (:default-initargs :space  5000 :cost 1800 :space-multiplier 20 :maneuverability 1 :weight 120000 :hits 750))
 
 (defclass hardpoint (named) 
   ((tech :accessor tech-of :initform nil :initarg :tech)
@@ -387,6 +445,7 @@
 ;;;;  weapon-mount: Holds a single weapon.
 ;;;;  battery-mount: Holds multiple weapons, limited only by available space.
 ;;;;  special-mount: Holds a special tech.
-(defclass weapon-mount (hardpoint) ())
+(defclass weapon-mount (hardpoint) ()
+  (:default-initargs :empty "(none)"))
 (defclass battery-mount (hardpoint) ())
 (defclass special-mount (hardpoint) ())

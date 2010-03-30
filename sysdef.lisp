@@ -1,3 +1,4 @@
+(in-package :cl-user)
 
 ;;;; System definition
 
@@ -37,6 +38,7 @@
    "src/text-layout.lisp"
    "src/uim-defs.lisp"
    '("src/uim.lisp"         #|depends on:|# "src/uim-defs.lisp" "src/math.lisp")
+   '("src/line-editor.lisp" #|depends on:|# "src/uim-defs.lisp")
    '("src/event-loop.lisp"  #|depends on:|# "src/uim-defs.lisp")
    "src/star-names.lisp"
    '("src/sim-defs.lisp"    #|depends on:|# "src/math.lisp")
@@ -46,7 +48,7 @@
    '("src/gamebar.lisp"     #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
    '("src/starmap.lisp"     #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
    '("src/ui-research.lisp" #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
-   '("src/ships.lisp")
+   '("src/ships.lisp"       #|depends on:|# "src/math.lisp")
    '("src/designer.lisp"    #|depends on:|# "src/uim-defs.lisp" "src/math.lisp" "src/sim-defs.lisp")
    "src/main.lisp"))
 

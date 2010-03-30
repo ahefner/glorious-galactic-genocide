@@ -28,10 +28,19 @@ static SDL_Event cur_event;
         with please-set-video-mode = nil
         with last-uic = (initial-uic)
         with idle = nil
+        with key-repeat = nil
         as *presentation-stack* = nil
         as uic = (copy-uic last-uic)
         as gadget = *gadget-root*
-        do        
+        as key-repeat-required = (not (not (requires-key-repeat? gadget)))
+        do
+
+        #| Enable/Disable key repeat mode according to preference of root gadget: |#
+        (unless (eql key-repeat key-repeat-required)
+          (setf key-repeat key-repeat-required)
+          (if key-repeat
+              (c "SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL)")
+              (c "SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL)")))
 
         #| If not visible, idle. If idling, block waiting for an event. |#
         (when (zerop (c :int "SDL_GetAppState() & SDL_APPACTIVE"))
@@ -77,7 +86,7 @@ static SDL_Event cur_event;
                           (c "window_width = cur_event.resize.w")
                           (c "window_height = cur_event.resize.h")
                           (setf please-set-video-mode t)
-                          #+linux (sleep 0.1)) ; Stupid Linux/X11 hack.
+                          #+linux (sleep 0.1)) ; Stupid Linux/X11 kludge.
                 
                          ((eql type (cx :int "SDL_MOUSEMOTION"))
                           (setf (uic-amx uic) (cx :int "cur_event.motion.x")
@@ -88,12 +97,13 @@ static SDL_Event cur_event;
                          ((eql type (cx :int "SDL_KEYDOWN"))
                           (setf (uic-modifiers uic) (cx :int "cur_event.key.keysym.mod"))
                           (update-modifier-masks uic last-uic)
+
                           (let ((char (ignore-errors (code-char (cx :int "(int)cur_event.key.keysym.unicode")))))
                             (when (and *devmode* (not (zerop (logand +alt-mask+ (uic-modifiers uic)))))
-                              (when (and (eql char #\r))
-                                (reload-modified-sources))
-                              (when (and (eql char #\s))
-                                (start-swank (not (zerop (logand +control-mask+ (uic-modifiers uic)))))))
+                              ;; Alt-r: Reload sources
+                              (when (and (eql char #\r)) (reload-modified-sources))
+                              ;; Alt-s: Start swank server (background)
+                              (when (and (eql char #\s)) (start-swank :background-p t)))
                             (gadget-key-pressed gadget uic
                                                 (cx :int "(int)cur_event.key.keysym.sym")
                                                 (and (char/= char #\Nul) char))))
@@ -115,7 +125,10 @@ static SDL_Event cur_event;
                  (when please-set-video-mode
                    (c "sys_setvideomode()")
                    (setf please-set-video-mode nil))
-                 (when (released? uic +left+) (setf *grab-id* nil))
+
+                 ;; UIC is never active during a grab, hence '%released?', not 'released?'
+                 (when (%released? uic +left+) (setf *grab-id* nil))
+
                  (repaint uic)
                  ;; We should have some way of asking the gadgets if they are idle. We don't, so unidle:
                  (setf idle nil)

@@ -78,7 +78,7 @@
   (lambda (sequence item &rest args) (apply #'delete item sequence args)))
 
 (defmacro orf (place value)
-  ;; Can multiply evaluate place. Whatever, much trouble to fix.
+  ;; Can multiply evaluate place. Whatever, too much trouble to fix.
   `(or ,place (setf ,place ,value)))
 
 (define-modify-macro minf (other) min)
@@ -120,11 +120,13 @@
 
 ;;;; Simple cache utility.. should've added this earlier..
 
-(defmacro cachef ((place value-form &key (test 'equal) (delete 'identity)) 
+(defmacro cachef ((place value-form &key (test 'equal) (delete 'identity))
                   &body derived-forms)
+  ;; The FLET mostly takes care of things, but it's not 100% correct
+  ;; unless we enclose TEST and DELETE too..
   `(flet ((value-fn () ,value-form)
           (derived-fn () ,@derived-forms))
-     (let ((value (value-fn)))       
+     (let ((value (value-fn)))
        (cacheobj-derived (cond 
                            ((not ,place)
                             (setf ,place (make-cacheobj :value value :derived (derived-fn))))
@@ -155,3 +157,22 @@
                (*print-right-margin* 140)
                (*package* (find-package :g1)))
            (pprint object out))))))
+
+;;;; ECL moans about wrapping DEFUNs with LET, and I'm told it
+;;;; inhibits direct function calls.
+#-ecl
+(defmacro with-vars (bindings &body body)
+  `(let ,bindings ,@body))
+
+#+ecl
+(defmacro with-vars (bindings &body body)
+  (setf bindings (loop for b in bindings collect (if (consp b) b (list b nil))))
+  (let ((syms (mapcar (lambda (x) (gensym (string (first x)))) bindings)))
+    `(progn
+       ,@(loop for b in bindings 
+               for sym in syms
+               collect `(defvar ,sym ,(second b)))
+       (symbol-macrolet
+           ,(loop for b in bindings for sym in syms
+                  collect (list (first b) sym))
+         ,@body))))

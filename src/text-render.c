@@ -129,6 +129,90 @@ ensure_cached_glyph (struct cached_face *cface, unsigned char code, FT_UInt inde
     return &cface->glyphs[code];
 }
 
+/* Note that vid-opengl-sdl.lisp also knows the length of this array. */
+unsigned string_chars_width[1024];
+
+unsigned compute_string_width (unsigned facenum, unsigned text_height, char *string)
+{
+    int n = 0;
+    int baseline = text_height + 4;
+    int first_char = 1;
+    int min_x = 0;
+    int min_y = baseline;
+    int max_y = baseline + 1;
+    int max_x = 1;
+    
+    if (!ensure_freetype()) {
+        fprintf(stderr, "Unable to load fonts.\n");
+        exit(1);
+    }
+
+    FT_Face face = faces[facenum];
+    struct cached_face *cface = ensure_cached_face(facenum, text_height);
+    assert(cface != NULL);
+
+    assert(text_height > 0);
+    FT_Set_Pixel_Sizes(face, 0, text_height);
+
+    int pen_x = 0;
+    FT_UInt last_glyph_index = 0;
+
+    unsigned char *str = string;
+    for (unsigned char c = *str++; c; c=*str++) {
+        FT_UInt glyph_index = FT_Get_Char_Index(face, c);
+
+        if (first_char) first_char = 0;
+        else {
+            FT_Vector delta;
+            FT_Get_Kerning(face, last_glyph_index, glyph_index, 
+                           FT_KERNING_DEFAULT, &delta);
+            pen_x += delta.x >> 6;
+        }
+
+        last_glyph_index = glyph_index;
+
+        struct cached_glyph *glyph = ensure_cached_glyph(cface, c, glyph_index);
+        if (!glyph) continue;
+
+        /* Transfer the glyph to the temporary buffer.. */
+        int ox0 = pen_x + glyph->bitmap_left;
+        int ix0 = 0;
+        int ox1 = ox0 + glyph->width;
+        int ix1 = glyph->width;
+
+        // Clip to left edge
+        if (ox0 < 0) {
+            ix0 -= ox0;
+            ox0 -= ox0;
+        }
+
+        // The rendering code clips the right edge to a maximum width
+        // (4096 pixels), but for computing widths, we don't do that.
+        assert(ix0 >= 0);
+
+        int oy0 = baseline - glyph->bitmap_top;
+        int height = glyph->height;
+
+        // Advance the pen
+        pen_x += glyph->advance;
+
+        // Update bounding rectangle. 
+        max_x = max(max_x, ox1);
+        max_x = max(max_x, pen_x); /* Spaces have zero width and nonzero advance.. */
+        min_y = max(0, min(min_y, oy0));
+        max_y = max(max_y, oy0+height);
+
+        // Record max_x of each character.
+        if (n < (sizeof(string_chars_width)/sizeof(string_chars_width[0]))) {
+            string_chars_width[n] = max_x;
+        }
+        
+        n++;
+    }
+
+    return max_x - min_x;
+}
+
 image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, char *string)
 {
     static uint8_t *rtmp = NULL;
@@ -201,7 +285,7 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
 
         // Clip to left edge
         if (ox0 < 0) {
-            //printf("PRECLIP %s\n", string);
+            printf("PRECLIP %s\n", string);
             ix0 -= ox0;
             ox0 -= ox0;
         }
@@ -214,15 +298,22 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
         ox1 -= overflow;
         ix1 -= overflow;
         int width = ox1 - ox0;
-        //printf("Compute width \"%s\" char '%c' -- %i - %i = %i\n", string, c, ox1, ox0, width);
+        /*
+        printf("Compute width \"%s\" char '%c' -- %i - %i = %i, +%i, left=%i\n", 
+               string, c, ox1, ox0, width, glyph->advance, glyph->bitmap_left);
+        */
         assert(width >= 0);
         assert(ix0 >= 0);
 
         int oy0 = baseline - glyph->bitmap_top;
         int height = glyph->height;
 
-        // Update bounding rectangle
+        // Advance the pen
+        pen_x += glyph->advance;
+
+        // Update bounding rectangle. 
         max_x = max(max_x, ox1);
+        max_x = max(max_x, pen_x); /* Spaces have zero width and nonzero advance.. */
         min_y = max(0, min(min_y, oy0));
         max_y = min(rheight, max(max_y, oy0+height));
 
@@ -242,13 +333,12 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
                 }
             }
         }
-
-        pen_x += glyph->advance;
     }
 
     uint32_t *data = malloc(4*(max_x - min_x)*(max_y - min_y));
 
     //printf("Final bounds: %i %i %i %i baseline=%i\n", 0, min_y, max_x, max_y, baseline);
+    if (min_x) printf("nonzero min_x for \"%s\": min_x=%i\n", string, min_x);
 
     if (data == NULL) {
         printf("Can't allocate final memory for size %i label \"%s\"\n", text_height, string);
@@ -258,6 +348,8 @@ image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, ch
         image_t img = malloc(sizeof(*img));
         assert(img);
         int w = max_x - min_x;
+        
+        //assert(w == compute_string_width(facenum, text_height, string));
 
         for (int y=min_y; y<max_y; y++)
             for (int x=min_x; x<max_x; x++)

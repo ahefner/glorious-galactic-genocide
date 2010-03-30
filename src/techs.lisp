@@ -19,7 +19,8 @@
   '(terran oceanic jungle arid desert tundra minimal))
 
 (deftech (0 special-tech colony-base :probability 1.0 :colonizable *friendly-planet-types*)
-    "A colony base can be used to create a new settlement on any uninhabited planet with a breathable atmosphere. The colony ship is dismantled and recycled by the new colony.")
+    "A colony base can be used to create a new settlement on any uninhabited planet with a breathable atmosphere. The colony ship is dismantled and recycled by the new colony."
+  :designer "Allows colonizing habitable planets.")
 
 
 ;;;; Engines
@@ -236,17 +237,17 @@
 (deftech (0 missile megaton-missile :probability 1.0 :damage (range 2 7) :projectile-speed 2 :weapon-targetting-bonus 0)
     "Multi-megaton nuclear warheads, adapted from pre-spacefaring nuclear arsenals.")
 
-(deftech (4 missile zarite-missile :damage (range 3 9) :projectile-speed 2.5 :weapon-targetting-bonus 1)
+(deftech (4 missile shiva-missile :damage (range 3 9) :projectile-speed 2.5 :weapon-targetting-bonus 1)
     "An improved nuclear missile technology with improved accuracy and capable of inflicting greater damage.")
 
-(deftech (8 missile hyperzarite-missile :damage (range 4 10) :projectile-speed 3 :weapon-targetting-bonus 2 :probability 0.30)
-    "Hyperzarite Missiles travel faster, are more likely to hit, and inflict slightly more damage than regular Zarite missiles.")
+(deftech (8 missile hypershiva-missile :damage (range 4 10) :projectile-speed 3 :weapon-targetting-bonus 2 :probability 0.30)
+    "Hypershiva Missiles travel faster, are more likely to hit, and inflict slightly more damage than regular Shiva missiles.")
 
 (deftech (10 torpedo emp-torpedo :name "EMP Torpedo" :probability 0.20 :damage (range 1 20) :projectile-speed 1.5 :weapon-targetting-bonus 6 :sizemod 2.5 :costmod 4.0)
     "Using an electromagnetic pulse to damage electronics and potentially disable groups of ships for a turn, EMP torpedos can only be fired every other turn.")
 
 (deftech (11 missile neptunium-missile :damage (range 6 14) :projectile-speed 3 :weapon-targetting-bonus 2)
-    "Neptunium missiles combine the superior speed and targetting of Hyperzarite missiles with a more potent explosive charge.")
+    "Neptunium missiles combine the superior speed and targetting of Hypershiva missiles with a more potent explosive charge.")
 
 (deftech (13 missile hyperneptunium-missile :damage (range 7 15) :projectile-speed 3.5 :weapon-targetting-bonus 3 :probability 0.30)
     "Hyperneptunium missiles improve on Neptunium missiles with greater speed, accuracy, and slightly improved damage potential.")

@@ -104,9 +104,9 @@ for comparison. Accepts and produces only lists."
 
 (defvar *compiler-sources* (make-hash-table :test 'equal))
 
-(defun ensure-compiler-source (filename)
-  (format t "~&~%----- Compile-time dependency: ~A -----~%" filename)
+(defun ensure-compiler-source (filename)  
   (unless (gethash filename *compiler-sources*)
+    (format t "~&~%----- Compile-time dependency: ~A -----~%" filename)
     (load (compile-file filename :print nil :verbose nil 
                         :output-file (format nil "compile-time-~A.fasl" 
                                              (pathname-name (pathname filename)))))
@@ -140,6 +140,7 @@ for comparison. Accepts and produces only lists."
       ;;; Color-code the compiler warnings.
       do (handler-bind ((c::compiler-note
                          (lambda (condition)
+                           ;;(format t "~&** ~A**~%" (type-of condition))
                            (sgr 0)))
                         (c::compiler-warning
                          (lambda (condition)
@@ -175,11 +176,18 @@ for comparison. Accepts and produces only lists."
               (mapc #'ensure-compiler-source compile-time-deps)
               (sgr 0)
               (format t "~&~%----===---- Compiling ~A ----===----~%" filename)
-              (unless (compile-file filename :verbose nil :system-p t :print nil
+              (unless (compile-file filename 
+                                    :verbose nil :system-p t :print nil
+                                    :external-format :latin-1
                                     :c-file (make-pathname
                                              :type "c"
                                              :directory (pathname-directory #p"obj/")
-                                             :name (pathname-name (pathname filename))))
+                                             :name (pathname-name (pathname filename)))
+                                    #|
+                                    :h-file (make-pathname
+                                             :type "h"
+                                             :directory (pathname-directory #p"obj/")
+                                             :name (pathname-name (pathname filename)))|#)
                 (sgr 0 31)
                 (format *trace-output* "~&Error compiling ~A~%" filename)
                 (sgr 0)

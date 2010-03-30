@@ -54,7 +54,7 @@
        ;;  * Update open starmap panels
        #'update-ui-for-new-turn)))))
 
-(let (labels)
+(with-vars (labels)
   (defun draw-status-bar (gameui x0)
     (let ((color (pstyle-label-color (style-of *player*)))
           (y 19))
@@ -91,7 +91,7 @@
     
     (when *debug-show-packset* (debug-show-packset))
 
-    (run-shader-test uic)
+    ;;(run-shader-test uic)
     
     (values)))
 

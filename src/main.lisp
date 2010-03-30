@@ -30,6 +30,17 @@
           do (setf (aref v index) (- (aref vector (1+ index)) (aref vector index))))
     v))
 
+(defvar *print-fps* nil)
+(defvar *current-fps* nil)
+(defvar *show-fps* t)
+(defvar *show-fps-cache* nil)
+
+;;; There's some spooky bug with catch/throw in ECL. I had to flail
+;;; around changing things to make this work. It will probably break
+;;; again soon enough.
+(defun throw-from-gadget-run ()
+  (throw :abort-gadget-run t))
+
 (let ((times (make-array 500)))
  (defun repaint (uic)
    (when (and (>= *total-frames* (length times))
@@ -38,15 +49,23 @@
             (max (reduce #'max times))
             (fps (/ (length times) 1.0 (/ (- max min) internal-time-units-per-second))))
        ;;(print (diffvec times))
-       (format t "~&Frames per second: ~D~%" fps)
+       (setf *current-fps* fps)
+       (when *print-fps* (format t "~&Frames per second: ~D~%" fps))
        #+NIL (throw 'bailout :byebye)))
    (setf (aref times (mod *total-frames* (length times))) (get-internal-real-time))
-   (incf *total-frames*)
-
+   (incf *total-frames*)   
    (paint-begin)
-   (gadget-run *gadget-root* uic)
+   ;; Run the UI
+   (catch :abort-gadget-run
+     (gadget-run *gadget-root* uic))
    (check-gl-error)
-   
+   ;; Draw frames per second badge in corner
+   (when (and *show-fps* *current-fps*)
+     (let ((string (format nil "[~:D fps]" (round *current-fps*))))
+       (draw-img (cachef (*show-fps-cache* string :delete free-img)
+                   (render-label 'repaint :sans 10 string :align-x :right))
+                 (+ -3 (uic-width uic)) (+ -5 (uic-height uic)))))
+   (check-gl-error)
    (paint-finish)))
 
 (defun main ()
@@ -111,13 +130,21 @@
   ;; 512 isn't quite wide enough for certain title labels that appear
   ;; in the fleet display (with race, destination, and ETA, in title
   ;; face, it can get wide).
-  (setf *packset* (make-packset 1024 512))
+  ;; The larger schematic images demand we upgrade to 1024 vertically, too.
+  (setf *packset* (make-packset 1024 1024))
 
   (format t "~&Running test game.~%")
  
   (multiple-value-bind (*universe* *player*) (make-test-universe)
+    ;; This is for debugging from SLIME:
+    (setf (symbol-value '*universe*) *universe*
+          (symbol-value '*player*) *player*)
+    ;; 
     (setf *gameui* (create-gameui *universe*)
           *gadget-root* *gameui*)
+
+    ;; Hack, test editor:
+    ;;(setf *gadget-root* (make-instance 'line-editor :led (led "" 0) :screen-vector (v2 10 30) :face :gothic :size 32))
     
 ;;    (time (uim-sdl-run))
     #+NIL (repaint (initial-uic))

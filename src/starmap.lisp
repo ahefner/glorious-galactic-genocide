@@ -22,6 +22,7 @@
 (defclass debug-starmap (starmap) ())
 
 (defmethod gadget-key-pressed ((starmap starmap) uic keysym char)
+  (declare (ignore starmap keysym))
   (when (no-modifiers uic)
     (cond
       ((eql char #\r)
@@ -231,13 +232,13 @@
 (defun draw-planet (planet x y)
   (draw-img (planet->starmap-image planet) x y))
 
-(let (orbital-vectors)
+(with-vars (orbital-vectors)
   (defun relative-orbital-vectors ()
     (or orbital-vectors
         (setf orbital-vectors 
               (coerce (loop for i from 0 below 6 as v = (orbital-vector i) collect (v2round (v.x v) (v.y v))) 'vector)))))
 
-(let (fleet-count-images)
+(with-vars (fleet-count-images)
   (defun fleet-count-image (n)
     (unless fleet-count-images
       (setf fleet-count-images
@@ -539,8 +540,7 @@
                          (spend-ships (spending-vector-of colony))
                          rate))
 
-(let (build-ships-label
-      set-defenses-label)
+(with-vars (build-ships-label set-defenses-label)
  (defmethod run-panel ((panel colony-panel) uic bottom)
    (when (or (not (alive? (colony-of panel))) ; Colony is dead
              (and (uic-active uic) (not (panel-of panel)) (released? uic +right+)))
@@ -610,7 +610,7 @@
                  (let ((old (aref sp idx)))
                    (setf (aref sp idx) (run-slider id uic left (+ adjust (cursor-y col2)) old 100 (zerop amnt))
                          (cursor-x col2) (+ left 160 4))
-                   ;; You think that since I've switched to using
+                   ;; You'd think that since I've switched to using
                    ;; a cacheobj I could skip this, but no.
                    (unless (= old (aref sp idx))
                      (free-img (and eta-label-cache (cacheobj-derived eta-label-cache)))

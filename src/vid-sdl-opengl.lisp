@@ -28,7 +28,7 @@
 
 (defstruct gltexobj texid width height)
 
-(let ((texobjs (make-array 8 :initial-element nil)))
+(with-vars ((texobjs (make-array 8 :initial-element nil)))
   (defun bind-texobj (obj &key (unit 0) force)
     (cond
       ((and (not force) (eq (aref texobjs unit) obj))
@@ -227,7 +227,8 @@
 (defun render-starfield (x y)
   ;; The difference on my laptop? 130 fps versus 111 fps. Screw it.
   (render-starfield-opengl x y)
-  #+NIL (render-starfield-multitex x y))
+  #+NIL (render-starfield-multitex x y)
+  (set-blend-mode :blend))
 
 (defun paint-begin ()
 ;;  (c "glClearColor(#0, #1, #2, 0.0)" :float (random 1.0) :float (random 1.0) :float (random 1.0))
@@ -254,6 +255,9 @@
 ;;;; the SDL surface, as we may need to upload the image at any time.
 
 (defstruct img width height resident-p x y x-offset y-offset surface pixels name owner)
+
+(defun img-ascent (img) (img-y-offset img))
+(defun img-descent (img) (- (img-height img) (img-y-offset img)))
 
 (defun img-is-free? (img)
   (not (or (img-surface img) (img-pixels img))))
@@ -290,8 +294,8 @@
                                :pointer-void surface)
                    :name filename))))))
 
-(let ((img-lookaside (make-hash-table))           ; Absurdly premature optimization
-      (img-hash (make-hash-table :test 'equal)))
+(with-vars ((img-lookaside (make-hash-table))           ; Absurdly premature optimization
+            (img-hash (make-hash-table :test 'equal)))
   (defun img (name)
     (or (gethash name img-lookaside)
         (let ((img (or (gethash name img-hash)
@@ -300,8 +304,8 @@
           (setf (gethash name img-hash) img                
                 (gethash name img-lookaside) img)))))
 
-(let ((tex-lookaside (make-hash-table))           ; More Absurdly premature optimization
-      (tex-hash (make-hash-table :test 'equal)))
+(with-vars ((tex-lookaside (make-hash-table))           ; More Absurdly premature optimization
+            (tex-hash (make-hash-table :test 'equal)))
   (defun texture (name &key min-filter mag-filter)
     (or (gethash name tex-lookaside)
         (let ((tex (or (gethash name tex-hash)
@@ -339,7 +343,10 @@
   ;;; FIXME: Check whether the damn thing is on screen before we consider uploading a texture.
   (bind-texobj *packset*)
   (packset-ensure *packset* img)
-  (set-blend-mode :blend)
+
+  ;; No, don't set the blend mode. I'd prefer to keep the freedom to manually override it.
+  ;;(set-blend-mode :blend)
+
   ;; TODO: Clamp and set border color. 
   ;;(c "glTexParameter(GL_TEXTURE_2D, TEXTURE_BORDER_COLOR, whatever))
 
@@ -415,12 +422,13 @@
 ;;; Note that this doesn't work right when the angle between segments
 ;;; is greater than 90 degrees.
 
-(let ((pattern-x 0)
-      nx ny
-      line-radius
-      line-texture
-      prev-vertex
-      prev2-vertex)
+(with-vars
+    ((pattern-x 0)
+     nx ny
+     line-radius
+     line-texture
+     prev-vertex
+     prev2-vertex)
  (defun line-begin (&key
                     (pattern-offset 0.0)
                     (color #(255 255 255 255))
@@ -515,9 +523,10 @@
 ;;; bevel can't fit, and it goes a bit crazy.
 (defun draw-flexiline (point-list 
                        &key (radius 35) (texture (line-style :line-solid)) (thickness 8)
+                       (color #(255 255 255 255))
                        #|&aux kludge|#)
   (setf point-list (map 'list #'->v3 point-list))
-  (line-begin :texture texture :thickness thickness)
+  (line-begin :texture texture :thickness thickness :color color)
   (line-add-vertex (first point-list))
   (setf *print-right-margin* 138)
   (cond
@@ -542,7 +551,7 @@
                   (center (v+ b (vscaleto (v3normxy (v- c a)) (* outer altitude)))))
              #+NIL (setf kludge (list a b c center))
              #+NIL (printl :real-sweep real-sweep :sweep sweep :outer outer :angle-ab angle-ab :angle-bc angle-bc)
-             (loop with num-steps = 20
+             (loop with num-steps = 10
                    with step = (/ sweep num-steps)
                    repeat num-steps
                    for angle = (- angle-ab (* outer (/ pi 2))) then (+ angle step)
@@ -562,13 +571,33 @@
 
 ;;;; Text renderer
 
+(defun decode-face-name (face)
+  (ecase face
+    (:sans 0)
+    (:bold 1)
+    (:italic 2)
+    (:bold-italic 3)
+    (:gothic 4)))
+
+(defun compute-string-width (face height string)
+  (call :unsigned-int "compute_string_width"
+        :unsigned-int (decode-face-name face)
+        :unsigned-int height
+        :cstring string))
+
+(ffi:clines "extern unsigned string_chars_width[1024];")
+
+(defun compute-char-positions (face height string)
+  ;; compute_string_width fills the contents of string_chars_width
+  (compute-string-width face height string)
+  (let* ((len (min 1024 (length string)))
+         (output (make-array len)))
+    (dotimes (idx len)
+      (setf (aref output idx) (c :int "string_chars_width[#0]" :int idx)))
+    output))
+
 (defun render-label (owner face height string &key (align-x :left) (align-y :baseline))
-  (let* ((facenum (ecase face
-                    (:sans 0)
-                    (:bold 1)
-                    (:italic 2)
-                    (:bold-italic 3)
-                    (:gothic 4)))
+  (let* ((facenum (decode-face-name face))
          (cimage (call :pointer-void "render_label"
                        :unsigned-int facenum
                        :unsigned-int #xFFFFFF :unsigned-int height :cstring string))
@@ -598,7 +627,7 @@
 
     img))
 
-(let ((global-labels (make-hash-table :test 'equal)))
+(with-vars ((global-labels (make-hash-table :test 'equal)))
   (defun global-label (&rest args)
     (orf (gethash args global-labels)
          (destructuring-bind (face size string) args
@@ -612,7 +641,7 @@
 
 ;;;; Various utilities
 
-(defun fill-rect (x0 y0 x1 y1 r g b a)
+(defun fill-rect* (x0 y0 x1 y1 r g b a)
   (set-color* r g b a)
   (c "glDisable(GL_TEXTURE_2D)")
   (c "glBegin(GL_QUADS)")
@@ -621,6 +650,11 @@
   (c "glEnd()")
   (c "glEnable(GL_TEXTURE_2D)")
   (values))
+
+(defun fill-rect (min max color)
+  (fill-rect* (v2.x min) (v2.y min) (v2.x max) (v2.y max)
+              (aref color 0) (aref color 1) (aref color 2) 
+              (if (= 3 (length color)) 255 (aref color 3))))
 
 (defun bar-style-width (style)
   (+ (img-width (bar-style-left style)) (img-width (bar-style-right style))))
@@ -633,8 +667,12 @@
         (fill-y (img-height left-img)))
   (draw-img right-img (+ x right-x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
   (draw-img left-img (+ x (img-x-offset left-img)) (+ y (img-y-offset left-img)))
-  (bind-texobj fill-tile)
-  (draw-tile (+ x left-x) y (+ x right-x) (+ y fill-y) 0 0)))
+  (cond
+    ((typep fill-tile 'vector)
+     (fill-rect (v2 (+ x left-x) y) (v2 (+ x right-x) (+ y fill-y)) fill-tile))
+    (t 
+     (bind-texobj fill-tile)
+     (draw-tile (+ x left-x) y (+ x right-x) (+ y fill-y) 0 0)))))
 
 (defun draw-bar (style x y width)
   (draw-bar* (bar-style-left style) (bar-style-right style) (bar-style-fill style) x y width))
@@ -843,8 +881,8 @@
      (error "I'm one lazy fucker, right? Still need to allocate ~A" object))))
 
 (defun debug-show-packset ()
-  (fill-rect 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)
-  (draw-tile 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
+  (fill-rect* 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0) 255
+  (draw-tile  64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
 
 
 ;;;; Rendering of ships in combat 
@@ -891,7 +929,7 @@
     
     
 
-(let ((swizzles (make-hash-table :test 'equal)))      
+(with-vars ((swizzles (make-hash-table :test 'equal)))      
   (defun ensure-sprite-shader (swizzle)
     (check-gl-error)
     (let ((id (gethash swizzle swizzles))
@@ -934,7 +972,7 @@ END
 " swizzle)))
           (program-shader shader-src))))))
 
-(let ((swizzles (make-hash-table :test 'equal)))
+(with-vars ((swizzles (make-hash-table :test 'equal)))
   (defun ensure-swizzle-shader (swizzle)
     (check-gl-error)
     (let ((id (gethash swizzle swizzles))
@@ -1070,8 +1108,8 @@ END
       (format t "~&Error loading ~A (~A)~%" filename (c :cstring "SDL_GetError()")))
     (make-sound-effect :name filename :pointer pointer :length (truncate length 2))))
 
-(let ((sfx-lookaside (make-hash-table))
-      (sfx-hash (make-hash-table :test 'equal)))
+(with-vars ((sfx-lookaside (make-hash-table))
+            (sfx-hash (make-hash-table :test 'equal)))
   (defun sound-effect (name)
     (or (gethash name sfx-lookaside)
         (let ((sound (or (gethash name sfx-hash)

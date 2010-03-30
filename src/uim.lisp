@@ -32,11 +32,20 @@
   (:method (gadget uic keysym)
     (declare (ignore gadget uic keysym))))
 
-(defgeneric gadget-run (gadget uic)
+(defgeneric gadget-run (gadget uic)  
   (:method ((gadget null) uic)
     (declare (ignore gadget uic)))
   (:method ((gadget gadget) uic)
-    (gadget-run (next-gadget gadget) uic)))
+    ;; If there's another gadget in the chain, run it. Otherwise, paint the screen black.
+    (if (next-gadget gadget)
+        (gadget-run (next-gadget gadget) uic)
+        (fill-rect* 0 0 (uic-width uic) (uic-height uic) 0 0 0 255))))
+
+(defclass key-repeat-mixin () ())
+
+(defgeneric requires-key-repeat? (gadget)
+  (:method (gadget) (declare (ignore gadget)) nil)
+  (:method ((gadget key-repeat-mixin)) (declare (ignore gadget)) t))
 
 (defun reactivate-gadget (gadget)
   (setf *gadget-root* gadget))
@@ -45,13 +54,42 @@
   (setf (next-gadget gadget) *gadget-root* 
         *gadget-root* gadget))
 
-(defun pop-gadget (gadget)
-  ;; Maybe this is a stupid check, and we ought to pop everything
-  ;; ahead of the gadget as well.
+;;; pop-gadget: Remove this gadget and all gadgets above it on the stack.
+
+;;; Beware! If you call this and you aren't the top gadget on the
+;;; stack, how are the gadgets above you (whose gadget-run methods
+;;; probably have not finished executing) to know you've popped and
+;;; finalized them? This is an absurd situation. Clearly there should
+;;; be a non-local exit back to a context before the first gadget-run
+;;; method. For this reason, most gadgets should call exit-gadget
+;;; (which pops then does the control transfer) rather than calling
+;;; pop-gadget directly.
+
+(defun pop-gadget (gadget)  
   (assert (not (null (next-gadget gadget))))
-  (assert (eql gadget *gadget-root*))
-  (finalize-object *gadget-root*)
-  (reactivate-gadget (next-gadget gadget)))
+  (loop named poploop as oldroot = *gadget-root* do
+        (printl :pop-gadget gadget :top-of-stack oldroot)
+        (unless oldroot (error "No gadgets left on stack! Expected to find ~A" gadget))
+        (finalize-object oldroot)
+        (reactivate-gadget (next-gadget oldroot))
+        (when (eq oldroot gadget) (loop-finish))))
+
+;;; exit-gadget: pop and abort execution of this gadget and all its children higher on the stack.
+(defun exit-gadget (gadget)
+  (pop-gadget gadget)
+  (throw-from-gadget-run))
+
+;;; remove-gadget: Remove this gadget from the stack, leaving gadgets above it unmodified.
+(defun remove-gadget (gadget)
+  (cond
+    ((eq *gadget-root* gadget) (pop-gadget gadget))
+    (t (loop for current = *gadget-root* then (next-gadget current) do
+         (printl :remove-gadget gadget :current current (eq (next-gadget current) gadget))
+         (cond
+           ((null current) (error "Attempted to remove ~A from stack, but couldn't find it!" gadget))
+           ((eq gadget (next-gadget current))
+            (setf (next-gadget current) (next-gadget gadget))
+            (loop-finish)))))))
 
 (defun update-modifier-masks (uic last-uic)
   (let ((now (uic-modifiers uic))
@@ -73,19 +111,23 @@
     (format *trace-output* "Release grab attempt by ~A, but *grab-id* is ~A~%" grab-id *grab-id*))
   (setf *grab-id* nil))
 
+;;; Why the fuck is this here?
 (defvar *swank-running* nil)
 
-(defun start-swank (&optional background-p)
+(defun start-swank (&key background-p)
   (declare (ignorable background-p))
-  (unless (or *swank-running* (not *devmode*))    
+  (unless (or *swank-running* (not *devmode*))
     (require :asdf)
     (eval (read-from-string 
            "(push '(MERGE-PATHNAMES \".sbcl/systems/\" (USER-HOMEDIR-PATHNAME)) asdf:*central-registry*)"))
     (eval (read-from-string "(asdf:oos 'asdf:load-op :swank)"))
     (flet ((run ()
-             (setf *swank-running* t)
-             (format t "~&------------ STARTING SWANK SERVER -----------~%")
-             (eval (read-from-string "(swank:create-server :port 0)"))))
+             (unwind-protect
+                  (progn
+                    (setf *swank-running* t)
+                    (format t "~&------------ STARTING SWANK SERVER -----------~%")
+                    (eval (read-from-string "(swank:create-server :port 0 :coding-system :utf-8)")))
+               (setf *swank-running* nil))))
       #-threads (run)
       #+threads
       (if background-p (mp:process-run-function 'swank-process #'run) (run)))))
@@ -98,9 +140,11 @@
   (and (uic-active uic)
        (not (zerop (logand (uic-buttons-pressed uic) button-mask)))))
 
+(defun %released? (uic &optional (button-mask +left+))
+  (not (zerop (logand (uic-buttons-released uic) button-mask))))
+
 (defun released? (uic &optional (button-mask +left+))
-  (and (uic-active uic)
-       (not (zerop (logand (uic-buttons-released uic) button-mask)))))
+  (and (uic-active uic) (%released? uic button-mask)))
 
 (defun held? (uic button-mask)
   (= button-mask (logand (uic-buttons uic) button-mask)))
@@ -169,7 +213,7 @@
          (right (img :panel-right))
          (edge-top (- bottom (img-height left))))
     (draw-bar* left right (texture :panel-fill) 0 edge-top (uic-width uic))
-    (fill-rect 0 0 (uic-width uic) edge-top 7 7 7 244)))
+    (fill-rect* 0 0 (uic-width uic) edge-top 7 7 7 244)))
 
 (defun run-hosted-panel (uic host bottom)
   (let* ((pointer-in-host (< (uic-my uic) bottom))
@@ -248,6 +292,16 @@
   (setf (cursor-newline-p cursor) nil)
   (incf (cursor-x cursor) advance))
 
+;;;; Mixin for gadgets which pass keyboard events transparently.
+
+(defclass no-focus-mixin () ())
+(defmethod gadget-key-pressed ((gadget no-focus-mixin) uic keysym char)
+  (when (next-gadget gadget)
+    (gadget-key-pressed (next-gadget gadget) uic keysym char)))
+(defmethod gadget-key-released ((gadget no-focus-mixin) uic keysym)
+  (when (next-gadget gadget)
+    (gadget-key-released (next-gadget gadget) uic keysym)))
+
 ;;;; Gadget to fade out the screen, display a child gadget, then fade
 ;;;; back in when the child pops.
 
@@ -255,10 +309,6 @@
   ((io-level :reader level-of :initform 0.0)
    (io-state :initform :in)
    (io-rate  :initform 2.0 :initarg :rate)))
-
-(defclass fade-transition-gadget (gadget in-and-out)
-  ((child :initarg :child)
-   (color :initform #(0 0 0) :initarg :color)))
 
 (defun run-in-and-out (io delta-t)
   "Run in/out transition state, returning level, state transition (:opened or :closed) and state (:in, t, :out, nil)."
@@ -271,6 +321,9 @@
       (case io-state
         (:in (when (> io-level 0.9999) (setf io-state t)))
         (:out (when (< io-level 0.001) (setf io-state nil))))
+
+      ;; FIXME: Apparently it's possible to miss the :closed state if
+      ;; you really monkey around. I don't understand how this occurs.
       (values io-level
               (and (not (eq old-state io-state))
                    (if (eq io-state t) :opened :closed))
@@ -282,21 +335,56 @@
     (when io-state
       (setf io-state :out))))
 
+;;;; Fade transition gadget: An animated fade, followed by the
+;;;; appearance of the child when the fade is complete. When the child
+;;;; has been popped, does the unfade, the pops itself.
+
+(defclass fade-transition-gadget (gadget in-and-out)
+  ((child :initarg :child)
+   (target-alpha :initform 1.0 :initarg :target-alpha)
+   (color :initform #(0 0 0) :initarg :color)))
+
 (defmethod gadget-run ((gadget fade-transition-gadget) uic)
-  (with-slots (child color) gadget
+  (with-slots (child color target-alpha) gadget
     (multiple-value-bind (level transition state) (run-in-and-out gadget (uic-delta-t uic))
-      (unless (< level 0.001)
-        (call-next-method gadget (child-uic uic :active nil)))
+      (let ((alpha (f->b (* level target-alpha))))
+        (unless (>= alpha 253)
+          (call-next-method gadget (child-uic uic :active nil)))
     
-      (with-vector (c color)
-        (fill-rect 0 0 (uic-width uic) (uic-height uic) c.x c.y c.z (* 255.0 level)))
+        (with-vector (c color)
+          (fill-rect* 0 0 (uic-width uic) (uic-height uic) c.x c.y c.z alpha)))
       
       (case transition
         (:opened (activate-new-gadget child))
-        (:closed (pop-gadget gadget)))
+        (:closed (exit-gadget gadget)))
       
       (when (and (eql state t) (eql *gadget-root* gadget))
         (io-request-close gadget)))))
+
+;;;; Dim background gadget: An animated fade in/out. Different from
+;;;; fade-transition-gadget in that it is intended for circumstances
+;;;; where the child should immediately appear and be interactive, and
+;;;; should be placed underneath the child. When the child is popped
+;;;; (this gadget is at the top of the stack), the fade out begins,
+;;;; while keystrokes and an unmodified UIC is passed to the next
+;;;; gadget.
+
+(defclass dim-background-gadget (gadget in-and-out no-focus-mixin)
+  ((child :initarg :child)
+   (target-alpha :initform 0.4 :initarg :target-alpha)
+   (color :initform #(0 0 0) :initarg :color))
+  (:default-initargs :rate 4.0))
+
+(defmethod gadget-run ((gadget dim-background-gadget) uic)
+  (with-slots (child color target-alpha) gadget
+    (multiple-value-bind (level transition state) (run-in-and-out gadget (uic-delta-t uic))
+      (let ((alpha (f->b (* level target-alpha))))        
+        (call-next-method)
+        (with-vector (c color)
+          (fill-rect* 0 0 (uic-width uic) (uic-height uic) c.x c.y c.z alpha))
+        (printl :dim transition state)
+        (unless state (remove-gadget gadget))
+        (when (eq *gadget-root* gadget) (io-request-close gadget))))))
 
 ;;;; Modal bottom-panel host gadget.
 
@@ -330,7 +418,7 @@
     (multiple-value-bind (fade-level fade-transition) (run-in-and-out fade-io (uic-delta-t uic))
       (unless (< (* fade fade-level) 1.0)
         (call-next-method gadget (child-uic uic :active nil)))
-      (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 (round (* fade fade-level)))
+      (fill-rect* 0 0 (uic-width uic) (uic-height uic) 0 0 0 (round (* fade fade-level)))
       (multiple-value-bind (p-level p-transition p-state) (run-in-and-out panel-io (uic-delta-t uic))
         (when panel
           (setf (host-of panel) gadget)
@@ -346,7 +434,7 @@
                     panel-io (make-instance 'in-and-out)))))
 
         (when (eql fade-transition :closed)
-          (pop-gadget gadget))))))
+          (exit-gadget gadget))))))
 
 ;;;; Sequencer gadget - runs a list of functions, which may do
 ;;;; processing or choose to invoke modal UIs. If a function modifies
@@ -361,5 +449,4 @@
   (loop while (and (functions-of gadget) (eq *gadget-root* gadget))
         do (funcall (pop (functions-of gadget))))
   (when (and (eq *gadget-root* gadget) (not (functions-of gadget)))
-    (pop-gadget gadget)))
-
+    (exit-gadget gadget)))

@@ -12,6 +12,7 @@ struct image
 
 typedef struct image *image_t;
 image_t render_label (unsigned facenum, uint32_t color, unsigned text_height, char *string);
+unsigned compute_string_width (unsigned facenum, unsigned text_height, char *string);
 
 
 #endif

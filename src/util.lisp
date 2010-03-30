@@ -46,6 +46,12 @@ error if SEQUENCE is not a proper sequence."
 (defun lerp (param from to)
   (+ (* from (- 1.0f0 param)) (* to param)))
 
+(defun unit-ramp-in (ramp-start ramp-end value)
+  (clamp (/ (- value ramp-start) (float (- ramp-end ramp-start) 0.0f0)) 0.0f0 1.0f0))
+
+(defun bias-unit (x y)
+  (clamp (/ (- x y) (- 1.0 (abs y))) 0.0 1.0))
+
 (defun printl (&rest args) 
   (print args)
   (finish-output))
@@ -55,6 +61,10 @@ error if SEQUENCE is not a proper sequence."
 
 (defun color-lighten (color)
   (macrolet ((f (x) `(ash (+ ,x 255) -1)))
+    (vector (f (aref color 0)) (f (aref color 1)) (f (aref color 2)))))
+
+(defun color-darken (color)
+  (macrolet ((f (x) `(ash ,x -1)))
     (vector (f (aref color 0)) (f (aref color 1)) (f (aref color 2)))))
 
 (defun color-with-alpha (color alpha)
@@ -98,3 +108,8 @@ error if SEQUENCE is not a proper sequence."
   value)
 
 (defun degrees->radians (degrees) (* degrees 2 pi (/ 360)))
+
+(defun empty? (seq)
+  (etypecase seq
+    (list (null seq))
+    (vector (zerop (length seq)))))

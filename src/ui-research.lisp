@@ -109,7 +109,7 @@
   (let ((b (+ top 64)))
     (draw-bar* (img :upanel-left) (img :upanel-right) (texture :upanel-fill) 0 top (uic-width uic))
     (when (< b (uic-height uic))
-      (fill-rect 0 b (uic-width uic) (uic-height uic) 20 20 20 244))))
+      (fill-rect* 0 b (uic-width uic) (uic-height uic) 20 20 20 244))))
 
 (let ((typeset nil)
       (lasttech nil))
@@ -130,7 +130,7 @@
           (setf typeset (typeset-text *word-map* col2-width (description-of tech))))
         (print-tech-stats cursor tech)
         (draw-typeset-text typeset col2-x baseline #(255 255 255 255)))))
-    
+
   ;; Oh, haha. I thought I had to factor the display code from the UI code. Turns out there isn't any UI code!
   (defun run-ui-research-inspector (uic tech top &key (panel t) new-discovery)
     (draw-ui-research-inspector uic tech top panel new-discovery)))
@@ -155,13 +155,13 @@
       (unless (= alpha 255)
         (gadget-run (next-gadget gadget) (child-uic uic :active nil)))
 
-      (fill-rect 0 0 (uic-width uic) (uic-height uic) 0 0 0 alpha)
+      (fill-rect* 0 0 (uic-width uic) (uic-height uic) 0 0 0 alpha)
       
       (orf unfold-rate (* 200.0 (log (length (technologies-of player)) 1.5)))
       
-      ;; When fade out complete, pop this gadget.
+      ;; When fade out complete, exit this gadget.
       (when (and (zerop alpha) (zerop alpha-target))
-        (pop-gadget gadget))
+        (exit-gadget gadget))
 
       (when (and (= alpha 255) (not unfolded))
         (incf unfold (* unfold-rate (uic-delta-t uic))))
@@ -244,6 +244,7 @@
     (let ((available (available-techs-of player)))
       (draw-bottom-panel uic top)
       (draw-img-deluxe (global-label :gothic 20 "Select Technology") 16 (+ top 30) (label-color))
+      ;; Present tech names
       (loop with x0 = 20  with x = x0
             with col-width = 200
             with y = (+ top 52)
@@ -258,6 +259,7 @@
             (when (> (+ x 180) (uic-width uic))
               (setf x x0
                     y (+ y 14))))
+      ;; Present selected tech
       (when inspector-tech
         (let ((*print-tech-show-costs* t))
           (draw-ui-research-inspector uic inspector-tech (+ top 30 4 (* 15 10)) nil nil))

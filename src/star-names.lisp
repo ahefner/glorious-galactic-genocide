@@ -306,6 +306,12 @@
     ("Zylox")
     ("Magmetheus")
     ("Estros")
+    ("Godot")
+    ("Duckworth")
+    ("Ruby")
+    ("Asher")
+    ("Marston")
+    ("Cochrane")
 ))
 
 (defun constellation-name-list ()
