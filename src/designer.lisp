@@ -264,7 +264,7 @@
     (multiple-value-bind (level transition state)
         (run-in-and-out background-transition (uic-delta-t uic))
 
-      ;; The UIC be deactivated during fades. No good letting the
+      ;; Deactivate UIC during fades. No good letting the
       ;; player start editing things while the screen is fading out.
       (unless (eq t state)
         (setf uic (child-uic uic :active nil)))
