@@ -127,8 +127,8 @@
       (when (>= (length line-points) 2)
         (draw-flexiline transformed-points :color line-color))
       (when cursor
-        ;; If editable, draw highlight.
-        (when editable
+        ;; If editable (and transition complete), draw highlight.
+        (when (and editable (>= alpha1 254))
           (let ((left (v2.x lp))
                 (right (+ (v2.x lp) 
                           (img-width slot-label)
@@ -261,10 +261,13 @@
 
 (defmethod gadget-run ((gadget designer) uic)
   (with-slots (player ship-type design background-transition schematic-transition pointer-slot) gadget
-    (multiple-value-bind (level transition)
+    (multiple-value-bind (level transition state)
         (run-in-and-out background-transition (uic-delta-t uic))
 
-      ;; IDEA/TODO/FIXME: Shouldn't the UIC be deactivated during fades (certainly at least during fade out?)
+      ;; The UIC be deactivated during fades. No good letting the
+      ;; player start editing things while the screen is fading out.
+      (unless (eq t state)
+        (setf uic (child-uic uic :active nil)))
 
       ;; We might inspect another player's design with this. Rebinding
       ;; *player* makes things simpler.
@@ -344,11 +347,14 @@
         (io-request-close schematic-transition close-rate)))))
 
 (defmethod gadget-key-pressed ((gadget designer) uic keysym char)
-  (declare (ignore char gadget))
-  (when (and (not (zerop (logand +alt-mask+ (uic-modifiers-pressed uic))))
-             *devmode*
-             (eql keysym (keysym :E)))
-    (activate-new-gadget (make-instance 'hardpoint-editor))))
+  (declare (ignore char))
+  (cond
+    ((eql keysym (keysym :escape))
+     (designer/request-close gadget))
+    ((and (not (zerop (logand +alt-mask+ (uic-modifiers-pressed uic))))
+          *devmode*
+          (eql keysym (keysym :E)))
+     (activate-new-gadget (make-instance 'hardpoint-editor)))))
 
 ;;;; ----------------------------------------------------------------------
 

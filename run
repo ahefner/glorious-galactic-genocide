@@ -1,1 +1,4 @@
+handle SIGPWR noprint nostop pass
+handle SIGXCPU noprint nostop pass
+handle SIGINT print stop nopass
 run

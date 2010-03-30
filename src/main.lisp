@@ -38,8 +38,10 @@
 ;;; There's some spooky bug with catch/throw in ECL. I had to flail
 ;;; around changing things to make this work. It will probably break
 ;;; again soon enough.
+(define-condition abort-gadget-run (condition) ())
+
 (defun throw-from-gadget-run ()
-  (throw :abort-gadget-run t))
+  (signal 'abort-gadget-run))
 
 (let ((times (make-array 500)))
  (defun repaint (uic)
@@ -56,8 +58,8 @@
    (incf *total-frames*)   
    (paint-begin)
    ;; Run the UI
-   (catch :abort-gadget-run
-     (gadget-run *gadget-root* uic))
+   (handler-case (gadget-run *gadget-root* uic)
+     (abort-gadget-run ()))
    (check-gl-error)
    ;; Draw frames per second badge in corner
    (when (and *show-fps* *current-fps*)

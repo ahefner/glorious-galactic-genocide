@@ -382,7 +382,6 @@
         (call-next-method)
         (with-vector (c color)
           (fill-rect* 0 0 (uic-width uic) (uic-height uic) c.x c.y c.z alpha))
-        (printl :dim transition state)
         (unless state (remove-gadget gadget))
         (when (eq *gadget-root* gadget) (io-request-close gadget))))))
 
