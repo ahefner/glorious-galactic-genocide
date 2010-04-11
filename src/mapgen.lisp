@@ -529,8 +529,7 @@
     (setf (available-techs-of player) remaining-techs)))
 
 (defun add-initial-ships-and-designs (player)
-  (let ((designs (ship-designs-of player))
-        (homeworld (aref (colonies player) 0))
+  (let ((homeworld (aref (colonies player) 0))
         (scout (make-design "Scout" (find-ship-type "Scout") 
                             :owner player
                             :cost 100   ; HACK FIXME
@@ -539,23 +538,28 @@
                                   :owner player
                                   :cost 2500  ; HACK FIXME
                                   :engine (find-tech 'ion-drive))))
+    ;; Install and number the default designs:
     (define-new-design player scout)
     (define-new-design player colony-ship)
 
-    (setf (aref (design-tech-slots scout) 3) (find-tech 'reserve-tanks))
+    (flet ((set-slot (slot-index design count tech-name)
+             (setf (aref (design-tech-slots design) slot-index) (find-tech tech-name)
+                   (aref (design-tech-counts design) slot-index) count)))
+      (set-slot 3 scout 1 'reserve-tanks)
+      (set-slot 4 colony-ship 1 'colony-base)
+      (set-slot 0 colony-ship 2 'heavy-laser-beam)
+      (set-slot 1 colony-ship 3 'heavy-laser-beam))
 
-    (setf (aref (design-tech-slots colony-ship) 4) (find-tech 'colony-base)
-          (aref (design-tech-slots colony-ship) 0) (find-tech 'heavy-laser-beam)
-          (aref (design-tech-slots colony-ship) 1) (find-tech 'heavy-laser-beam))
-
-    (setf (aref designs 0) scout
-          (aref designs 1) colony-ship
-          (building-design-of homeworld) scout)
+    (setf (building-design-of homeworld) scout)
     (build-ships homeworld scout 2)
     (build-ships homeworld colony-ship 1)
     ;; Building the ships causes a sound-event to be inserted into the
     ;; event list, but it won't play until next turn. We don't want it
     ;; to play at all, so just clear the whole list.
+
+    ;; I can live this kind of kludge, as it can solve similar
+    ;; problems cropping up all over during game init, but it should
+    ;; move somewhere else...
     (setf (event-list-of player) nil)))
 
 (defun make-test-universe ()

@@ -160,7 +160,7 @@
    ;; Accumulated spending by category:
    (spending :accessor spending-vector-of :initform (make-spend))
 
-   ;; Current ship design under contrstruction
+   ;; Current ship design under construction
    (building-design :accessor building-design-of :initform nil)
    
    ;; Number of missile bases
@@ -200,11 +200,15 @@
 (defclass design (named owned)
   ((type :accessor design-type :initarg :type)
    (techs :accessor design-tech-slots :initarg :techs)
-   (engine :accessor engine-of :initform nil :initarg :engine)   
+   (tech-counts :accessor design-tech-counts :initarg :tech-counts)
+   (engine :accessor engine-of :initform nil :initarg :engine)
+   ;; Index specifying which of the nine player designs this design occupies:
    (slot-num :accessor design-slot-num :initform nil :initarg :slot-num)
+
    ;; Attributes computed and fixed at creation time:
    (model-number :accessor model-number-of)
    (design-date :accessor design-date-of :initform (year-of *universe*) :initarg :design-date)
+
    ;; Derived attributes:
    (weight :accessor weight-of :initarg :weight :initform 1234)
    (range-bonus :accessor range-bonus-of :initform 0)
@@ -215,7 +219,7 @@
    (speed :accessor speed-of :initform 1 :initarg :speed)
    (cost  :accessor cost-of  :initarg :cost) ; Derived from the above, but fixed at design time.
    (armor-level :accessor armor-level-of :initform 0)
-   
+
    ;; Runtime bullshit:
    ;; FIXME WTF, this doesn't belong here.
    (name-label :accessor name-label-of :initform nil))) ;; DON'T FORGET TO FREE THESE!! ...
@@ -230,6 +234,9 @@
    ;; Tech level (used to determine price as 100*(level^1.6)
    (level :reader level-of :initform 0 :initarg :level)
 
+   ;; Modifier for unit cost (scaled quadratically by tech level over magic fudge factor)
+   (unit-cost-mod :reader unit-cost-mod-of :initarg :unit-cost-mod)
+
    ;; Probability that tech will be available to a player in a given game (default 50%)
    (probability :reader probability-of :initform 0.50 :initarg :probability)
 
@@ -238,6 +245,9 @@
 
    ;; Speed bonus of this tech (for specials that improve travel speed):
    (speed-bonus :reader speed-bonus :initform 0 :initarg :speed-bonus)
+
+   ;; Thrust/Maneuverability bonus
+   (thrust-bonus :reader thrust-bonus :initform 0 :initarg :thrust-bonus)
 
    ;; Range bonus (for reserve tanks and fuel techs)
    (range-bonus :reader range-bonus :initform 0 :initarg :range-bonus)
@@ -287,7 +297,7 @@
    (size-scaling :reader size-scaling-of :initform 0.0 :initarg :size-scaling)
 
    ;; Minimum size of a tech. TODO: If unsupplied, computed as 30% of the base size, rounded up? 
-   (minimum-size :reader minimum-size-of   #|FIXME:|# :initform 5)
+   (minimum-size :reader minimum-size-of :initarg :minimum-size   #|FIXME:|# :initform 5)
 
    ;; If a tech has multiple variations which should be gained
    ;; simultaneously (such as a hull and armor tech), link one to the
@@ -313,7 +323,7 @@
 ;;; the base-size of the WEAPON class. No subclass should change the
 ;;; base-size.
 
-(defclass weapon (ship-tech) () (:default-initargs :base-size 25))
+(defclass weapon (ship-tech) () (:default-initargs :base-size 20))
 (defclass missile-weapon (weapon) ())
 (defclass energy-weapon (weapon) ())
 
@@ -438,7 +448,11 @@
 
 (defclass hardpoint (named) 
   ((tech :accessor tech-of :initform nil :initarg :tech)
-   (empty-string :accessor empty-string-of :initarg :empty))
+   (tech-class :initarg :tech-class)
+   (allow-multi :initform nil :initarg :allow-multi)
+   (empty-string :accessor empty-string-of :initarg :empty)
+   ;; Index into tech/count arrays of design.
+   (index :accessor index-of :initarg :index))     
   (:default-initargs :empty "(empty)"))
 
 ;;;; Hardpoint types: 
@@ -446,6 +460,12 @@
 ;;;;  battery-mount: Holds multiple weapons, limited only by available space.
 ;;;;  special-mount: Holds a special tech.
 (defclass weapon-mount (hardpoint) ()
-  (:default-initargs :empty "(none)"))
-(defclass battery-mount (hardpoint) ())
-(defclass special-mount (hardpoint) ())
+  (:default-initargs :tech-class 'weapon :empty "(none)"))
+
+(defclass battery-mount (hardpoint) ()
+  (:default-initargs :tech-class 'weapon :allow-multi t))
+
+(defclass special-mount (hardpoint) ()
+  (:default-initargs :tech-class 'special-tech :allow-multi nil))
+
+

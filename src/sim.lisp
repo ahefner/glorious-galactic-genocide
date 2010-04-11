@@ -69,6 +69,10 @@
 (defparameter *race-human*
   (make-instance 'race :name "Human"))
 
+(defun player-currency (player)
+  (declare (ignore player))
+  "GC")
+
 (defun update-player-planets (universe)
   (loop for player in (all-players universe) do (setf (fill-pointer (colonies player)) 0))
   (loop for star across (stars universe)
@@ -622,14 +626,22 @@
 
 (defun tech-level-cost (level) (* 100 (round (expt level 1.6))))
 
-(defun tech-cost (tech) (tech-level-cost (level-of tech)))
+(defun tech-research-cost (tech) (tech-level-cost (level-of tech)))
+
+(defun tech-unit-cost (tech)
+  ;; The magic fudge factor 'foo' is the number of tech levels necessary to double the per-unit cost.
+  (let ((foo 20))
+    (ceiling
+     (* 5
+        (cost-modifier-of tech)
+        (expt 2 (/ (level-of tech) foo))))))
 
 (defun progress-research-project (player project investment)
   (printl :research-progress (researching-tech project)
           :spent (researching-spent project)
           :investing investment)
   (incf (researching-spent project) investment)
-  (if (>= (researching-spent project) (tech-cost (researching-tech project)))
+  (if (>= (researching-spent project) (tech-research-cost (researching-tech project)))
       (prog1 t
         (grant-tech player (researching-tech project))
         (new-player-event player 'new-tech-event :tech (researching-tech project)))
@@ -679,17 +691,34 @@
 
 (defun design-techs (design) (remove nil (design-tech-slots design)))
 
+(defun design-techs-and-counts (design)
+  (loop for tech across (design-tech-slots design)
+        for count across (deisgn-tech-counts design)
+        when tech collect (cons tech count)))
+
+(defun tally-techs (design init reduce-fn key-fn mult-fn)
+  (loop with accum = init
+        for tech across (design-tech-slots design)
+        for count across (deisgn-tech-counts design)
+        when tech do (setf accum (funcall reduce-fn accum (funcall key-fn )))))
+
 (defmacro latest-model-number (player type)
   `(getf (model-history-of ,player)
          (intern (name-of ,type) :keyword) 0))
+
+(defun ensure-numbered-slots (type)
+  (loop for index upfrom 0 
+        for slot in (slots-of type)
+        do (setf (index-of slot) index)))
 
 (defun make-design (name type &rest args)
   (let ((design 
          (apply #'make-instance 'design 
                 :name name :type type
                 :techs (map 'vector (constantly nil) (slots-of type))
+                :tech-counts (map 'vector (constantly nil) (slots-of type))
                 args)))
-    (prog1 design
+    (prog1 design      
       (analyze-design design)
       (assert (owner-of design))
       (setf (model-number-of design) (incf (latest-model-number (owner-of design) type))))))
@@ -713,6 +742,7 @@
      (round
       (* (1+ (* (size-scaling-of tech)
                 (+ -1 (space-multiplier-of (design-type design)))))
+         (size-modifier-of tech)
          (base-size-of tech))))))
 
 (defgeneric compute-tech-weight (design tech)
@@ -725,17 +755,22 @@
 (defun analyze-design (design)
   ;; TODO: COMPUTE COST
   (let ((type (design-type design)))
-    (unless (cost-of design)
-      (setf (cost-of design) 666))      ; HACK FIXME TODO ETC.
     ;; TODO: 
-    ;;  * Cost
-    ;;  * Manuverability
     ;;  ...
     (setf (weight-of design) (round
                               (+ (weight-of type)
                                  (reduce #'+ (design-techs design) :key (lambda (tech) (compute-tech-weight design tech)))))
+          ;; FIXME: THIS IS WRONG. MULTIPLY BY COUNTS.
+          (cost-of design) (+ (cost-of type)
+                              (reduce #'+ (design-techs design) :key #'tech-unit-cost))
+          (thrust-of design) (+ (maneuverability-of type)
+                                (reduce #'+ (design-techs design) :key #'thrust-bonus))
           (speed-of design) (engine-speed (engine-of design))
           (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus))))
+
+(defun hardpoint-applicable-techs (hardpoint player)
+  (let ((tech-class (slot-value hardpoint 'tech-class)))
+    (remove-if-not (lambda (tech) (typep tech tech-class)) (technologies-of player))))
 
 ;;;; Turn cycle
 

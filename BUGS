@@ -9,16 +9,18 @@ Medium issues:
 * Further improve packset allocation (reclaim freed blocks, chain packstacks, random eviction?)
 * Starmap select choice when multiple objects under cursor
 * Starmap uncomfortable at minimum screen resolution (center on click? Scale down icons?)
+* Can't recall fleets after launch (can change destination, but not recall them to the present star)
 
 
 Minor issues:
+* Doubled sound effect when clicking "Next Turn" with star-panel open
 * Improve text layout
 * Space and Enter should also step through modal contexts where left click is used presently
 * Escape should close panels
 * Deflect ships from each other?
 * Fix fringe around normal mapped sprites
 * Who is responsible for freeing ship labels? We should ditch that and add a system of flushable labels, GCed when packset allocation fails. Maybe just make global labels flushable, since they are.
-
+* Invert text/selected color in tech panel (white not being the selected item is confusing when there's only two techs)
 
 
 ------------------------------------------------------------------------------------------------

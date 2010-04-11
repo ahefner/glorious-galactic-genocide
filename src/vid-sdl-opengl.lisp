@@ -693,12 +693,14 @@
 (defun draw-button (button-style label pressed x top &key (center-x t) min-width (baseline-adjust 0) (color (vector 255 255 255)))
   (let* ((bar-style (if pressed (button-style-pressed button-style) (button-style-released button-style)))
          (label-width (max (or min-width 0) (if label (img-width label) 0)))
+         (label-pad (and label (round (ash (- label-width (img-width label)) -1))))
          (bar-width (+ label-width (bar-style-width bar-style)))
          (lx (if center-x (- x (ash bar-width -1)) x)))
     (draw-bar bar-style lx top bar-width)
     (when label
       (draw-img-deluxe label
                        (+ (img-x-offset label)
+                          label-pad
                           (if center-x
                               (- x (ash label-width -1))
                               (+ lx (img-width (bar-style-left bar-style)))))
@@ -881,7 +883,7 @@
      (error "I'm one lazy fucker, right? Still need to allocate ~A" object))))
 
 (defun debug-show-packset ()
-  (fill-rect* 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0) 255
+  (fill-rect* 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)
   (draw-tile  64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
 
 

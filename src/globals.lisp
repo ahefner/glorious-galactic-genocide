@@ -25,8 +25,11 @@
 
 (defvar *global-owner* nil)
 
-(defvar *player*)
-(defvar *universe*)
+(defvar *player* nil)
+(defvar *universe* nil)
+
+;; Needed in designer due to questionable design of tech info printer.
+(defvar *design* nil)
 
 (defvar *button-a* nil)                     ; Standard button-style
 

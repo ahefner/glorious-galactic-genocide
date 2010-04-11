@@ -1,11 +1,14 @@
 (in-package :g1)
 
+;; Needed for keysyms:
+#+ecl (ffi:clines "#include <SDL/SDL.h>")
+
 (defclass browse-techs-ui (gadget)
   ((player :initarg :player)
    (unfold-rate :initform nil)
    (unfold :initform 0)
    (unfolded :initform nil)
-   (inspector-tech :initform nil)
+   (inspector-tech :initform nil :initarg :selected)
    (close-inspector :initform nil)
    (inspector-y :initform nil)   
    (alpha :initform 0)
@@ -23,7 +26,9 @@
   (:method (cursor tech)
     (declare (ignore cursor tech))))
 
-(defvar *print-tech-show-costs* nil)
+(defvar *print-tech-show-research-cost* nil)
+(defvar *print-tech-show-unit-cost* nil)
+(defvar *print-tech-show-size* nil)
 
 (macrolet ((cout (label) `(cursor-draw-img cursor ,label))
            (pair (this that)
@@ -45,9 +50,13 @@
 
       (defmethod print-tech-stats :before (cursor tech)
         (declare (ignore cursor))
-        (when *print-tech-show-costs*
-          (pair "Research Cost" (gtxt (format nil "~:D" (tech-cost tech))))
-          #+DONTLIKEIT (pair "Level" (gtxt (format nil "~:D" (level-of tech))))))
+        (when *print-tech-show-unit-cost*
+          (pair "Cost" (gtxt (format nil "~:D ~A" (tech-unit-cost tech) (player-currency *player*)))))
+        (when *print-tech-show-unit-cost*
+          (pair "Size" (gtxt (format nil "~:D m~C" (compute-tech-size *design* tech) (code-char #xB3)))))
+        (when *print-tech-show-research-cost*
+          (pair "Research Cost" (gtxt (format nil "~:D ~A" (tech-research-cost tech) (player-currency *player*)))))
+        #+DONTLIKEIT (pair "Level" (gtxt (format nil "~:D" (level-of tech)))))
       
       (defmethod print-tech-stats :after (cursor tech)
         (declare (ignore tech))                 
@@ -111,8 +120,8 @@
     (when (< b (uic-height uic))
       (fill-rect* 0 b (uic-width uic) (uic-height uic) 20 20 20 244))))
 
-(let ((typeset nil)
-      (lasttech nil))
+(with-vars ((typeset nil)
+            (lasttech nil))
   (defun draw-ui-research-inspector (uic tech top panel new-discovery)
     (let* ((baseline (+ top 50))
            (col2-x 250)
@@ -229,49 +238,149 @@
         (bottom-panel-request-close panel))
       (run-ui-research-inspector uic last-tech top :new-discovery t))))
 
-;;;; Select research
+;;;; ----------------------------------------------------------------------
+;;;; Select tech
 
-(defclass select-research-panel (panel)
+(defclass select-tech-panel (panel)
   ((player :initarg :player)
-   (inspector-tech :initform nil)))
+   (techs :initarg :techs)
+   (header :initform "Select Technology" :initarg :header)
+   (show-research-cost :initform nil :initarg :show-research-cost)
+   (show-unit-cost     :initform nil :initarg :show-unit-cost)
+   (show-size          :initform nil :initarg :show-size)
+   (d-rows :initform 0)
+   (d-columns :initform 0)
+   (inspector-tech :initform nil :initarg :selected)))
 
-(defmethod panel-height ((panel select-research-panel))
+(defmethod panel-height ((panel select-tech-panel))
   (declare (ignore panel))
   329)
 
-(defmethod run-panel ((panel select-research-panel) uic top)
-  (with-slots (player inspector-tech) panel
-    (let ((available (available-techs-of player)))
-      (draw-bottom-panel uic top)
-      (draw-img-deluxe (global-label :gothic 20 "Select Technology") 16 (+ top 30) (label-color))
-      ;; Present tech names
-      (loop with x0 = 20  with x = x0
-            with col-width = 200
-            with y = (+ top 52)
-            for tech in available
-            as label = (small-name-label-of tech) do
-            (draw-img-deluxe label x y (if (eql tech inspector-tech) (label-color) #(255 255 255 255)))
-            (when (and (pointer-in-img-rect uic label x y)
-                       (clicked? uic +left+)) ; FIXME: implicit active check
-              (snd-click)
-              (setf inspector-tech tech))
-            (incf x col-width)
-            (when (> (+ x 180) (uic-width uic))
-              (setf x x0
-                    y (+ y 14))))
-      ;; Present selected tech
-      (when inspector-tech
-        (let ((*print-tech-show-costs* t))
-          (draw-ui-research-inspector uic inspector-tech (+ top 30 4 (* 15 10)) nil nil))
-        (when (run-labelled-button uic (global-label :bold 14 "Research This")
-                                   (- (uic-width uic) 74)
-                                   (+ top (- (panel-height panel) 31))
-                                   :color (label-color))
-          ;; TODO
-          (begin-research-project player inspector-tech)
-          (bottom-panel-request-close panel))))))
+(defmethod gadget-key-pressed ((gadget select-tech-panel) uic keysym char)
+  (declare (ignore char uic))
+  (with-slots (d-rows d-columns inspector-tech techs) gadget
+    (when (and d-columns d-rows (not (empty? techs)))
+      (let ((index (position inspector-tech techs)))
+        (cond
+          ((null index) (setf index 0))
+          ((eql keysym (keysym :left))
+           (decf index))
+          ((eql keysym (keysym :right))
+           (incf index))
+          ((eql keysym (keysym :up))
+           (decf index d-columns))
+          ((eql keysym (keysym :down))
+           (incf index d-columns)))
+        (setf inspector-tech (elt techs (clamp index 0 (1- (length techs)))))))))
+
+;;; Display the given techs and allow the player to select one with the mouse. Returns the selected tech.
+(defun run-tech-listing (uic techs selected top)
+  (loop with x0 = 20  with x = x0
+        with col-width = 200
+        with y = (+ top 52)
+        for tech in techs
+        as label = (small-name-label-of tech) do
+        (draw-img-deluxe label x y (if (eql tech selected) (label-color) #(255 255 255 255)))
+        (when (and (pointer-in-img-rect uic label x y) (clicked? uic +left+))
+          (snd-click)
+          (setf selected tech))
+        (incf x col-width)
+        (when (> (+ x 180) (uic-width uic))
+          (setf x x0
+                y (+ y 14)))
+        finally (return selected)))
+
+(defmethod run-panel ((panel select-tech-panel) uic top)
+  (with-slots (player inspector-tech techs header show-unit-cost show-research-cost show-size) panel
+    (draw-bottom-panel uic top)
+    (draw-img-deluxe (global-label :gothic 20 header) 16 (+ top 30) (label-color))
+    ;; Present tech names
+    (setf inspector-tech (run-tech-listing uic techs inspector-tech top))
+    ;; Present selected tech
+    (when inspector-tech
+      (let ((*print-tech-show-research-cost* show-research-cost)
+            (*print-tech-show-unit-cost* show-unit-cost)
+            (*print-tech-show-size* show-size))
+        (draw-ui-research-inspector uic inspector-tech (+ top 30 4 (* 15 10)) nil nil)))
+    ;; Buttons
+    (run-tech-panel-buttons panel uic top)))
+
+;;; Called at the end of run-panel to run the buttons:
+
+(defgeneric run-tech-panel-buttons (gadget uic top)
+  (:method (x y z) (declare (ignore x y z))))
+
+;;;; ----------------------------------------------------------------------
+;;;; Select research
+
+(defclass select-research-panel (select-tech-panel) ()
+  (:default-initargs :show-research-cost t))
+
+(defmethod run-tech-panel-buttons ((panel select-research-panel) uic top)
+  (with-slots (inspector-tech player) panel
+    (when (and inspector-tech
+               (or (clicked? uic +right+)
+                   (run-labelled-button uic 
+                                        (global-label :bold 14 "Research This")
+                                        (- (uic-width uic) 74)
+                                        (+ top (- (panel-height panel) 31))
+                                        :color (label-color))))
+      ;; Research selected topic
+      (begin-research-project player inspector-tech)
+      (bottom-panel-request-close panel))))
 
 (defun add-research-choice-panels (host)
   (loop for project across (research-projects-of *player*)
         when (null project) 
-        do (enqueue-next-panel host (make-instance 'select-research-panel :player *player*))))
+        do (enqueue-next-panel host (make-instance 'select-research-panel
+                                                   :player *player*
+                                                   :techs (available-techs-of *player*)))))
+
+;;;; ----------------------------------------------------------------------
+;;;; Select weapon/special for slot
+
+(defclass select-slot-tech-panel (select-tech-panel)
+  ((slot :initarg :slot)
+   (design :initarg :design)
+   (number :initarg :number))
+  (:default-initargs :show-unit-cost t :show-size t))
+
+(defmethod run-panel :around ((panel select-slot-tech-panel) uic top)
+  (declare (ignore uic top))
+  (let ((*design* (slot-value panel 'design)))
+    (call-next-method)))
+
+(defmethod run-tech-panel-buttons ((panel select-slot-tech-panel) uic top)
+  (with-slots (inspector-tech player number slot design) panel
+    
+    (when inspector-tech
+      ;; Hack?
+      (unless number (setf number 1))
+
+      (setf number (run-adjust-buttons uic
+                                       (- (uic-width uic) 180)
+                                       (+ top (- (panel-height panel) 20)) number 3)))
+
+    (when (eql 0 number)
+      (setf number nil
+            inspector-tech nil))
+
+    (cond
+      ;; Edit with a selection
+      ((or (run-labelled-button uic 
+                                (global-label :bold 14 (if inspector-tech "Equip This" "Equip Nothing"))
+                                (- (uic-width uic) 74)
+                                (+ top (- (panel-height panel) 31))
+;;                                :min-width 100
+                                :color (label-color))
+           (clicked? uic +right+))
+
+       ;; Modify design and re-analyze:
+       (setf (aref (design-tech-slots  *design*) (index-of slot)) inspector-tech
+             (aref (design-tech-counts *design*) (index-of slot)) (or number 1))
+       (analyze-design design)
+       ;; Close panel:
+       (bottom-panel-request-close panel))
+      ;; Exit without selecting anything:
+      ((clicked? uic +right+)
+       (bottom-panel-request-close panel)))))

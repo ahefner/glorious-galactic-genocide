@@ -5,6 +5,10 @@
 ;;;; effect on  compiled files.  So,  as something of a  hack, declaim
 ;;;; them in a file, and compile that file.
 
+;;;; I don't think I can blame this on the compiler not being loaded
+;;;; yet, since I'm calling compile file.
+(require 'cmp)
+
 (load (compile-file "declaim.lisp"))
 
 ;;;; Load system definition

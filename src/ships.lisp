@@ -7,7 +7,8 @@
 (defmacro define-ship-type ((class) &rest initargs)
   `(let ((type (orf (gethash ,(getf initargs :name) *ship-types*)
                     (make-instance ',class))))
-     (reinitialize-instance type ,@initargs)))
+     (reinitialize-instance type ,@initargs)
+     (ensure-numbered-slots type)))
 
 (defun weapon-mount (name) (make-instance 'weapon-mount :name name))
 (defun battery-mount (name) (make-instance 'battery-mount :name name))

@@ -18,6 +18,7 @@
   (let ((copy (make-instance 'design                             
                :name (name-of design)
                :techs (copy-seq (design-tech-slots design))
+               :tech-counts (copy-seq (design-tech-counts design))
                :engine (engine-of design)
                :range-bonus (range-bonus-of design)
                :slot-num nil)))
@@ -93,7 +94,7 @@
 ;;; implement any pointer interaction other than the obvious rectangle
 ;;; test. That's left to the caller.
 
-(defun designer-present-slot (slot tech layout uic ship-type &key transition editable)
+(defun designer-present-slot (slot tech amount layout uic ship-type &key transition editable)
   (flet ((transform (v) (designer-transform-point uic ship-type v)))
     (let* ((line-points (hardpoint-layout-line-points layout))           
            (transformed-points (mapcar #'transform line-points))
@@ -121,8 +122,7 @@
            (pointer-inside nil)
            (size 16)
            (space 3)
-           (amount (and tech 1))
-           (amount-label (and amount (global-label face 16 (format nil "~:D" amount))))
+           (amount-label (and amount (global-label face 16 (format nil "~:Dx" amount))))
            (slot-label (global-label face size (name-of (or tech slot)))))
       (when (>= (length line-points) 2)
         (draw-flexiline transformed-points :color line-color))
@@ -259,6 +259,8 @@
                    (funcall editor designer uic design cx cy)))
                 (t (fill-rect min max color))))))))
 
+(defvar *designer-space-label* nil)
+
 (defmethod gadget-run ((gadget designer) uic)
   (with-slots (player ship-type design background-transition schematic-transition pointer-slot) gadget
     (multiple-value-bind (level transition state)
@@ -302,30 +304,55 @@
            (run-in-and-out schematic-transition (uic-delta-t uic))
 
            (multiple-value-bind (scale offset) (designer-scale-and-offset uic ship-type)
-             (let ((simg (imgblock (ship-asset-name ship-type (if (eql scale 1)
-                                                                  "schem-low.png"
-                                                                  "schem-mid.png"))))
-                   (fade-level (level-of schematic-transition))
-                   (fade-delay 0.00))
+             (let* ((simg (imgblock (ship-asset-name ship-type (if (eql scale 1)
+                                                                   "schem-low.png"
+                                                                   "schem-mid.png"))))
+                    (fade-level (level-of schematic-transition))
+                    (fade-delay 0.00)
+                    (schematic-color
+                     (color-with-alpha
+                      (lighter-color)
+                      (f->b (bias-unit fade-level fade-delay)))))
                ;; Schematic.
-               (draw-img-deluxe simg (v2.x offset) (v2.y offset)
-                                (color-with-alpha
-                                 (lighter-color)
-                                 (f->b (bias-unit fade-level fade-delay))))
+               (draw-img-deluxe simg (v2.x offset) (v2.y offset) schematic-color)
+               ;; Misc.
+               (when editable?
+                 (let ((string (format nil "Space Remaining: ~:D m~C / ~:D m~C" 
+                                       4666
+                                       (code-char #xB3) 
+                                       (space-of ship-type)
+                                       (code-char #xB3))))
+                   (draw-img-deluxe 
+                    (cachef (*designer-space-label* string :delete free-img)
+                            (render-label :designer :sans 11 string))
+                    (- (uic-width uic) 200)
+                    12
+                    schematic-color)))
                ;; Slots.
                (loop with new-pointer-slot = nil
                      for slot in (slots-of ship-type)
                      for tech across (design-tech-slots design)
+                     for amount across (design-tech-counts design)
                      as layout = (ensure-hardpoint-layout ship-type slot)
                      do
+                     (when (null tech) (setf amount nil))
                      (cond
                        (layout 
                         (when (designer-present-slot
-                               slot tech layout uic ship-type
+                               slot tech amount layout uic ship-type
                                :editable (and editable? (eq pointer-slot slot))
                                :transition fade-level)
                           ;; Pointer is in the slot:
                           (when (and editable? (clicked? uic))
+                            (enqueue-next-panel 
+                             #| Host: |#
+                             (activate-new-gadget (make-instance 'modal-bottom-panel-host))
+                             (make-instance 'select-slot-tech-panel :player *player* :slot slot
+                                            :design design
+                                            :number amount
+                                            :selected tech
+                                            ;; TODO: filter techs appropriate for slot.
+                                            :techs (hardpoint-applicable-techs slot *player*)))
                             (printl :edit (name-of slot) slot))
                           (setf new-pointer-slot slot)))
                        (t (warn "Missing layout for slot ~A of ~A" slot ship-type)))

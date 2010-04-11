@@ -1,5 +1,9 @@
 (in-package :g1)
 
+;;;; TODO:
+;;;;  * Nothing uses the thrust bonus presently.
+;;;;  ...
+
 ;;;; Underlying protocols for techs
 
 (defun can-colonize? (tech planet-type)
@@ -12,13 +16,14 @@
 
 ;;; Misc. starting techs
 
-(deftech (0 special-tech reserve-tanks :probability 1.0 :range-bonus 3)
-    "Extends ship range by 3 light-years.")
+(deftech (0 special-tech reserve-tanks :probability 1.0 :range-bonus 3 :size-scaling 1.0)
+    "Extends ship range by 3 light-years."
+  :designer "Extends ship range by 3 light-years.")
 
 (defparameter *friendly-planet-types* 
   '(terran oceanic jungle arid desert tundra minimal))
 
-(deftech (0 special-tech colony-base :probability 1.0 :colonizable *friendly-planet-types*)
+(deftech (0 special-tech colony-base :probability 1.0 :colonizable *friendly-planet-types* :minimum-size 500 :base-size 1500)
     "A colony base can be used to create a new settlement on any uninhabited planet with a breathable atmosphere. The colony ship is dismantled and recycled by the new colony."
   :designer "Allows colonizing habitable planets.")
 

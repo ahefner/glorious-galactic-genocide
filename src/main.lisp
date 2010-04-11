@@ -137,20 +137,17 @@
 
   (format t "~&Running test game.~%")
  
-  (multiple-value-bind (*universe* *player*) (make-test-universe)
-    ;; This is for debugging from SLIME:
-    (setf (symbol-value '*universe*) *universe*
-          (symbol-value '*player*) *player*)
-    ;; 
-    (setf *gameui* (create-gameui *universe*)
-          *gadget-root* *gameui*)
+  (setf (values *universe* *player*) (make-test-universe))
+  ;; This is for debugging from SLIME:
+  ;;(setf (symbol-value '*universe*) *universe*
+  ;;      (symbol-value '*playerwtf*) *player*)
 
-    ;; Hack, test editor:
-    ;;(setf *gadget-root* (make-instance 'line-editor :led (led "" 0) :screen-vector (v2 10 30) :face :gothic :size 32))
-    
+  (setf *gameui* (create-gameui *universe*)
+        *gadget-root* *gameui*)
+
 ;;    (time (uim-sdl-run))
-    #+NIL (repaint (initial-uic))
-    (time (catch 'bailout (uim-sdl-run))))
+  #+NIL (repaint (initial-uic))
+  (time (catch 'bailout (uim-sdl-run)))
   (format t "~&Shutting down.~%")
   (format t "~&Total frames: ~:D (~D)~%" *total-frames* *total-frames*)
   (c "sys_shutdown()")
@@ -210,3 +207,5 @@
           (mapc #'ensure-source-file compile-time-deps)
           (ensure-source-file filename)))
     (play-sound :chime-low))
+
+#+ECL (defun quit () (ext:quit))

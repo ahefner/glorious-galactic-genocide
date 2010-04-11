@@ -53,6 +53,7 @@
     ("Volans" "Volantis")
     ("Vulpecula" "Vulpeculae")
     ("Corrin" "Corrino")
+    ("Fornax" "Fornaci")
     ("Nebia")
     ("Polaris")
     ("Sirius")

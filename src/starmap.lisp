@@ -792,7 +792,7 @@
     (:departing                         ; FIXME !!
      (perspective-transform (v- (vloc fleet) camera)))))
 
-(defun draw-adjust-buttons (uic x y num max)
+(defun run-adjust-buttons (uic x y num max)
   (if (= num max)
       (draw-img (img :tiny-plus-pressed) (+ x 23) y)
       (when (run-img-button uic (img :tiny-plus-released) (img :tiny-plus-pressed) (+ x 23) y)
@@ -937,7 +937,7 @@
                       "~A~[~;~:; (~:*~:D)~]" (name-of (stack-design stack)) num-sending))
                 (draw-img (label stack) x (+ y 50))
                 (when movable
-                  (setnum (draw-adjust-buttons uic x (+ y 67) num-sending num-total)))
+                  (setnum (run-adjust-buttons uic x (+ y 67) num-sending num-total)))
                 (when (and movable (clicked? uic +left+) (pointer-in-img-rect uic thumb x y))
                   (invalidate-label stack)
                   (setf highlighted-stars nil)
