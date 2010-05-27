@@ -48,6 +48,7 @@ static SDL_Event cur_event;
           (setf idle t))
 ;;; ISSUE: A problem for netplay, where we don't want to block
 ;;; without polling the socket...
+;;; An easy, hacky solution would be put a timeout
         (when idle
           (c "SDL_WaitEvent(NULL)"))
 

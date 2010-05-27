@@ -189,7 +189,7 @@
   ;; functions in dynamic libraries, which work fine).
   (play-sound :chime-high)
   (require 'cmp)
-  ;; Yes, we really need to use EVAL here.  
+  ;; Yes, we really need to use EVAL here.
   (let ((sym (eval (read-from-string "'c::*cc-flags*"))))
     (printl :old-cc-flags (symbol-value sym)
             (printl :new-cc-flags (setf (symbol-value sym)

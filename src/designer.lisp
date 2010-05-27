@@ -317,11 +317,13 @@
                (draw-img-deluxe simg (v2.x offset) (v2.y offset) schematic-color)
                ;; Misc.
                (when editable?
-                 (let ((string (format nil "Space Remaining: ~:D m~C / ~:D m~C" 
-                                       4666
-                                       (code-char #xB3) 
-                                       (space-of ship-type)
-                                       (code-char #xB3))))
+                 (let* ((cubed (code-char #xB3)) ; Workaround for ECL bug
+                        (string 
+                         (format nil "Space Remaining: ~:D m~C / ~:D m~C" 
+                                 4666
+                                 cubed
+                                 (space-of ship-type)
+                                 cubed)))                   
                    (draw-img-deluxe 
                     (cachef (*designer-space-label* string :delete free-img)
                             (render-label :designer :sans 11 string))

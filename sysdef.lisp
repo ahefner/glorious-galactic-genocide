@@ -6,12 +6,20 @@
 
 (defun cflags () (list #-win32 "-I/usr/include/freetype2"
 		       #+win32 "-Ic:/MinGW/include/freetype2"
+                       ;; On OS X, use the MacPorts stuff installed in /opt
+                       #+darwin "-I/opt/local/include" 
+                       #+darwin "-I/opt/local/include/SDL"
+                       #+darwin "-I/opt/local/include/freetype2"
+                       #+darwin "-D_THREAD_SAFE"
 		       "-DGLEW_STATIC=1" "-Isrc/glew" "-std=c99"))
 
 (defun ld-flags ()
   "Non-library linker flags"
-  (list ;;#+win32 "-Wl,-subsystem,windows"
-	))
+  (list 
+   ;; Uncomment this to hide the console.
+   ;;#+win32 "-Wl,-subsystem,windows"
+   #+darwin "-framework" #+darwin "OpenGL"
+   #+darwin "-L/opt/local/lib"))
 
 (defun c-sources ()
   "C source code modules."
@@ -54,7 +62,7 @@
 
 (defun shared-libraries ()
   (list "SDL" "SDL_image"
-        #-win32 "GL"
+        #-(or darwin win32) "GL"
 	#+win32 "opengl32"
         "vorbisfile"
         "freetype"

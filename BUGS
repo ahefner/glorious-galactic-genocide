@@ -22,6 +22,9 @@ Minor issues:
 * Who is responsible for freeing ship labels? We should ditch that and add a system of flushable labels, GCed when packset allocation fails. Maybe just make global labels flushable, since they are.
 * Invert text/selected color in tech panel (white not being the selected item is confusing when there's only two techs)
 
+Ignorable issues:
+* (Linux) Xorg Intel driver segfault at quit (XCloseDisplay)
+
 
 ------------------------------------------------------------------------------------------------
 
