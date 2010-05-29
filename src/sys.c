@@ -30,6 +30,7 @@ int sys_setvideomode (void)
     SDL_Flip(window_surface);
     SDL_ShowCursor(SDL_ENABLE);
     SDL_EnableUNICODE(1);
+    SDL_GL_SetSwapInterval(1); // Enable VSync
 
     if (GLEW_OK != glewInit()) {
       printf("OpenGL init error.\n");

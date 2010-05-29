@@ -48,7 +48,6 @@ static SDL_Event cur_event;
           (setf idle t))
 ;;; ISSUE: A problem for netplay, where we don't want to block
 ;;; without polling the socket...
-;;; An easy, hacky solution would be put a timeout
         (when idle
           (c "SDL_WaitEvent(NULL)"))
 
@@ -124,7 +123,7 @@ static SDL_Event cur_event;
                          ((eql type (cx :int "SDL_VIDEOEXPOSE"))
                           (repaint))))
                  (when please-set-video-mode
-                   (c "sys_setvideomode()")
+                   (reset-video-mode)
                    (setf please-set-video-mode nil))
 
                  ;; UIC is never active during a grab, hence '%released?', not 'released?'

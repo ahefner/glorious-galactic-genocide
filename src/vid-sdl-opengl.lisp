@@ -1,6 +1,7 @@
 ;;;; In theory, I'm aiming to keep details of SDL and OpenGL from
 ;;;; leaking into the bulk of the game code, so that the Windows port
 ;;;; could be converted to DirectX without too much difficulty.
+;;;; Note, however, that I have absolutely no plans of doing this.
 
 (in-package :g1)
 
@@ -26,25 +27,36 @@
           (warn "OpenGL error 0x~X (~A) [~A]" err (gl-error-to-string err) context)
           (cerror "Fuck it" "OpenGL error 0x~X (~A) [~A]" err (gl-error-to-string err) context)))))
 
-(defstruct gltexobj texid width height)
+;;; When the window is resized we need to reupload textures and shaders. We increment *vid-session*
+;;; when this occurs, and the code binding texture/shader objects checks if the object hasn't been
+;;; reestablished in the current session and updates it.
+(defvar *vid-session* 0)
+
+(defstruct gltexobj texid width height vid-session)
 
 (with-vars ((texobjs (make-array 8 :initial-element nil)))
+  (defun invalidate-texobj-bindings ()
+    (fill texobjs nil))
   (defun bind-texobj (obj &key (unit 0) force)
-    (cond
-      ((and (not force) (eq (aref texobjs unit) obj))
-       (ffi:c-inline (unit) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
-       (check-gl-error "bind-texobj activate on cache hit"))
-      (t
-       (ffi:c-inline (unit) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
-       (setf (aref texobjs unit) obj)
-       (c "glEnable(GL_TEXTURE_2D)")
-       (check-gl-error "bind-texobj activate and enable")
-       (c "glBindTexture(GL_TEXTURE_2D, #0)" :int (gltexobj-texid obj))
-       (check-gl-error "bind-texobj bind texture")
-       (c "glMatrixMode(GL_TEXTURE)")
-       (c "glLoadIdentity()")
-       (c "glScaled(1.0/(#0), 1.0/(#1), 1.0)" :int (gltexobj-width obj) :int (gltexobj-height obj))
-       (check-gl-error "bind-texobj configure matrix")))))
+    (let ((preserved (eql (gltexobj-vid-session obj) *vid-session*)))
+      (unless preserved 
+        (realize-gl-object obj)
+        (setf force t))
+      (cond
+        ((and (not force) (eq (aref texobjs unit) obj))
+         (ffi:c-inline (unit) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
+         (check-gl-error "bind-texobj activate on cache hit"))
+        (t
+         (ffi:c-inline (unit) (:int) (values) "glActiveTexture(GL_TEXTURE0 + #0);")
+         (setf (aref texobjs unit) obj)
+         (c "glEnable(GL_TEXTURE_2D)")
+         (check-gl-error "bind-texobj activate and enable")
+         (c "glBindTexture(GL_TEXTURE_2D, #0)" :int (gltexobj-texid obj))
+         (check-gl-error "bind-texobj bind texture")       
+         (c "glMatrixMode(GL_TEXTURE)")
+         (c "glLoadIdentity()")
+         (c "glScaled(1.0/(#0), 1.0/(#1), 1.0)" :int (gltexobj-width obj) :int (gltexobj-height obj))
+         (check-gl-error "bind-texobj configure matrix"))))))
 
 (defun alloc-texid ()
   (ffi:c-inline () () :unsigned-int
@@ -52,6 +64,7 @@
 
 (defun upload-sdl-surface (surface &key min-filter mag-filter)
   (let ((id (alloc-texid)))
+    (invalidate-texobj-bindings)
     (c "glBindTexture(GL_TEXTURE_2D, #0)" :unsigned-int id)
     (unless (find min-filter (list (cx :int "GL_NEAREST") (cx :int "GL_LINEAR")))
       (c "glTexParameteri(GL_TEXTURE_2D,GL_GENERATE_MIPMAP,GL_TRUE)"))      
@@ -66,18 +79,19 @@
     (check-gl-error)
     id))
 
-(defstruct (texture (:include gltexobj)))
+;;; I'm somewhat frustrated to find I must keep a redundant copy of
+;;; textures in system memory around in case the OpenGL context gets
+;;; trashed.
+(defstruct (texture (:include gltexobj)) surface min-filter mag-filter)
 
 (defun load-texture-file (filename &key min-filter mag-filter)
-  (let ((surface (call :pointer-void "IMG_Load" :cstring filename)))
-    (cond 
-      ((ffi:null-pointer-p surface)
-       (warn "load-texture-file failed: ~W" filename))
-      (t (unwind-protect 
-              (make-texture :texid (upload-sdl-surface surface :min-filter min-filter :mag-filter mag-filter)
-                            :width  (c :int "((SDL_Surface *)#0)->w" :pointer-void surface)
-                            :height (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))
-           (call "SDL_FreeSurface" :pointer-void surface))))))
+  (let* ((surface (call :pointer-void "IMG_Load" :cstring filename))
+         (texture (make-texture :surface surface :min-filter min-filter :mag-filter mag-filter)))
+    (prog1 texture
+      (cond
+        ((ffi:null-pointer-p surface)
+         (warn "load-texture-file failed: ~W" filename))
+        (t (realize-gl-object texture))))))
   
 (defun set-color* (r g b a)
   (call "glColor4ub"
@@ -250,6 +264,11 @@
   (check-gl-error)
   (c "SDL_GL_SwapBuffers()"))
 
+(defun reset-video-mode ()
+  (printl :reset-video-mode)
+  (c "sys_setvideomode()")
+  (incf *vid-session*))
+
 ;;;; Images get loaded from individual files and packed into one
 ;;;; texture. In contrast to texture structs (see above), we retain
 ;;;; the SDL surface, as we may need to upload the image at any time.
@@ -262,7 +281,7 @@
 (defun img-is-free? (img)
   (not (or (img-surface img) (img-pixels img))))
 
-(defun free-img (img)  
+(defun free-img (img)
   (cond
     ((null img) (values))
     ((eql (img-owner img) *global-owner*)
@@ -281,7 +300,7 @@
     (cond
       ((ffi:null-pointer-p surface)
        (warn "load-image-file failed: ~W" filename))
-      (t 
+      (t
        (let ((width  (cx :int "((SDL_Surface *)#0)->w" :pointer-void surface))
              (height (cx :int "((SDL_Surface *)#0)->h" :pointer-void surface)))
          (make-img :width width
@@ -347,7 +366,7 @@
   ;; No, don't set the blend mode. I'd prefer to keep the freedom to manually override it.
   ;;(set-blend-mode :blend)
 
-  ;; TODO: Clamp and set border color. 
+  ;; TODO: Clamp and set border color?
   ;;(c "glTexParameter(GL_TEXTURE_2D, TEXTURE_BORDER_COLOR, whatever))
 
   (c "glBegin(GL_QUADS)")
@@ -716,18 +735,13 @@
 (defun make-packset (width height)
   (let ((ps (%make-packset :width width
                            :height height
-                           :texid (alloc-texid)
                            :stack nil)))
-    (packset-clear ps)
+    (packset-reset ps)
     ps))
 
-;;; FIXME: When I've peeked at the packset texture, there were
-;;; overlapping (clipped) images, making me suspect that this routine
-;;; either isn't called upon repack or fails to clear the image as
-;;; expected. Strange.
-(defun packset-clear (ps)
+(defun packset-clear-texture (ps)
   (check-gl-error)
-  (bind-texobj ps)
+  (invalidate-texobj-bindings)
   (ffi:c-inline ((packset-texid ps) (packset-width ps) (packset-height ps)) (:int :int :int) (values)
                 "{ void *tmp = calloc(#1*#2, 4);
                    static int blub = 1;
@@ -743,8 +757,7 @@
   ;; the R300 DRI driver on my laptop, otherwise some filtering might
   ;; sneak in and smear lines or fuck up the edges of rectangles.
   (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST)")
-  (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST)")
-  (packset-reset ps))
+  (c "glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST)"))
 
 (defun packset-reset (ps)
   (map nil #'img-detach (packset-images ps))
@@ -806,15 +819,14 @@
         (width (img-width object))
         (height (img-height object)))
     (assert (not (img-is-free? object)))
-    #+NIL
-    (format t "~&Uploaded ~A at (~D,~D) [~Dx~D]~%" object x y width height)
+    (format t "~&Uploading ~A at (~D,~D) [~Dx~D]~%" object x y width height)
     (unless *ps-suppress-upload*
       (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
          :int x :int y :int width :int height :pointer-void (img-pixels object)))
 
     ;; WORKAROUND for fglrx: If at first you don't succeed, try again.
     (when (zerop (c :int "(glGetError() == GL_NO_ERROR)"))
-      (format *trace-output* "Driver fuckup? glTexSubImage2D failed.~%")
+      (format *trace-output* "Driver fuckup? glTexSubImage2D failed. Trying again..~%")
       (printl :ps-upload :x x :y y :width width :height height :pointer-void (img-pixels object))
       (bind-texobj *packset* :unit 0 :force t)
       (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
@@ -842,19 +854,22 @@
       (t (setf (packstack-parent next) (packstack-parent current)
                (packset-stack packset) next)))))
 
-(defun packset-repack-for-object (ps object)
-  (bind-texobj ps)
-  (format t "~&Repacking for ~A..~%" object)
-  ;; First, try sorting by height and reinserting the images.
-  ;;(packset-reset ps)  
-  (packset-clear ps)
-  (printl :survived-reset)
+(defun packset-cull-deadwood (ps)
   ;; Technically, SORT isn't required to give us an vector that has a
   ;; fill pointer when the input vector has one, but as it happens ECL
   ;; does, so I'll rely on that.. because any Lisp that doesn't is
   ;; fucking INSANE. Note that I'll make the same claim about
   ;; DELETE-IF, but ECL fails on that front.
-  (setf (packset-images ps) (sort (sane-delete-if #'img-is-free? (packset-images ps)) #'> :key #'img-height))
+  (setf (packset-images ps) (sort (sane-delete-if #'img-is-free? (packset-images ps)) #'> :key #'img-height)))
+
+(defun packset-repack-for-object (ps object)
+  (bind-texobj ps)
+  (format t "~&Repacking for ~A..~%" object)
+  ;; First, try sorting by height and reinserting the images.
+  ;;(packset-reset ps)  
+  (packset-reset ps)
+  (printl :survived-reset)
+  (packset-cull-deadwood ps)
   ;;(print (packset-images ps))
   (cond
     ;; Can we repack everything into one texture? If so, upload and we're done.
@@ -864,7 +879,7 @@
     ;; If not, we need to throw some things out.
     (t
      ;; Reset previous attempt at allocation.
-     (packset-clear ps)
+     (packset-reset ps)
      
      (format t "~&-- Fuck! Packset contents: --~%")
      (loop for item across (packset-images ps)
@@ -885,6 +900,33 @@
 (defun debug-show-packset ()
   (fill-rect* 64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0 0 255)
   (draw-tile  64 64 (+ 64 (packset-width *packset*)) (+ 64 (packset-height *packset*)) 0 0))
+
+;;; Allocate and initialize/upload textures and packsets
+
+(defun realize-gl-object (obj)
+  (printl :realize-gl-object obj :vid-session *vid-session*)
+  (etypecase obj
+    (texture
+     (let ((surface (texture-surface obj)))
+       (setf (gltexobj-texid obj)  (upload-sdl-surface surface 
+                                                      :min-filter (texture-min-filter obj)
+                                                      :mag-filter (texture-mag-filter obj))
+             (gltexobj-vid-session obj) *vid-session*
+             (texture-width obj)  (c :int "((SDL_Surface *)#0)->w" :pointer-void surface)
+             (texture-height obj) (c :int "((SDL_Surface *)#0)->h" :pointer-void surface))))
+    (packset
+     (setf (gltexobj-texid obj) (alloc-texid)
+           (gltexobj-vid-session obj) *vid-session*)
+     (packset-clear-texture obj)
+     ;; You can't do this. We could land here in the middle of
+     ;; packset-upload-object, and then we blow up because we're left
+     ;; trying to upload an image that packset-reset just scrubbed the
+     ;; coordinates out of. No good.
+     ;;(packset-reset obj)
+     ;; Restore any existing images:     
+     (loop for image across (packset-images obj)
+           unless (img-is-free? image)
+           do (packset-upload-object image)))))
 
 
 ;;;; Rendering of ships in combat 
@@ -931,9 +973,15 @@
     
     
 
-(with-vars ((swizzles (make-hash-table :test 'equal)))      
+(with-vars ((swizzles (make-hash-table :test 'equal))
+            (last-valid-vid-session nil))
   (defun ensure-sprite-shader (swizzle)
     (check-gl-error)
+    ;; Check for vid restart first:
+    (unless (eql last-valid-vid-session *vid-session*)
+      (setf last-valid-vid-session *vid-session*)
+      (clrhash swizzles))
+    ;; Compile and cache the shader:
     (let ((id (gethash swizzle swizzles))
           (need-program nil))
       (unless id
@@ -974,9 +1022,15 @@ END
 " swizzle)))
           (program-shader shader-src))))))
 
-(with-vars ((swizzles (make-hash-table :test 'equal)))
+(with-vars ((swizzles (make-hash-table :test 'equal))
+            (last-valid-vid-session nil))
   (defun ensure-swizzle-shader (swizzle)
     (check-gl-error)
+    ;; Check for vid restart first:
+    (unless (eql last-valid-vid-session *vid-session*)
+      (setf last-valid-vid-session *vid-session*)
+      (clrhash swizzles))
+    ;; Now compile the shader:
     (let ((id (gethash swizzle swizzles))
           (need-program nil))
       (unless id
