@@ -12,8 +12,6 @@ int window_height = 0;
 int vid_fullscreen = 0;
 static char *apptitle = NULL;
 
-/* FIXME! We can't depend on textures (and shaders, etc.) surviving a call to SDL_SetVideoMode! */
-
 int sys_setvideomode (void)
 {
     int surfaceflags = SDL_OPENGL | SDL_DOUBLEBUF | SDL_HWACCEL | SDL_RESIZABLE 
