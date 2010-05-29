@@ -1,3 +1,9 @@
+;;;; Ye Build Script!
+
+;;;; To disable colorization of compiler messages, set the
+;;;; BUILD_NO_COLORS environment variable.
+
+;;;; -----------------------------------------------------------------
 
 ;;;; Set  global  optimization levels.   I've  learned that  declaimed
 ;;;; optimize  levels  leak between  files  with  ECL's compiler,  but
@@ -7,6 +13,7 @@
 
 ;;;; I don't think I can blame this on the compiler not being loaded
 ;;;; yet, since I'm calling compile file.
+
 (require 'cmp)
 
 (load (compile-file "declaim.lisp"))
@@ -85,6 +92,7 @@ for comparison. Accepts and produces only lists."
 		when (null char)
 		;; This fails on a certain file in Windows. I'm not
 		;; sure why, but easiest to work around it here:
+                ;; It doesn't work on OS X either! =)
 		do (warn "Problem reading CPP output!") (return-from c-object-deps (list filename)))
           (peek-char t stream nil)
           (split-string (read-unescaping stream)))
@@ -103,6 +111,8 @@ for comparison. Accepts and produces only lists."
 (defun changed-dependencies (pathname extra-deps)
   (remove-if (lambda (dep) (newer? (object-pathname pathname) (pathname dep)))
              (append (file-dependencies pathname) extra-deps)))
+
+(defun dont-colorize () (si:getenv "BUILD_NO_COLORS"))
 
 ;;;; Build process
 
@@ -130,7 +140,8 @@ for comparison. Accepts and produces only lists."
 (defvar *use-colors* #-win32 t #+win32 nil)
 (defun sgr (&rest modes)
   "Print ANSI color codes. Doesn't work in the Windows console."
-  (when *use-colors* (format t "~C[~{~D~^;~}m" #\Esc modes)))
+  (when (and *use-colors* (not (dont-colorize)))
+    (format t "~C[~{~D~^;~}m" #\Esc modes)))
 
 (loop with compiler-sources-loaded = nil
       for source-spec in (append (c-sources) (lisp-sources))
