@@ -1,4 +1,4 @@
-;;;; Ye Build Script!
+;;;; Ye BuildBastard!
 
 ;;;; To disable colorization of compiler messages, set the
 ;;;; BUILD_NO_COLORS environment variable.
@@ -13,6 +13,9 @@
 
 ;;;; I don't think I can blame this on the compiler not being loaded
 ;;;; yet, since I'm calling compile file.
+
+;;;; Addendum: This behavior may have changed in ECL recently. I
+;;;; haven't looked into it.
 
 (require 'cmp)
 
@@ -81,10 +84,17 @@ for comparison. Accepts and produces only lists."
         do (setf index end)
         unless index do (return (nreverse accum))))
 
-(defun c-object-deps (filename)
-  (let* ((args (append (cflags) (list "-M" (namestring filename))))
-         (stream (ext:run-program "cpp" args
-                                  :input nil :output :stream :error *error-output*)))
+(defun c-object-deps (filename &optional (compiler "gcc"))
+  ;; We have to use "gcc -E" instead of "cpp" due to some stupidity on
+  ;; OS X where cpp barfs on variadic macros in the system header
+  ;; files, because it passes -traditional to GCC. Whatever.
+  (let* ((args `("-E"
+                 ;; Suggested for pre-Snow Leopard OS X, not sure if I need it:
+                 ;; "-traditional-cpp"
+                 ,@(cflags)
+                 "-M" ,(namestring filename)))
+         (stream (ext:run-program compiler args
+                                  :input nil :output :stream :error *error-output*)))    
     (handler-case 
         (progn
           (loop as char = (read-char stream nil)
@@ -92,12 +102,14 @@ for comparison. Accepts and produces only lists."
 		when (null char)
 		;; This fails on a certain file in Windows. I'm not
 		;; sure why, but easiest to work around it here:
-                ;; It doesn't work on OS X either! =)
-		do (warn "Problem reading CPP output!") (return-from c-object-deps (list filename)))
+		do
+                (warn "Problem reading CPP output! Command invocation:~%   ~{~A ~}" 
+                      (cons compiler args)) 
+                (return-from c-object-deps (list filename)))
           (peek-char t stream nil)
           (split-string (read-unescaping stream)))
       (serious-condition (err)
-        (format t "~&~A ~{~A~^ ~}~%" "cpp" args)
+        (format t "~&~A ~{~A~^ ~}~%" compiler args)
         (format t "~&Error computing dependencies of ~A:~% ~A~%" filename err)
         (fail)))))
 
