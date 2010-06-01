@@ -4,22 +4,24 @@
 
 (pushnew :with-gui *features*)
 
-(defun cflags () (list #-win32 "-I/usr/include/freetype2"
-		       #+win32 "-Ic:/MinGW/include/freetype2"
-                       ;; On OS X, use the MacPorts stuff installed in /opt
-                       #+darwin "-I/opt/local/include" 
-                       #+darwin "-I/opt/local/include/SDL"
-                       #+darwin "-I/opt/local/include/freetype2"
-                       #+darwin "-D_THREAD_SAFE"
-		       "-DGLEW_STATIC=1" "-Isrc/glew" "-std=c99"))
+(defun cflags () `(#-win32 "-I/usr/include/freetype2"
+                   #+win32 "-Ic:/MinGW/include/freetype2"
+
+                   ;; On OS X, use the MacPorts stuff installed in /opt for now.
+                   #+darwin 
+                   ,@'("-I/opt/local/include" 
+                       "-I/opt/local/include/SDL"
+                       "-I/opt/local/include/freetype2"
+                       "-D_THREAD_SAFE")
+
+                   "-DGLEW_STATIC=1" "-Isrc/glew" "-std=c99"))
 
 (defun ld-flags ()
   "Non-library linker flags"
-  (list 
-   ;; Uncomment this to hide the console.
+  `(
+   ;; Uncomment this to hide the console on Windows:
    ;;#+win32 "-Wl,-subsystem,windows"
-   #+darwin "-framework" #+darwin "OpenGL"
-   #+darwin "-L/opt/local/lib"))
+    #+darwin ,@'("-framework" "OpenGL" "-L/opt/local/lib")))
 
 (defun c-sources ()
   "C source code modules."
