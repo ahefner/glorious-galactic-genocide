@@ -211,6 +211,7 @@
 
    ;; Derived attributes:
    (weight :accessor weight-of :initarg :weight :initform 1234)
+   (space-used :accessor space-used-of :initarg :weight :initform 0)
    (range-bonus :accessor range-bonus-of :initform 0)
    (beam-defense :accessor beam-defense-of :initform 0)
    (target-acc :accessor target-acc-of :initform 1)

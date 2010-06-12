@@ -549,6 +549,9 @@
       (set-slot 4 colony-ship 1 'colony-base)
       (set-slot 0 colony-ship 2 'heavy-laser-beam)
       (set-slot 1 colony-ship 3 'heavy-laser-beam))
+    ;; Re-analyze the design, since the slots weren't initially set.
+    (analyze-design scout)
+    (analyze-design colony-ship)
 
     (setf (building-design-of homeworld) scout)
     (build-ships homeworld scout 2)

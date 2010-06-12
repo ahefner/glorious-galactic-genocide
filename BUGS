@@ -1,7 +1,6 @@
 Serious issues:
 * Packset repack thrashing
-* [WIN] OpenGL context trashed on resize
-* [WIN] Invalid enum, crashes on no GL driver (check renderer = "GDI Generic")
+* [WIN] Invalid enum, crashes on no GL driver (check renderer = "GDI Generic") (??)
 * Better error handling / recording.
 
 
@@ -21,6 +20,7 @@ Minor issues:
 * Fix fringe around normal mapped sprites
 * Who is responsible for freeing ship labels? We should ditch that and add a system of flushable labels, GCed when packset allocation fails. Maybe just make global labels flushable, since they are.
 * Invert text/selected color in tech panel (white not being the selected item is confusing when there's only two techs)
+* Mac/SDL-1.3: SDL 1.3 doesn't do SDL 1-2.style key repeat. Since it emulates it using its own repeat rate anyway, I might as well turn it off and emulate key repeat myself.
 
 Ignorable issues:
 * (Linux) Xorg Intel driver segfault at quit (XCloseDisplay)
@@ -31,7 +31,7 @@ Ignorable issues:
 Resolved serious issues:
 * Starmap floating point underflow
 * Planet panel not updating on turn end
-
+* [WIN] OpenGL context trashed on resize
 
 
 Resolved medium issues:
@@ -55,12 +55,13 @@ TODO, High priority:
 
 TODO, Medium priority:
 * Sliding selection of ship quantity in fleet panel
-* Planet planet should display requirements for colonization (how to fit this at at 800x480?)
+* Planet planet should display requirements for colonization (how to fit this at 800x480?)
 
 TODO, Low priority:
 * Better inferno planet graphic
 * Better art for bottom panels
 * Sound effect manager that ensures the same sound isn't played twice simultaneously or in close succession
+* Rework pointer grab handling (I think I can remove all the code that handles this and replace it with a new root gadget for the duration of the grab)
 
 ------------------------------------------------------------------------------------------------
 

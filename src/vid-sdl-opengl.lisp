@@ -69,8 +69,9 @@
     (unless (find min-filter (list (cx :int "GL_NEAREST") (cx :int "GL_LINEAR")))
       (c "glTexParameteri(GL_TEXTURE_2D,GL_GENERATE_MIPMAP,GL_TRUE)"))      
     (ffi:c-inline (surface) (:pointer-void) (values)
-     "{ SDL_Surface *surf = #0; 
-        int mode = (surf->format->BytesPerPixel==3)? GL_RGB : GL_RGBA;
+     "{ SDL_Surface *surf = #0;
+        int rgb = GL_RGB, rgba = GL_RGBA;
+        int mode = (surf->format->BytesPerPixel==3)? rgb : rgba;
         glTexImage2D(GL_TEXTURE_2D, 0, mode, surf->w, surf->h, 0, mode, GL_UNSIGNED_BYTE, surf->pixels); 
       }")
     (check-gl-error)
@@ -91,7 +92,8 @@
       (cond
         ((ffi:null-pointer-p surface)
          (warn "load-texture-file failed: ~W" filename))
-        (t (realize-gl-object texture))))))
+        (t (c "unfuck_image(#0)" :pointer-void surface)
+           (realize-gl-object texture))))))
   
 (defun set-color* (r g b a)
   (call "glColor4ub"
@@ -301,6 +303,7 @@
       ((ffi:null-pointer-p surface)
        (warn "load-image-file failed: ~W" filename))
       (t
+       (c "unfuck_image(#0)" :pointer-void surface)
        (let ((width  (cx :int "((SDL_Surface *)#0)->w" :pointer-void surface))
              (height (cx :int "((SDL_Surface *)#0)->h" :pointer-void surface)))
          (make-img :width width
@@ -819,7 +822,7 @@
         (width (img-width object))
         (height (img-height object)))
     (assert (not (img-is-free? object)))
-    (format t "~&Uploading ~A at (~D,~D) [~Dx~D]~%" object x y width height)
+    ;;(format t "~&Uploading ~A at (~D,~D) [~Dx~D]~%" object x y width height)
     (unless *ps-suppress-upload*
       (c "glTexSubImage2D(GL_TEXTURE_2D, 0, #0, #1, #2, #3, GL_RGBA, GL_UNSIGNED_BYTE, #4)"
          :int x :int y :int width :int height :pointer-void (img-pixels object)))
@@ -904,7 +907,7 @@
 ;;; Allocate and initialize/upload textures and packsets
 
 (defun realize-gl-object (obj)
-  (printl :realize-gl-object obj :vid-session *vid-session*)
+  ;;(printl :realize-gl-object obj :vid-session *vid-session*)
   (etypecase obj
     (texture
      (let ((surface (texture-surface obj)))

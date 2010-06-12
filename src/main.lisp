@@ -35,9 +35,6 @@
 (defvar *show-fps* t)
 (defvar *show-fps-cache* nil)
 
-;;; There's some spooky bug with catch/throw in ECL. I had to flail
-;;; around changing things to make this work. It will probably break
-;;; again soon enough.
 (define-condition abort-gadget-run (condition) ())
 
 (defun throw-from-gadget-run ()
@@ -93,6 +90,11 @@
 
 (defun have-opengl-1.4 () (not (zerop (cx :int "GLEW_VERSION_1_4"))))
 
+(defun test-pixel-format ()
+  (let ((img (img :colortest)))
+    (format *trace-output* "~&Test pixel: ~X~%" (c :unsigned-int "*(unsigned *)#0" :pointer-void (img-pixels img)))
+    (c "describe_pixel_format(((SDL_Surface *)#0)->format)" :pointer-void (img-surface img))))
+
 (defun %main ()
 
   (setf *global-owner* (make-instance 'global-owner))
@@ -126,13 +128,15 @@
      (field "GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB")
      (field "GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB")
      (field "GL_MAX_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB")))
-  
+
+  (test-pixel-format)
   (load-assets)
 
   ;; 512 isn't quite wide enough for certain title labels that appear
   ;; in the fleet display (with race, destination, and ETA, in title
   ;; face, it can get wide).
   ;; The larger schematic images demand we upgrade to 1024 vertically, too.
+  ;; (Do I really want to keep schematic images in the packset? This seems addled.)
   (setf *packset* (make-packset 1024 1024))
 
   (format t "~&Running test game.~%")

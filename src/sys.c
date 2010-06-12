@@ -12,6 +12,11 @@ int window_height = 0;
 int vid_fullscreen = 0;
 static char *apptitle = NULL;
 
+void describe_pixel_format (SDL_PixelFormat *fmt)
+{
+    printf("  %i bpp, %4X %4X %4X %4X\n", fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask);
+}
+
 int sys_setvideomode (void)
 {
     int surfaceflags = SDL_OPENGL | SDL_DOUBLEBUF | SDL_HWACCEL | SDL_RESIZABLE 
@@ -22,6 +27,9 @@ int sys_setvideomode (void)
         printf("Could not set desired display mode!\n");
         return 1;
     }
+
+    printf("Window pixel format:\n");
+    describe_pixel_format(window_surface->format);
 
     SDL_WM_SetCaption (apptitle, apptitle);
     SDL_FillRect(window_surface, NULL, SDL_MapRGB(window_surface->format, 0, 0, 0));
@@ -49,7 +57,7 @@ int sys_init (char *title)
 {
     int i, tmp;
     // My SDL_image is too old for this. It will supposedly make things faster.
-    //IMG_Init(IMG_INIT_PNG);
+    //IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
 
     apptitle = title;
 
@@ -61,17 +69,21 @@ int sys_init (char *title)
     audio_init();
 
     SDL_VideoInfo *vinf = SDL_GetVideoInfo();
+
+    printf("Desktop pixel format: ");
+    describe_pixel_format(vinf->vfmt);
+
     if (!(vid_fullscreen)) {
 //        window_width = vinf->current_w - 64;
 //        window_height = vinf->current_h - 90;
         
         // Minimum supported resolution:
-        window_width = 800;
-        window_height = 480;
+//        window_width = 800;
+//        window_height = 480;
 
         // Expected typical resolution:
-        //window_width = 1280;
-        //window_height = 800;
+        window_width = 1280;
+        window_height = 800;
     }   
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -102,4 +114,19 @@ unsigned usectime (void)
         exit(1);
     }
     return (unsigned)(tv_to_micros(&tv) & 0xFFFFFFFF);
+}
+
+void unfuck_image (SDL_Surface *surface)
+{
+    // Fuck you, SDL_image, or whoever is responsible.
+    if (surface->format->Rmask == 0xFF0000) {
+        unsigned *pixels = surface->pixels;
+        for (unsigned idx = 0; idx < surface->w * surface->h; idx++) {
+            unsigned tmp = pixels[idx];
+            unsigned foo = tmp & 0xFF00FF00;
+            pixels[idx] = foo | ((tmp>>16)&255) | ((tmp&255)<<16);
+        }
+        surface->format->Rmask=0xFF;
+        surface->format->Bmask=0xFF0000;
+    }
 }

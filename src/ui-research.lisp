@@ -53,7 +53,7 @@
         (when *print-tech-show-unit-cost*
           (pair "Cost" (gtxt (format nil "~:D ~A" (tech-unit-cost tech) (player-currency *player*)))))
         (when *print-tech-show-unit-cost*
-          (pair "Size" (gtxt (format nil "~:D m~C" (compute-tech-size *design* tech) (code-char #xB3)))))
+          (pair "Size" (gtxt (format nil "~:D m~C" (compute-tech-size *design* tech) (cubed-char)))))
         (when *print-tech-show-research-cost*
           (pair "Research Cost" (gtxt (format nil "~:D ~A" (tech-research-cost tech) (player-currency *player*)))))
         #+DONTLIKEIT (pair "Level" (gtxt (format nil "~:D" (level-of tech)))))

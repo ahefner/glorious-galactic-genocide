@@ -113,3 +113,10 @@ error if SEQUENCE is not a proper sequence."
   (etypecase seq
     (list (null seq))
     (vector (zerop (length seq)))))
+
+;;; Recent ECL compilers are unreliable regarding non-ASCII
+;;; characters.
+
+
+(defun cubed-char ()
+  (code-char #xB3))

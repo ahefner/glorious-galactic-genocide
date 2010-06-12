@@ -696,12 +696,6 @@
         for count across (deisgn-tech-counts design)
         when tech collect (cons tech count)))
 
-(defun tally-techs (design init reduce-fn key-fn mult-fn)
-  (loop with accum = init
-        for tech across (design-tech-slots design)
-        for count across (deisgn-tech-counts design)
-        when tech do (setf accum (funcall reduce-fn accum (funcall key-fn )))))
-
 (defmacro latest-model-number (player type)
   `(getf (model-history-of ,player)
          (intern (name-of ,type) :keyword) 0))
@@ -752,6 +746,9 @@
 ;;; Compute derived attributes (cost, speed, etc.) from a design, and set those slots.
 ;;; May be called multiple times when the designer UI is running.
 ;;; TODO: Compute cost (don't specify in make-design, that's dumb)
+
+;;
+
 (defun analyze-design (design)
   ;; TODO: COMPUTE COST
   (let ((type (design-type design)))
@@ -759,8 +756,21 @@
     ;;  ...
     (setf (weight-of design) (round
                               (+ (weight-of type)
-                                 (reduce #'+ (design-techs design) :key (lambda (tech) (compute-tech-weight design tech)))))
-          ;; FIXME: THIS IS WRONG. MULTIPLY BY COUNTS.
+                                 (loop for tech across (design-tech-slots design)
+                                       for count across (design-tech-counts design)                                    
+                                       summing (if (not tech)
+                                                   0
+                                                   (* count 
+                                                      (compute-tech-weight design tech))))))
+          (space-used-of design) (round
+                                  (loop for tech across (design-tech-slots design)
+                                        for count across (design-tech-counts design)
+                                        when tech
+                                        do (format t "~&   ~:D x ~A = ~:D~%" count (name-of tech) (* count (compute-tech-size design tech)))
+                                        summing (if (not tech)
+                                                    0
+                                                    (* count 
+                                                       (compute-tech-size design tech)))))
           (cost-of design) (+ (cost-of type)
                               (reduce #'+ (design-techs design) :key #'tech-unit-cost))
           (thrust-of design) (+ (maneuverability-of type)
