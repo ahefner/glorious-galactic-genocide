@@ -51,7 +51,7 @@
       (defmethod print-tech-stats :before (cursor tech)
         (declare (ignore cursor))
         (when *print-tech-show-unit-cost*
-          (pair "Cost" (gtxt (format nil "~:D ~A" (tech-unit-cost tech) (player-currency *player*)))))
+          (pair "Cost" (gtxt (format nil "~:D ~A" (tech-base-unit-cost tech) (player-currency *player*)))))
         (when *print-tech-show-unit-cost*
           (pair "Size" (gtxt (format nil "~:D m~C" (compute-tech-size *design* tech) (cubed-char)))))
         (when *print-tech-show-research-cost*
@@ -273,15 +273,25 @@
            (incf index d-columns)))
         (setf inspector-tech (elt techs (clamp index 0 (1- (length techs)))))))))
 
+(defgeneric tech-panel-tech-enabled? (panel tech)
+  (:method (panel tech) 
+    (declare (ignore panel tech))
+    t))
+
 ;;; Display the given techs and allow the player to select one with the mouse. Returns the selected tech.
-(defun run-tech-listing (uic techs selected top)
+(defun run-tech-listing (panel uic techs selected top)
   (loop with x0 = 20  with x = x0
         with col-width = 200
         with y = (+ top 52)
         for tech in techs
-        as label = (small-name-label-of tech) do
-        (draw-img-deluxe label x y (if (eql tech selected) (label-color) #(255 255 255 255)))
-        (when (and (pointer-in-img-rect uic label x y) (clicked? uic +left+))
+        as enabled = (tech-panel-tech-enabled? panel tech)
+        as label = (small-name-label-of tech) do        
+        (draw-img-deluxe label x y (if (eql tech selected) 
+                                       (label-color)
+                                       (if enabled
+                                           #(255 255 255 255)
+                                           #(128 128 128 255))))
+        (when (and enabled (pointer-in-img-rect uic label x y) (clicked? uic +left+))
           (snd-click)
           (setf selected tech))
         (incf x col-width)
@@ -295,7 +305,7 @@
     (draw-bottom-panel uic top)
     (draw-img-deluxe (global-label :gothic 20 header) 16 (+ top 30) (label-color))
     ;; Present tech names
-    (setf inspector-tech (run-tech-listing uic techs inspector-tech top))
+    (tech-panel-select-tech panel (run-tech-listing panel uic techs inspector-tech top))
     ;; Present selected tech
     (when inspector-tech
       (let ((*print-tech-show-research-cost* show-research-cost)
@@ -309,6 +319,11 @@
 
 (defgeneric run-tech-panel-buttons (gadget uic top)
   (:method (x y z) (declare (ignore x y z))))
+
+(defgeneric tech-panel-select-tech (panel tech)
+  (:method ((panel select-tech-panel) tech)
+    (when tech
+      (setf (slot-value panel 'inspector-tech) tech))))
 
 ;;;; ----------------------------------------------------------------------
 ;;;; Select research
@@ -337,11 +352,12 @@
                                                    :techs (available-techs-of *player*)))))
 
 ;;;; ----------------------------------------------------------------------
-;;;; Select weapon/special for slot
+;;;; Select weapon/special for slot (used by ship designer)
 
 (defclass select-slot-tech-panel (select-tech-panel)
   ((slot :initarg :slot)
    (design :initarg :design)
+   (space-available :initarg :space-available)
    (number :initarg :number))
   (:default-initargs :show-unit-cost t :show-size t))
 
@@ -350,16 +366,33 @@
   (let ((*design* (slot-value panel 'design)))
     (call-next-method)))
 
+(defmethod tech-panel-select-tech ((panel select-slot-tech-panel) tech)
+  ;; Redundant since I've added the tech-enabled check...
+  (with-slots (inspector-tech design space-available) panel
+    (when (and tech (<= (compute-tech-size design tech) space-available))
+      (setf inspector-tech tech))))
+
+(defmethod tech-panel-tech-enabled? ((panel select-slot-tech-panel) tech)
+  (with-slots (design space-available) panel
+    (and tech (<= (compute-tech-size design tech) space-available))))
+
 (defmethod run-tech-panel-buttons ((panel select-slot-tech-panel) uic top)
-  (with-slots (inspector-tech player number slot design) panel
-    
+  (with-slots (inspector-tech player number slot design space-available) panel    
     (when inspector-tech
       ;; Hack?
       (unless number (setf number 1))
-
-      (setf number (run-adjust-buttons uic
-                                       (- (uic-width uic) 180)
-                                       (+ top (- (panel-height panel) 20)) number 3)))
+      (let ((max-possible (floor space-available
+                                 (compute-tech-size design inspector-tech))))
+        ;; It's necessary to clamp here because the tech may have
+        ;; changed, changing the space utilization and maximum number
+        ;; of units.
+        (setf number (clamp (run-adjust-buttons uic
+                                                (- (uic-width uic) 180)
+                                                (+ top (- (panel-height panel) 20)) 
+                                                number
+                                                max-possible)
+                            0
+                            max-possible))))
 
     (when (eql 0 number)
       (setf number nil
@@ -377,7 +410,7 @@
 
        ;; Modify design and re-analyze:
        (setf (aref (design-tech-slots  *design*) (index-of slot)) inspector-tech
-             (aref (design-tech-counts *design*) (index-of slot)) (or number 1))
+             (aref (design-tech-counts *design*) (index-of slot)) (and inspector-tech number))
        (analyze-design design)
        ;; Close panel:
        (bottom-panel-request-close panel))

@@ -238,6 +238,9 @@
    ;; Modifier for unit cost (scaled quadratically by tech level over magic fudge factor)
    (unit-cost-mod :reader unit-cost-mod-of :initarg :unit-cost-mod)
 
+   ;; Does tech cost scale with ship size?
+   (cost-scales-with-size? :reader cost-scales-with-size? :initform nil :initarg :cost-scales-with-size)
+
    ;; Probability that tech will be available to a player in a given game (default 50%)
    (probability :reader probability-of :initform 0.50 :initarg :probability)
 

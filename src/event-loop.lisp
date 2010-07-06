@@ -100,6 +100,7 @@ static SDL_Event cur_event;
 
                           (let ((char (ignore-errors (code-char (cx :int "(int)cur_event.key.keysym.unicode")))))
                             (when (and *devmode* (not (zerop (logand +alt-mask+ (uic-modifiers uic)))))
+                              (printl :char char :modifiers (uic-modifiers uic))
                               ;; Alt-r: Reload sources
                               (when (and (eql char #\r)) (reload-modified-sources))
                               ;; Alt-s: Start swank server (background)

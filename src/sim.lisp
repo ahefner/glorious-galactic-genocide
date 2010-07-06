@@ -628,13 +628,20 @@
 
 (defun tech-research-cost (tech) (tech-level-cost (level-of tech)))
 
-(defun tech-unit-cost (tech)
+(defun tech-base-unit-cost (tech)
+  (ceiling
+   (* (cost-modifier-of tech)
+        (expt 2 (/ (level-of tech) 20 #| Magic fudge factor |# )))))
+
+(defun tech-cost-for-design (design tech)
   ;; The magic fudge factor 'foo' is the number of tech levels necessary to double the per-unit cost.
-  (let ((foo 20))
-    (ceiling
-     (* 5
-        (cost-modifier-of tech)
-        (expt 2 (/ (level-of tech) foo))))))
+  (ceiling
+   (* 5
+      (if (cost-scales-with-size? tech)
+          ;; Magic scaling here makes medium ships the reference for scaled equipment cost.
+          (* (/ 600.0) (space-of (design-type design)))
+          1.0)
+      (tech-base-unit-cost tech))))
 
 (defun progress-research-project (player project investment)
   (printl :research-progress (researching-tech project)
@@ -728,6 +735,10 @@
 
 (defun get-nth-design (player n) (aref (ship-designs-of player) n))
 
+(defun space-remaining (design)
+  (- (space-of (design-type design))
+     (space-used-of design)))
+
 ;;; FIXME/TODO: This gives us base size, but size should miniaturize with advancing tech level too.
 (defgeneric compute-tech-size (design tech)
   (:method (design tech)
@@ -750,10 +761,8 @@
 ;;
 
 (defun analyze-design (design)
-  ;; TODO: COMPUTE COST
   (let ((type (design-type design)))
-    ;; TODO: 
-    ;;  ...
+    (format t "~&---------- Analyzing design ~W ----------~%" design)
     (setf (weight-of design) (round
                               (+ (weight-of type)
                                  (loop for tech across (design-tech-slots design)
@@ -769,14 +778,18 @@
                                         do (format t "~&   ~:D x ~A = ~:D~%" count (name-of tech) (* count (compute-tech-size design tech)))
                                         summing (if (not tech)
                                                     0
-                                                    (* count 
+                                                    (* count
                                                        (compute-tech-size design tech)))))
           (cost-of design) (+ (cost-of type)
-                              (reduce #'+ (design-techs design) :key #'tech-unit-cost))
+                              (loop for tech across (design-tech-slots design)
+                                    for count across (design-tech-counts design)
+                                    summing (if (not tech) 0 (* count (tech-cost-for-design design tech)))))
           (thrust-of design) (+ (maneuverability-of type)
                                 (reduce #'+ (design-techs design) :key #'thrust-bonus))
           (speed-of design) (engine-speed (engine-of design))
-          (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus))))
+          (range-bonus-of design) (reduce #'+ (design-techs design) :key #'range-bonus))
+    (format t "~&~%Analysis result:~%")
+    (describe design)))
 
 (defun hardpoint-applicable-techs (hardpoint player)
   (let ((tech-class (slot-value hardpoint 'tech-class)))

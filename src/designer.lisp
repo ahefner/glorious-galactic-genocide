@@ -297,6 +297,7 @@
            (setf ship-type (prompt-for-design uic))
            (when (and ship-type (not design))
              (setf design (make-design "Foobar 2000" ship-type))))
+
           ;; Yes? Show it and allow editing.
           (t
            (unless schematic-transition
@@ -319,8 +320,7 @@
                (when editable?
                  (let* ((string 
                          (format nil "Space Remaining: ~:D m~C / ~:D m~C" 
-                                 (- (space-of ship-type) 
-                                    )
+                                 (space-remaining design)
                                  (cubed-char)
                                  (space-of ship-type)
                                  (cubed-char))))
@@ -347,12 +347,17 @@
                           ;; Pointer is in the slot:
                           (when (and editable? (clicked? uic))
                             (enqueue-next-panel 
-                             #| Host: |#
+                             ;; The host: (create and activate a new one)
                              (activate-new-gadget (make-instance 'modal-bottom-panel-host))
+                             ;; The (child) panel:
                              (make-instance 'select-slot-tech-panel :player *player* :slot slot
                                             :design design
                                             :number amount
                                             :selected tech
+                                            :space-available (+ (space-remaining design)
+                                                                (if tech
+                                                                    (* amount (compute-tech-size design tech))
+                                                                    0))
                                             ;; TODO: filter techs appropriate for slot.
                                             :techs (hardpoint-applicable-techs slot *player*)))
                             (printl :edit (name-of slot) slot))
@@ -386,6 +391,7 @@
      (activate-new-gadget (make-instance 'hardpoint-editor)))))
 
 ;;;; ----------------------------------------------------------------------
+;;;; Hardpoint editor, for developers. Places hardpoints and arrows.
 
 (defclass hardpoint-editor (gadget)
   ((editing-slot :initform nil)         ; The hardpoint.
