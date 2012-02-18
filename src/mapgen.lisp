@@ -532,12 +532,12 @@
   (let ((homeworld (aref (colonies player) 0))
         (scout (make-design "Scout" (find-ship-type "Scout") 
                             :owner player
-                            :cost 100   ; HACK FIXME
-                            :engine (find-tech 'ion-drive)))
+                            :cost 100   ; HACK FIXME 
+                            ))
         (colony-ship (make-design "Colony Ship" (find-ship-type "Modular Cruiser") 
                                   :owner player
                                   :cost 2500  ; HACK FIXME
-                                  :engine (find-tech 'ion-drive))))
+                                  )))
     ;; Install and number the default designs:
     (define-new-design player scout)
     (define-new-design player colony-ship)
@@ -545,10 +545,10 @@
     (flet ((set-slot (slot-index design count tech-name)
              (setf (aref (design-tech-slots design) slot-index) (find-tech tech-name)
                    (aref (design-tech-counts design) slot-index) count)))
-      (set-slot 3 scout 1 'reserve-tanks)
-      (set-slot 4 colony-ship 1 'colony-base)
-      (set-slot 0 colony-ship 2 'heavy-laser-beam)
-      (set-slot 1 colony-ship 3 'heavy-laser-beam))
+      (set-slot 5 scout 1 'reserve-tanks)
+      (set-slot 6 colony-ship 1 'colony-base)
+      (set-slot 2 colony-ship 2 'heavy-laser-beam)
+      (set-slot 3 colony-ship 3 'heavy-laser-beam))
     ;; Re-analyze the design, since the slots weren't initially set.
     (analyze-design scout)
     (analyze-design colony-ship)

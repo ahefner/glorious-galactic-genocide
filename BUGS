@@ -58,6 +58,7 @@ TODO, Medium priority:
 * Planet planet should display requirements for colonization (how to fit this at 800x480?)
 
 TODO, Low priority:
+* Screen capture via PrintScr key (must do before first beta!)
 * Better inferno planet graphic
 * Better art for bottom panels
 * Sound effect manager that ensures the same sound isn't played twice simultaneously or in close succession

@@ -694,6 +694,19 @@
             (sep)
             (format out "+~D targetting" weapon-targetting-bonus)))))))
 
+(defmethod designer-description-of ((this engine))
+  (with-slots (designer-description engine-speed) this
+    (or designer-description
+        (format nil "Speed: ~Fc" (* 0.5 engine-speed)))))
+
+(defmethod designer-description-of ((this hull))
+  (with-slots (designer-description armor-level hull-modifier) this
+    (or designer-description
+        (format nil "Hull strength ~Fx~:[~;, Armor +~:D~]" 
+                hull-modifier 
+                (not (zerop armor-level))
+                armor-level))))
+
 ;;;; Designs
 
 (defun design-techs (design) (remove nil (design-tech-slots design)))
@@ -713,12 +726,18 @@
         do (setf (index-of slot) index)))
 
 (defun make-design (name type &rest args)
-  (let ((design 
-         (apply #'make-instance 'design 
-                :name name :type type
-                :techs (map 'vector (constantly nil) (slots-of type))
-                :tech-counts (map 'vector (constantly nil) (slots-of type))
-                args)))
+  (let* ((techs (map 'vector (constantly nil) (slots-of type)))
+         (tech-counts (map 'vector (constantly nil) (slots-of type)))
+         (design 
+          (apply #'make-instance 'design 
+                 :name name :type type
+                 :techs techs
+                 :tech-counts tech-counts
+                 args)))
+    (setf (aref techs 0) (find-tech 'ion-drive)
+          (aref tech-counts 0) 1
+          (aref techs 1) (find-tech 'titanium-hull)
+          (aref tech-counts 1) 1)
     (prog1 design      
       (analyze-design design)
       (assert (owner-of design))
@@ -753,6 +772,12 @@
 (defgeneric compute-tech-weight (design tech)
   (:method (design tech)    
     (* 0.3 (compute-tech-size design tech))))
+
+(defun engine-of (design)
+  (aref (design-tech-slots design) 0))
+
+(defun hull-of (design)
+  (aref (design-tech-slots design) 1))
 
 ;;; Compute derived attributes (cost, speed, etc.) from a design, and set those slots.
 ;;; May be called multiple times when the designer UI is running.

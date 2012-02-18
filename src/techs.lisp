@@ -27,7 +27,6 @@
     "A colony base can be used to create a new settlement on any uninhabited planet with a breathable atmosphere. The colony ship is dismantled and recycled by the new colony."
   :designer "Allows colonizing habitable planets.")
 
-
 ;;;; Engines
 
 (deftech (0 engine ion-drive :probability 1.0 :engine-speed 1)

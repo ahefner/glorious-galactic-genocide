@@ -376,27 +376,50 @@
   (with-slots (design space-available) panel
     (and tech (<= (compute-tech-size design tech) space-available))))
 
-(defmethod run-tech-panel-buttons ((panel select-slot-tech-panel) uic top)
-  (with-slots (inspector-tech player number slot design space-available) panel    
-    (when inspector-tech
-      ;; Hack?
-      (unless number (setf number 1))
-      (let ((max-possible (floor space-available
-                                 (compute-tech-size design inspector-tech))))
-        ;; It's necessary to clamp here because the tech may have
-        ;; changed, changing the space utilization and maximum number
-        ;; of units.
-        (setf number (clamp (run-adjust-buttons uic
-                                                (- (uic-width uic) 180)
-                                                (+ top (- (panel-height panel) 20)) 
-                                                number
-                                                max-possible)
-                            0
-                            max-possible))))
+(defvar *select-tech-count-label* nil)
 
-    (when (eql 0 number)
-      (setf number nil
-            inspector-tech nil))
+(defmethod run-tech-panel-buttons ((panel select-slot-tech-panel) uic top)
+  (with-slots (inspector-tech player number slot design space-available) panel
+    (let ((sx (- (uic-width uic) 180))
+          (sy (+ top (- (panel-height panel) 20))))
+      (when inspector-tech
+        ;; Hack?
+        (unless number (setf number 1))
+        
+        (when (slot-value slot 'allow-multi)
+          (let ((max-possible (floor space-available
+                                     (compute-tech-size design inspector-tech))))
+           ;; It's necessary to clamp here because the tech may have
+           ;; changed, changing the space utilization and maximum number
+           ;; of units.
+           (setf number (clamp (run-adjust-buttons uic
+                                                   sx
+                                                   sy
+                                                   number
+                                                   max-possible)
+                               0
+                               max-possible))
+
+           (when (eql 0 number)
+             (setf number nil
+                   inspector-tech nil))
+
+           (when number
+             (let ((string (format nil "~:D / ~:D" number max-possible)))       
+               (draw-img (cachef (*select-tech-count-label* string :delete free-img)
+                                 (render-label :designer :sans 11 string :align-x :center)) 
+                         sx (- sy 16))))))
+
+        (when (and (not (slot-value slot 'required))
+                   (not (slot-value slot 'allow-multi)))
+          (assert (not (null inspector-tech)))
+          (when (run-labelled-button uic
+                                     (global-label :bold 14 "Unequip This")
+                                     (- (uic-width uic) 200)
+                                     (+ top (- (panel-height panel) 31))
+                                     :color (label-color))
+            (setf number nil
+                  inspector-tech nil)))))
 
     (cond
       ;; Edit with a selection

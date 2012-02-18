@@ -201,7 +201,7 @@
   ((type :accessor design-type :initarg :type)
    (techs :accessor design-tech-slots :initarg :techs)
    (tech-counts :accessor design-tech-counts :initarg :tech-counts)
-   (engine :accessor engine-of :initform nil :initarg :engine)
+;;   (engine :accessor engine-of :initform nil :initarg :engine)
    ;; Index specifying which of the nine player designs this design occupies:
    (slot-num :accessor design-slot-num :initform nil :initarg :slot-num)
 
@@ -453,7 +453,8 @@
 (defclass hardpoint (named) 
   ((tech :accessor tech-of :initform nil :initarg :tech)
    (tech-class :initarg :tech-class)
-   (allow-multi :initform nil :initarg :allow-multi)
+   (allow-multi :initform nil :initarg :allow-multi) ; Allow counts greater than 1
+   (required :initform nil :initarg :required)       ; Cannot unequip (for engine and hull type)
    (empty-string :accessor empty-string-of :initarg :empty)
    ;; Index into tech/count arrays of design.
    (index :accessor index-of :initarg :index))     
@@ -472,4 +473,12 @@
 (defclass special-mount (hardpoint) ()
   (:default-initargs :tech-class 'special-tech :allow-multi nil))
 
+;;; Engine and hull mounts are slightly magic in that all designs have
+;;; them, and they're fixed at the 0th and 1st positions in the slots
+;;; vector.
 
+(defclass engine-mount (hardpoint) ()
+  (:default-initargs :tech-class 'engine :allow-multi nil :required t))
+
+(defclass hull-mount (hardpoint) ()
+  (:default-initargs :tech-class 'hull :allow-multi nil :required t))

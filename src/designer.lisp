@@ -41,7 +41,8 @@
    (make-instance 'fade-transition-gadget                  
                   :child (make-instance 'designer
                                         :player *player*
-                                        :design (print (get-nth-design *player* 1))
+                                        ;; HACK FIXME
+                                        :design (print (get-nth-design *player* 0))
                                         #|:ship-type (working-design-of *player*)|#))))
 
 (defun prompt-for-design (uic)

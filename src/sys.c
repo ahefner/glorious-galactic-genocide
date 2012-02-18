@@ -78,12 +78,12 @@ int sys_init (char *title)
 //        window_height = vinf->current_h - 90;
         
         // Minimum supported resolution:
-//        window_width = 800;
-//        window_height = 480;
+        window_width = 800;
+        window_height = 480;
 
         // Expected typical resolution:
-        window_width = 1280;
-        window_height = 800;
+//        window_width = 1280;
+//        window_height = 800;
     }   
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -99,7 +99,6 @@ void sys_shutdown (void)
     SDL_FreeSurface(window_surface);
     SDL_Quit();
 }
-
 
 static long long tv_to_micros (struct timeval *tv)
 {

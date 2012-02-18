@@ -973,8 +973,6 @@
                (format error-stream "------------------------------------------------------------~%")))
            (when signal-error (error "~A" output))
            nil)))))
-    
-    
 
 (with-vars ((swizzles (make-hash-table :test 'equal))
             (last-valid-vid-session nil))
