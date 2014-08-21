@@ -1,4 +1,5 @@
 #!/bin/sh
 
+mkdir -p obj
 ecl -norc -q -eval "(progn (load \"build.lisp\") (quit))"
 
