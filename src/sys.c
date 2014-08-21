@@ -36,7 +36,10 @@ int sys_setvideomode (void)
     SDL_Flip(window_surface);
     SDL_ShowCursor(SDL_ENABLE);
     SDL_EnableUNICODE(1);
-    SDL_GL_SetSwapInterval(1); // Enable VSync
+
+// FIXME: SDL version fuckup. I hate SDL. Fucking nimrods. They change
+// this around, break your code, and vsync still doesn't work on Linux.
+// SDL_GL_SetSwapInterval(1); // Enable VSync
 
     if (GLEW_OK != glewInit()) {
       printf("OpenGL init error.\n");

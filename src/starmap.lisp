@@ -410,12 +410,18 @@
                                (cond
                                  ((zerop units) (format nil "No ~A" name))
                                  ((= units 1) (format nil "Minimal ~A" name))
-                                 (t (format nil "~,1F% ~A (~:D Mm²)" (* 100 units (/ area)) pl (* units units-to-mm))))))
+                                 (t (format nil "~,1F% ~A (~:D Mm~C)"
+                                            (* 100 units (/ area))
+                                            pl
+                                            (* units units-to-mm)
+                                            (squared-char))))))
                         (list (show "Solid Land"        (aref terrains 0))
                               (show "Surface Water"     (aref terrains 1))
                               (show "Surface Ice"       (aref terrains 2))
                               (show "Volcanic Activity" (aref terrains 3) "Volcanically Active")))))
-        (orf area-label (render-label panel :sans 11 (format nil "Total Surface Area: ~:D Mm²" (* area units-to-mm))))
+        (orf area-label (render-label panel :sans 11 (format nil "Total Surface Area: ~:D Mm~C"
+                                                             (* area units-to-mm)
+                                                             (squared-char))))
         (orf col2-labels
             (mapcar (lambda (string) (render-label panel :sans 11 string))
                     (remove nil

@@ -74,7 +74,8 @@
         system::*break-enable* t)
 
   ;; Disable goddamned floating point traps.
-  (ext:trap-fpe 'floating-point-underflow nil)
+  (si:trap-fpe 'floating-point-underflow nil)
+  ;; ..oh, look, ECL moved it from EXT to SI. Fuck you too.
 
   (handler-bind
     (#+NIL

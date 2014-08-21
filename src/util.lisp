@@ -117,6 +117,11 @@ error if SEQUENCE is not a proper sequence."
 ;;; Recent ECL compilers are unreliable regarding non-ASCII
 ;;; characters.
 
+(defun degrees-char ()
+  (code-char #xB0))
+
+(defun squared-char ()
+  (code-char #xB2))
 
 (defun cubed-char ()
   (code-char #xB3))
